@@ -2,6 +2,8 @@ import app from "./app.js";
 import { env } from "./config/env.js";
 import { connectDatabase } from "./config/database.js";
 import { logger } from "./utils/logger.js";
+import { setServers } from "node:dns/promises";
+setServers(["1.1.1.1", "8.8.8.8"]);
 
 async function start() {
   await connectDatabase();
