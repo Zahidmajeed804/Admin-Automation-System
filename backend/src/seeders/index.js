@@ -6,7 +6,7 @@ import { hashPassword } from "../utils/password.js";
 import { User } from "../models/index.js";
 import { logger } from "../utils/logger.js";
 
-async function seedPermissions() {
+export async function seedPermissions() {
   const permissionIdByName = {};
   for (const p of permissionsCatalog) {
     const name = `${p.resource}.${p.action}`;
@@ -25,7 +25,7 @@ async function seedPermissions() {
   return permissionIdByName;
 }
 
-async function seedRoles(permissionIdByName) {
+export async function seedRoles(permissionIdByName) {
   for (const r of defaultRoles) {
     let role = await rbacRepository.findRoleByName(r.name);
     if (!role) {
@@ -44,7 +44,7 @@ async function seedRoles(permissionIdByName) {
   }
 }
 
-async function seedDefaultAdmin() {
+export async function seedDefaultAdmin() {
   const existing = await User.findOne({ email: "admin@admin-automation.local" });
   if (existing) return;
 
@@ -63,11 +63,18 @@ async function seedDefaultAdmin() {
   logger.info("Created default admin user: admin@admin-automation.local / ChangeMe123! (change this password immediately)");
 }
 
+// Convenience wrapper the test suite reuses so it never has to duplicate
+// seedPermissions/seedRoles ordering logic.
+export async function seedRbacCatalog() {
+  const permissionIdByName = await seedPermissions();
+  await seedRoles(permissionIdByName);
+  return permissionIdByName;
+}
+
 async function run() {
   await connectDatabase();
   logger.info("Seeding RBAC data...");
-  const permissionIdByName = await seedPermissions();
-  await seedRoles(permissionIdByName);
+  await seedRbacCatalog();
   await seedDefaultAdmin();
   logger.info("RBAC seeding complete.");
   await disconnectDatabase();
@@ -75,7 +82,11 @@ async function run() {
   process.exit(0);
 }
 
-run().catch((err) => {
-  logger.error(`Seeding failed: ${err.message}`);
-  process.exit(1);
-});
+// ESM equivalent of `require.main === module` — only self-run when invoked
+// directly (`node src/seeders/index.js` / `npm run seed`), never on import.
+if (import.meta.url === `file://${process.argv[1]}`) {
+  run().catch((err) => {
+    logger.error(`Seeding failed: ${err.message}`);
+    process.exit(1);
+  });
+}
