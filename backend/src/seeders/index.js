@@ -1,4 +1,6 @@
 import mongoose from "mongoose";
+import { pathToFileURL } from "node:url";
+import { setServers } from "node:dns/promises";
 import { connectDatabase, disconnectDatabase } from "../config/database.js";
 import { rbacRepository } from "../repositories/rbacRepository.js";
 import { permissionsCatalog, defaultRoles } from "../constants/permissions.js";
@@ -72,6 +74,10 @@ export async function seedRbacCatalog() {
 }
 
 async function run() {
+  // Same resolver override as server.js, so mongodb+srv:// Atlas URIs resolve
+  // on networks whose default DNS refuses SRV lookups. Kept inside run() (not
+  // top-level) so merely importing this module from tests has no side effect.
+  setServers(["1.1.1.1", "8.8.8.8"]);
   await connectDatabase();
   logger.info("Seeding RBAC data...");
   await seedRbacCatalog();
@@ -84,7 +90,11 @@ async function run() {
 
 // ESM equivalent of `require.main === module` — only self-run when invoked
 // directly (`node src/seeders/index.js` / `npm run seed`), never on import.
-if (import.meta.url === `file://${process.argv[1]}`) {
+// pathToFileURL (not a manual `file://` + string concat) is required here:
+// process.argv[1] can be relative and uses OS-native separators, so on
+// Windows a naive comparison against import.meta.url never matches and this
+// guard silently never fires.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   run().catch((err) => {
     logger.error(`Seeding failed: ${err.message}`);
     process.exit(1);
