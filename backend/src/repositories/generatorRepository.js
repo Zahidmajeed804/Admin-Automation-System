@@ -33,4 +33,10 @@ export const generatorRepository = {
 
   updateById: (id, data) => Generator.findByIdAndUpdate(id, data, { new: true }),
   softDeleteById: (id) => Generator.findByIdAndUpdate(id, { isActive: false }, { new: true }),
+
+  // Single-document $inc is atomic in MongoDB, so concurrent log entries
+  // can't lose updates the way a read-modify-write would. Pass a negative
+  // number to subtract.
+  incrementRunningHours: (id, hours) =>
+    Generator.findByIdAndUpdate(id, { $inc: { runningHoursTotal: hours } }, { new: true }),
 };
