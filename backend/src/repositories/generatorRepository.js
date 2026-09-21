@@ -34,6 +34,12 @@ export const generatorRepository = {
   updateById: (id, data) => Generator.findByIdAndUpdate(id, data, { new: true }),
   softDeleteById: (id) => Generator.findByIdAndUpdate(id, { isActive: false }, { new: true }),
 
+  // $max only writes when the new date is later than the stored one (or none
+  // is stored), so completing an OLD job late can never move lastServiceDate
+  // backwards.
+  recordServiceDate: (id, date) =>
+    Generator.findByIdAndUpdate(id, { $max: { lastServiceDate: date } }, { returnDocument: "after" }),
+
   // Single-document $inc is atomic in MongoDB, so concurrent log entries
   // can't lose updates the way a read-modify-write would. Pass a negative
   // number to subtract.

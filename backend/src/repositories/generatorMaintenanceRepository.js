@@ -38,6 +38,16 @@ export const generatorMaintenanceRepository = {
   updateById: (id, data) =>
     GeneratorMaintenance.findByIdAndUpdate(id, data, { new: true, runValidators: true }),
 
+  // Atomic "complete it only if it's still scheduled". The status is part of
+  // the filter, so if two requests race to complete the same record exactly
+  // one matches and the other gets null — which is what stops a double-click
+  // from creating the next recurring occurrence twice.
+  completeIfScheduled: (id, data) =>
+    GeneratorMaintenance.findOneAndUpdate({ _id: id, status: "scheduled" }, data, {
+      returnDocument: "after",
+      runValidators: true,
+    }),
+
   // Returns the deleted document (or null).
   deleteById: (id) => GeneratorMaintenance.findByIdAndDelete(id),
 };
