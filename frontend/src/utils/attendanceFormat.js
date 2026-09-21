@@ -20,6 +20,14 @@ export const formatDate = (iso) =>
     timeZone: "UTC",
   });
 
+// Value for <input type="datetime-local"> (local time, minute precision) from an ISO instant.
+export const toDateTimeLocalValue = (iso) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+
 export const formatDuration = (minutes) => {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;

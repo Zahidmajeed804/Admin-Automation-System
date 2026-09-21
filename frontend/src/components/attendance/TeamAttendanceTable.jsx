@@ -1,10 +1,14 @@
 import { useEffect, useState } from "react";
+import { Pencil } from "lucide-react";
 import { attendanceService } from "../../services/attendanceService";
 import FilterBar from "../common/FilterBar";
 import Select from "../common/Select";
 import Input from "../common/Input";
+import Button from "../common/Button";
 import Table from "../tables/Table";
 import { attendanceColumns } from "./attendanceColumns";
+import EditAttendanceModal from "./EditAttendanceModal";
+import { formatDate } from "../../utils/attendanceFormat";
 
 const PAGE_SIZE = 10;
 
@@ -18,19 +22,16 @@ const statusOptions = [
 
 const noFilters = { userId: "", status: "", startDate: "", endDate: "" };
 
-const columns = [
-  {
-    key: "employee",
-    header: "Employee",
-    render: (row) => (
-      <div className="flex flex-col">
-        <span className="font-medium text-ink">{row.user?.name || "Unknown user"}</span>
-        {row.user?.department && <span className="text-helper text-ink-muted">{row.user.department}</span>}
-      </div>
-    ),
-  },
-  ...attendanceColumns,
-];
+const employeeColumn = {
+  key: "employee",
+  header: "Employee",
+  render: (row) => (
+    <div className="flex flex-col">
+      <span className="font-medium text-ink">{row.user?.name || "Unknown user"}</span>
+      {row.user?.department && <span className="text-helper text-ink-muted">{row.user.department}</span>}
+    </div>
+  ),
+};
 
 /**
  * Attendance records for everyone (manager/admin view), filterable by
@@ -41,6 +42,9 @@ export default function TeamAttendanceTable() {
   const [filters, setFilters] = useState(noFilters);
   const [page, setPage] = useState(1);
   const [attempt, setAttempt] = useState(0);
+  // Bumped after an edit to re-fetch in place, without the loading skeleton.
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [editing, setEditing] = useState(null);
   const [employees, setEmployees] = useState([]);
   const [employeesFailed, setEmployeesFailed] = useState(false);
   // `key` identifies the request the data belongs to; loading = it hasn't arrived yet.
@@ -70,7 +74,7 @@ export default function TeamAttendanceTable() {
     return () => {
       cancelled = true;
     };
-  }, [filters, page, requestKey]);
+  }, [filters, page, requestKey, refreshKey]);
 
   const setFilter = (name, value) => {
     setFilters((f) => {
@@ -97,6 +101,26 @@ export default function TeamAttendanceTable() {
       value: e._id,
       label: e.isActive === false ? `${e.name} (inactive)` : e.name,
     })),
+  ];
+
+  const columns = [
+    employeeColumn,
+    ...attendanceColumns,
+    {
+      key: "actions",
+      header: "",
+      render: (row) => (
+        <Button
+          variant="ghost"
+          size="sm"
+          icon={Pencil}
+          aria-label={`Edit attendance for ${row.user?.name || "unknown user"} on ${formatDate(row.date)}`}
+          onClick={() => setEditing(row)}
+        >
+          Edit
+        </Button>
+      ),
+    },
   ];
 
   const { pagination } = result;
@@ -170,6 +194,14 @@ export default function TeamAttendanceTable() {
             onPageChange: setPage,
           }
         }
+      />
+      <EditAttendanceModal
+        record={editing}
+        onClose={() => setEditing(null)}
+        onSaved={() => {
+          setEditing(null);
+          setRefreshKey((k) => k + 1);
+        }}
       />
     </div>
   );
