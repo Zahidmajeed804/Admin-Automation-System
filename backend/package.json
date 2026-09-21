@@ -8,7 +8,8 @@
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
     "seed": "node src/seeders/index.js",
-    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand"
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand",
+    "test:coverage": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand --coverage"
   },
   "keywords": [],
   "author": "",

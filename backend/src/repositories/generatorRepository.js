@@ -31,8 +31,8 @@ export const generatorRepository = {
     };
   },
 
-  updateById: (id, data) => Generator.findByIdAndUpdate(id, data, { new: true }),
-  softDeleteById: (id) => Generator.findByIdAndUpdate(id, { isActive: false }, { new: true }),
+  updateById: (id, data) => Generator.findByIdAndUpdate(id, data, { returnDocument: "after" }),
+  softDeleteById: (id) => Generator.findByIdAndUpdate(id, { isActive: false }, { returnDocument: "after" }),
 
   // $max only writes when the new date is later than the stored one (or none
   // is stored), so completing an OLD job late can never move lastServiceDate
@@ -44,5 +44,5 @@ export const generatorRepository = {
   // can't lose updates the way a read-modify-write would. Pass a negative
   // number to subtract.
   incrementRunningHours: (id, hours) =>
-    Generator.findByIdAndUpdate(id, { $inc: { runningHoursTotal: hours } }, { new: true }),
+    Generator.findByIdAndUpdate(id, { $inc: { runningHoursTotal: hours } }, { returnDocument: "after" }),
 };

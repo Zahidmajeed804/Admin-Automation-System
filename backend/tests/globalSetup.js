@@ -10,4 +10,6 @@ export default async function globalSetup() {
   // how globalTeardown gets a handle to stop it.
   global.__MONGOD__ = mongod;
   process.env.MONGO_URI = mongod.getUri();
+  // dotenv v17 prints a promotional "tip" banner on every load, once per test file.
+  process.env.DOTENV_CONFIG_QUIET = "true";
 }

@@ -7,6 +7,6 @@ export const userRepository = {
   },
   findById: (id) => User.findById(id),
   create: (data) => User.create(data),
-  updateById: (id, data) => User.findByIdAndUpdate(id, data, { new: true }),
+  updateById: (id, data) => User.findByIdAndUpdate(id, data, { returnDocument: "after" }),
   touchLastLogin: (id) => User.findByIdAndUpdate(id, { lastLoginAt: new Date() }),
 };

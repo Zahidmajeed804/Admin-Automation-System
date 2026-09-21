@@ -36,7 +36,7 @@ export const generatorMaintenanceRepository = {
   // runValidators: findByIdAndUpdate skips schema validation by default, so
   // without it an update could store e.g. status "overdue" or a negative cost.
   updateById: (id, data) =>
-    GeneratorMaintenance.findByIdAndUpdate(id, data, { new: true, runValidators: true }),
+    GeneratorMaintenance.findByIdAndUpdate(id, data, { returnDocument: "after", runValidators: true }),
 
   // Every not-yet-done job across all generators (the alerts feed). Open work
   // is a small, bounded set, so this is not paginated. `isActive` is selected

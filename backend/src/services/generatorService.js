@@ -113,7 +113,12 @@ export const generatorService = {
    */
   async scheduleMaintenance({ generatorId, createdBy, ...fields }) {
     await findActiveGenerator(generatorId);
-    return generatorMaintenanceRepository.create({ ...withoutUndefined(fields), generator: generatorId, createdBy });
+
+    const allowed = withoutUndefined(fields);
+    delete allowed.status; // a new job is always "scheduled"…
+    delete allowed.completedDate; // …and cannot arrive already completed
+
+    return generatorMaintenanceRepository.create({ ...allowed, generator: generatorId, createdBy });
   },
 
   /**

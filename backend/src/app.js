@@ -24,7 +24,8 @@ app.use(compression());
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
-app.use(morgan(isProduction ? "combined" : "dev"));
+// Jest sets NODE_ENV=test; skip the per-request access log so test output stays readable.
+if (env.nodeEnv !== "test") app.use(morgan(isProduction ? "combined" : "dev"));
 
 // Basic rate limiting on the whole API surface; stricter limits (e.g. on
 // /auth/login) get layered on in the module that owns that route.
