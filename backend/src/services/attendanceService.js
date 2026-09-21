@@ -1,4 +1,5 @@
 import { attendanceRepository } from "../repositories/attendanceRepository.js";
+import { userRepository } from "../repositories/userRepository.js";
 import { BadRequestError, ConflictError, NotFoundError } from "../errors/AppError.js";
 
 // Below this many worked minutes in a day, status is "half-day" instead of
@@ -22,6 +23,12 @@ const statusForWorkedMinutes = (minutes) =>
 export const attendanceService = {
   async getToday(userId) {
     return attendanceRepository.findTodayForUser(userId);
+  },
+
+  // People a manager can pick from when filtering attendance by employee.
+  // Includes inactive users so a former employee's history stays reachable.
+  async listEmployees() {
+    return userRepository.listAll();
   },
 
   // Users with canViewAll (attendance.update) may filter by any userId, or omit

@@ -11,6 +11,14 @@ export const attendanceController = {
     });
   }),
 
+  employees: asyncHandler(async (req, res) => {
+    const employees = await attendanceService.listEmployees();
+    sendSuccess(res, {
+      message: "Employees",
+      data: { employees },
+    });
+  }),
+
   list: asyncHandler(async (req, res) => {
     const { userId, status, startDate, endDate, page, pageSize } = req.query;
     const { items, pagination } = await attendanceService.list({

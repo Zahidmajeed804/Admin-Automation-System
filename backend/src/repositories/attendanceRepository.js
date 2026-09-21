@@ -28,6 +28,7 @@ export const attendanceRepository = {
     // alone would let rows shift between pages.
     const [items, totalItems] = await Promise.all([
       Attendance.find(query)
+        .populate("user", "name email department")
         .sort({ date: -1, _id: -1 })
         .skip((page - 1) * pageSize)
         .limit(pageSize),

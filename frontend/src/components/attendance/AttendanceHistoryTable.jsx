@@ -2,40 +2,9 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { attendanceService } from "../../services/attendanceService";
 import Table from "../tables/Table";
-import Badge from "../common/Badge";
-import {
-  formatDate,
-  formatTime,
-  formatDuration,
-  statusBadgeKey,
-} from "../../utils/attendanceFormat";
+import { attendanceColumns } from "./attendanceColumns";
 
 const PAGE_SIZE = 10;
-
-const columns = [
-  { key: "date", header: "Date", render: (row) => formatDate(row.date) },
-  { key: "clockIn", header: "Clock in", render: (row) => (row.clockIn ? formatTime(row.clockIn) : "—") },
-  { key: "clockOut", header: "Clock out", render: (row) => (row.clockOut ? formatTime(row.clockOut) : "—") },
-  {
-    key: "workedMinutes",
-    header: "Worked",
-    // workedMinutes is only final once the day is clocked out.
-    render: (row) => (row.clockOut ? formatDuration(row.workedMinutes) : "—"),
-  },
-  { key: "status", header: "Status", render: (row) => <Badge status={statusBadgeKey[row.status]} /> },
-  {
-    key: "notes",
-    header: "Notes",
-    render: (row) =>
-      row.notes ? (
-        <span className="block max-w-[16rem] truncate" title={row.notes}>
-          {row.notes}
-        </span>
-      ) : (
-        "—"
-      ),
-  },
-];
 
 /**
  * The signed-in user's own attendance history, newest first. Always filters by
@@ -77,7 +46,7 @@ export default function AttendanceHistoryTable({ refreshKey = 0 }) {
 
   return (
     <Table
-      columns={columns}
+      columns={attendanceColumns}
       data={result.items}
       keyField="_id"
       loading={loading}
