@@ -38,11 +38,20 @@ export const generatorMaintenanceRepository = {
   updateById: (id, data) =>
     GeneratorMaintenance.findByIdAndUpdate(id, data, { new: true, runValidators: true }),
 
-  // Atomic "complete it only if it's still scheduled". The status is part of
-  // the filter, so if two requests race to complete the same record exactly
-  // one matches and the other gets null — which is what stops a double-click
-  // from creating the next recurring occurrence twice.
-  completeIfScheduled: (id, data) =>
+  // Every not-yet-done job across all generators (the alerts feed). Open work
+  // is a small, bounded set, so this is not paginated. `isActive` is selected
+  // so callers can skip jobs belonging to soft-deleted generators.
+  listOpen: () =>
+    GeneratorMaintenance.find({ status: "scheduled" })
+      .sort({ scheduledDate: 1, createdAt: 1 })
+      .populate("generator", "tag name isActive"),
+
+  // Atomic "update it only if it's still scheduled". The status is part of
+  // the filter, so if two requests race — two completions, or a cancel against
+  // a completion — exactly one matches and the other gets null. That is what
+  // stops a double-click creating the next recurring occurrence twice, and
+  // stops a cancel overwriting a job that was just completed.
+  updateIfScheduled: (id, data) =>
     GeneratorMaintenance.findOneAndUpdate({ _id: id, status: "scheduled" }, data, {
       returnDocument: "after",
       runValidators: true,

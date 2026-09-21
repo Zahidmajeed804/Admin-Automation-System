@@ -1,4 +1,4 @@
-import { body } from "express-validator";
+import { body, query } from "express-validator";
 import { runValidation } from "./authValidators.js";
 
 // Must stay in sync with the enums on models/Generator.js.
@@ -37,6 +37,67 @@ export const createGeneratorLogValidator = [
   body("fuelConsumedLiters").optional().isFloat({ min: 0 }).withMessage("fuelConsumedLiters must be a non-negative number"),
   body("reason").optional().trim(),
   body("notes").optional().trim(),
+  runValidation,
+];
+
+// Must stay in sync with the enums on models/GeneratorMaintenance.js.
+const MAINTENANCE_TYPES = ["scheduled", "unscheduled", "inspection"];
+
+const maintenanceOptionalFields = [
+  body("type").optional().isIn(MAINTENANCE_TYPES).withMessage(`type must be one of: ${MAINTENANCE_TYPES.join(", ")}`),
+  body("alertThresholdDays").optional().isInt({ min: 0 }).withMessage("alertThresholdDays must be a whole number of days, 0 or more"),
+  body("performedBy").optional().trim(),
+  body("cost").optional().isFloat({ min: 0 }).withMessage("cost must be a non-negative number"),
+  body("partsReplaced").optional().trim(),
+  body("notes").optional().trim(),
+];
+
+export const createMaintenanceValidator = [
+  body("generatorId").isMongoId().withMessage("generatorId must be a valid id"),
+  body("description").trim().notEmpty().withMessage("description is required"),
+  body("scheduledDate").isISO8601().withMessage("scheduledDate is required and must be a valid date"),
+  body("intervalDays").optional().isInt({ min: 1 }).withMessage("intervalDays must be a whole number of days, 1 or more"),
+  ...maintenanceOptionalFields,
+  runValidation,
+];
+
+// PATCH does one of three things: edit a job, cancel it (status "cancelled"),
+// or complete it (status "completed"). Completing goes through its own
+// service operation, so it must not be mixed with schedule edits.
+const EDIT_ONLY_FIELDS = ["description", "type", "scheduledDate", "intervalDays", "alertThresholdDays"];
+
+export const updateMaintenanceValidator = [
+  body("status")
+    .optional()
+    .isIn(["completed", "cancelled"])
+    .withMessage('status can only be set to "completed" or "cancelled"')
+    .bail()
+    .custom((status, { req }) => {
+      if (status !== "completed") return true;
+      const clash = EDIT_ONLY_FIELDS.filter((f) => req.body[f] !== undefined);
+      if (clash.length) throw new Error(`Complete a job on its own; to change ${clash.join(", ")}, send a separate request`);
+      return true;
+    }),
+  body("completedDate")
+    .optional()
+    .isISO8601()
+    .withMessage("completedDate must be a valid date")
+    .bail()
+    .custom((_, { req }) => {
+      if (req.body.status !== "completed") throw new Error('completedDate can only be sent together with status "completed"');
+      return true;
+    }),
+  body("description").optional().trim().notEmpty().withMessage("description cannot be empty"),
+  body("scheduledDate").optional().isISO8601().withMessage("scheduledDate must be a valid date"),
+  body("intervalDays").optional({ nullable: true }).isInt({ min: 1 }).withMessage("intervalDays must be a whole number of days, 1 or more (or null to stop repeating)"),
+  ...maintenanceOptionalFields,
+  runValidation,
+];
+
+export const maintenanceAlertsValidator = [
+  // No .toInt(): in Express 5 req.query is read-only, so a sanitizer can't write
+  // the converted value back. The controller converts it with Number().
+  query("withinDays").optional().isInt({ min: 0, max: 365 }).withMessage("withinDays must be a whole number between 0 and 365"),
   runValidation,
 ];
 
