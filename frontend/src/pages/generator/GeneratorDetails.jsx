@@ -4,14 +4,9 @@ import Badge from "../../components/common/Badge";
 import { LoadingSpinner } from "../../components/common/Loading";
 import ErrorState from "../../components/common/ErrorState";
 import { generatorService } from "../../services/generatorService";
+import { formatDate } from "../../utils/formatDate";
 
 const RECENT_LOGS_COUNT = 5;
-
-// No date-formatting utility exists in the codebase yet — this is the
-// first page to need one. Kept local rather than extracted, since it's
-// one line; worth promoting to a shared helper once a second page
-// (Logs/Maintenance, S2.3/S2.4) needs the same formatting.
-const formatDate = (iso) => (iso ? new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "—");
 
 /**
  * Read-only detail view for one generator: its specs, its most recent
