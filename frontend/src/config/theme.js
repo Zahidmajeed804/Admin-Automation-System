@@ -62,6 +62,18 @@ export const statusStyles = {
   under_maintenance: { label: "Under Maintenance", color: colors.warning, bg: "#FFFBEB" },
   faulty: { label: "Faulty", color: colors.error, bg: "#FEF2F2" },
   decommissioned: { label: "Decommissioned", color: colors.textMuted, bg: "#F8FAFC" },
+
+  // Generator maintenance alertStatus (computed by the backend, never
+  // stored — see generatorService.computeAlertStatus) plus the two real
+  // stored statuses that aren't alerts, "completed" and "cancelled".
+  overdue: { label: "Overdue", color: colors.error, bg: "#FEF2F2" },
+  upcoming: { label: "Upcoming", color: colors.warning, bg: "#FFFBEB" },
+  // "scheduled" reuses the existing generic `info` key's colors but needs
+  // its own entry so Badge's default label lookup (style?.label) resolves
+  // to "Scheduled" instead of "Info".
+  scheduled: { label: "Scheduled", color: colors.info, bg: "#F0F9FF" },
+  completed: { label: "Completed", color: colors.success, bg: "#F0FDF4" },
+  cancelled: { label: "Cancelled", color: colors.textMuted, bg: "#F8FAFC" },
 };
 
 export const layout = {

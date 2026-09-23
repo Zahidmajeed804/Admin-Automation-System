@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Zap, Wrench, AlertTriangle, Plus, Pencil, Trash2 } from "lucide-react";
+import { Zap, Wrench, AlertTriangle, Plus, Eye, Pencil, Trash2 } from "lucide-react";
 import PageHeader from "../../components/common/PageHeader";
 import StatCard from "../../components/common/StatCard";
 import FilterBar from "../../components/common/FilterBar";
@@ -9,6 +9,7 @@ import Button from "../../components/common/Button";
 import ConfirmDialog from "../../components/modals/ConfirmDialog";
 import Table from "../../components/tables/Table";
 import GeneratorForm, { extractErrorMessage } from "./GeneratorForm";
+import GeneratorDetails from "./GeneratorDetails";
 import { generatorService } from "../../services/generatorService";
 
 const PAGE_SIZE = 10;
@@ -20,7 +21,7 @@ const STATUS_OPTIONS = [
   { value: "decommissioned", label: "Decommissioned" },
 ];
 
-function buildColumns({ onEdit, onDelete }) {
+function buildColumns({ onView, onEdit, onDelete }) {
   return [
     { key: "tag", header: "Tag", render: (row) => <span className="font-medium text-ink">{row.tag}</span> },
     { key: "name", header: "Name" },
@@ -36,6 +37,7 @@ function buildColumns({ onEdit, onDelete }) {
       header: "",
       render: (row) => (
         <div className="flex items-center justify-end gap-1">
+          <Button variant="ghost" size="sm" icon={Eye} aria-label={`View ${row.tag}`} onClick={() => onView(row)} />
           <Button variant="ghost" size="sm" icon={Pencil} aria-label={`Edit ${row.tag}`} onClick={() => onEdit(row)} />
           <Button variant="ghost" size="sm" icon={Trash2} aria-label={`Delete ${row.tag}`} onClick={() => onDelete(row)} />
         </div>
@@ -56,6 +58,7 @@ export default function GeneratorPage() {
 
   const [formOpen, setFormOpen] = useState(false);
   const [editingGenerator, setEditingGenerator] = useState(null);
+  const [viewingGenerator, setViewingGenerator] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleteError, setDeleteError] = useState(null);
   const [deleting, setDeleting] = useState(false);
@@ -155,7 +158,11 @@ export default function GeneratorPage() {
     }
   };
 
-  const columns = buildColumns({ onEdit: openEditForm, onDelete: (row) => setDeleteTarget(row) });
+  const columns = buildColumns({
+    onView: (row) => setViewingGenerator(row),
+    onEdit: openEditForm,
+    onDelete: (row) => setDeleteTarget(row),
+  });
 
   return (
     <div className="flex flex-col gap-5">
@@ -221,6 +228,12 @@ export default function GeneratorPage() {
           pageSize: meta.pageSize,
           onPageChange: setPage,
         }}
+      />
+
+      <GeneratorDetails
+        open={Boolean(viewingGenerator)}
+        onClose={() => setViewingGenerator(null)}
+        generator={viewingGenerator}
       />
 
       <GeneratorForm
