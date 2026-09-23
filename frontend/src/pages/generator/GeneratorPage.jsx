@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
-import { Zap, Wrench, AlertTriangle } from "lucide-react";
+import { Zap, Wrench, AlertTriangle, Plus, Pencil, Trash2 } from "lucide-react";
 import PageHeader from "../../components/common/PageHeader";
 import StatCard from "../../components/common/StatCard";
 import FilterBar from "../../components/common/FilterBar";
 import Select from "../../components/common/Select";
 import Badge from "../../components/common/Badge";
+import Button from "../../components/common/Button";
+import ConfirmDialog from "../../components/modals/ConfirmDialog";
 import Table from "../../components/tables/Table";
+import GeneratorForm, { extractErrorMessage } from "./GeneratorForm";
 import { generatorService } from "../../services/generatorService";
 
 const PAGE_SIZE = 10;
@@ -17,17 +20,29 @@ const STATUS_OPTIONS = [
   { value: "decommissioned", label: "Decommissioned" },
 ];
 
-const COLUMNS = [
-  { key: "tag", header: "Tag", render: (row) => <span className="font-medium text-ink">{row.tag}</span> },
-  { key: "name", header: "Name" },
-  { key: "location", header: "Location", render: (row) => row.location || "—" },
-  { key: "status", header: "Status", render: (row) => <Badge status={row.status} /> },
-  {
-    key: "runningHoursTotal",
-    header: "Running Hours",
-    render: (row) => row.runningHoursTotal.toFixed(1),
-  },
-];
+function buildColumns({ onEdit, onDelete }) {
+  return [
+    { key: "tag", header: "Tag", render: (row) => <span className="font-medium text-ink">{row.tag}</span> },
+    { key: "name", header: "Name" },
+    { key: "location", header: "Location", render: (row) => row.location || "—" },
+    { key: "status", header: "Status", render: (row) => <Badge status={row.status} /> },
+    {
+      key: "runningHoursTotal",
+      header: "Running Hours",
+      render: (row) => row.runningHoursTotal.toFixed(1),
+    },
+    {
+      key: "actions",
+      header: "",
+      render: (row) => (
+        <div className="flex items-center justify-end gap-1">
+          <Button variant="ghost" size="sm" icon={Pencil} aria-label={`Edit ${row.tag}`} onClick={() => onEdit(row)} />
+          <Button variant="ghost" size="sm" icon={Trash2} aria-label={`Delete ${row.tag}`} onClick={() => onDelete(row)} />
+        </div>
+      ),
+    },
+  ];
+}
 
 export default function GeneratorPage() {
   const [items, setItems] = useState([]);
@@ -38,6 +53,12 @@ export default function GeneratorPage() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
   const [page, setPage] = useState(1);
+
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingGenerator, setEditingGenerator] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteError, setDeleteError] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   // The list endpoint only returns totals for the current filter, so the
   // three status counts are three cheap, parallel pageSize:1 requests read
@@ -106,6 +127,36 @@ export default function GeneratorPage() {
     setPage(1);
   };
 
+  const openCreateForm = () => {
+    setEditingGenerator(null);
+    setFormOpen(true);
+  };
+  const openEditForm = (generator) => {
+    setEditingGenerator(generator);
+    setFormOpen(true);
+  };
+  const handleSaved = () => {
+    setFormOpen(false);
+    setEditingGenerator(null);
+    load();
+  };
+
+  const handleDeleteConfirm = async () => {
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await generatorService.deleteGenerator(deleteTarget._id);
+      setDeleteTarget(null);
+      load();
+    } catch (err) {
+      setDeleteError(extractErrorMessage(err));
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const columns = buildColumns({ onEdit: openEditForm, onDelete: (row) => setDeleteTarget(row) });
+
   return (
     <div className="flex flex-col gap-5">
       <PageHeader title="Generator Management" description="Track the organization's backup generators." />
@@ -147,10 +198,15 @@ export default function GeneratorPage() {
           />
         }
         onReset={search || status ? handleReset : undefined}
+        actions={
+          <Button icon={Plus} onClick={openCreateForm}>
+            Add Generator
+          </Button>
+        }
       />
 
       <Table
-        columns={COLUMNS}
+        columns={columns}
         data={items}
         loading={loading}
         error={error}
@@ -165,6 +221,28 @@ export default function GeneratorPage() {
           pageSize: meta.pageSize,
           onPageChange: setPage,
         }}
+      />
+
+      <GeneratorForm
+        open={formOpen}
+        generator={editingGenerator}
+        onClose={() => setFormOpen(false)}
+        onSaved={handleSaved}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onClose={() => {
+          setDeleteTarget(null);
+          setDeleteError(null);
+        }}
+        onConfirm={handleDeleteConfirm}
+        loading={deleting}
+        title="Delete generator?"
+        description={
+          deleteError ||
+          `This will remove ${deleteTarget?.tag ?? "this generator"} from the registry. Its logs and maintenance history are kept.`
+        }
       />
     </div>
   );
