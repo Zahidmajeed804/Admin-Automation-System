@@ -56,6 +56,12 @@ export const statusStyles = {
   info: { label: "Info", color: colors.info, bg: "#F0F9FF" },
   weekend: { label: "Weekend", color: colors.textMuted, bg: "#F8FAFC" },
   holiday: { label: "Holiday", color: colors.info, bg: "#F0F9FF" },
+
+  // Generator asset status (Generator.status)
+  operational: { label: "Operational", color: colors.success, bg: "#F0FDF4" },
+  under_maintenance: { label: "Under Maintenance", color: colors.warning, bg: "#FFFBEB" },
+  faulty: { label: "Faulty", color: colors.error, bg: "#FEF2F2" },
+  decommissioned: { label: "Decommissioned", color: colors.textMuted, bg: "#F8FAFC" },
 };
 
 export const layout = {
