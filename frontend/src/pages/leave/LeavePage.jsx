@@ -5,6 +5,7 @@ import PageHeader from "../../components/common/PageHeader";
 import Button from "../../components/common/Button";
 import RequestLeaveModal from "../../components/leave/RequestLeaveModal";
 import LeaveHistoryTable from "../../components/leave/LeaveHistoryTable";
+import PendingLeaveTable from "../../components/leave/PendingLeaveTable";
 import { formatDate } from "../../utils/attendanceFormat";
 
 export default function LeavePage() {
@@ -16,6 +17,9 @@ export default function LeavePage() {
 
   // Requesting is for users who can submit leave; the API enforces the same rule independently.
   const canRequest = hasPermission("leave.create");
+  // Approve and reject are separate permissions; the pending list is for anyone who holds either.
+  const canApprove = hasPermission("leave.approve");
+  const canReject = hasPermission("leave.reject");
 
   return (
     <>
@@ -45,6 +49,12 @@ export default function LeavePage() {
           {submitted.totalDays > 1 && ` to ${formatDate(submitted.endDate)}`} ({submitted.totalDays}{" "}
           {submitted.totalDays === 1 ? "day" : "days"}). It is pending approval.
         </div>
+      )}
+      {(canApprove || canReject) && (
+        <section className="flex flex-col gap-3">
+          <h2 className="text-section-heading text-ink">Pending approvals</h2>
+          <PendingLeaveTable canApprove={canApprove} canReject={canReject} refreshKey={refreshKey} />
+        </section>
       )}
       <section className="flex flex-col gap-3">
         <h2 className="text-section-heading text-ink">My leave requests</h2>
