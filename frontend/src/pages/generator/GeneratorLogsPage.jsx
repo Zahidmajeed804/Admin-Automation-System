@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
+import { Plus } from "lucide-react";
 import PageHeader from "../../components/common/PageHeader";
 import FilterBar from "../../components/common/FilterBar";
 import Select from "../../components/common/Select";
 import Input from "../../components/common/Input";
+import Button from "../../components/common/Button";
 import Table from "../../components/tables/Table";
+import GeneratorLogForm from "./GeneratorLogForm";
 import { generatorService } from "../../services/generatorService";
 import { formatDate } from "../../utils/formatDate";
 
@@ -50,6 +53,8 @@ export default function GeneratorLogsPage() {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [page, setPage] = useState(1);
+
+  const [formOpen, setFormOpen] = useState(false);
 
   useEffect(() => {
     generatorService
@@ -104,6 +109,11 @@ export default function GeneratorLogsPage() {
     setPage(1);
   };
 
+  const handleLogSaved = () => {
+    setFormOpen(false);
+    load();
+  };
+
   return (
     <div className="flex flex-col gap-5">
       <PageHeader title="Fuel & Usage Logs" description="Runtime and refueling history across every generator." />
@@ -122,6 +132,11 @@ export default function GeneratorLogsPage() {
           </>
         }
         onReset={generatorId || from || to ? handleReset : undefined}
+        actions={
+          <Button icon={Plus} onClick={() => setFormOpen(true)}>
+            Add Log
+          </Button>
+        }
       />
 
       <Table
@@ -140,6 +155,14 @@ export default function GeneratorLogsPage() {
           pageSize: meta.pageSize,
           onPageChange: setPage,
         }}
+      />
+
+      <GeneratorLogForm
+        open={formOpen}
+        onClose={() => setFormOpen(false)}
+        onSaved={handleLogSaved}
+        generatorOptions={generatorOptions}
+        defaultGeneratorId={generatorId}
       />
     </div>
   );
