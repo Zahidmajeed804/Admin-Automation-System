@@ -1,9 +1,10 @@
 import { attendanceRepository } from "../repositories/attendanceRepository.js";
 import { userRepository } from "../repositories/userRepository.js";
+import { overtimeRepository } from "../repositories/overtimeRepository.js";
+import { env } from "../config/env.js";
 import { BadRequestError, ConflictError, NotFoundError } from "../errors/AppError.js";
 
-// Below this many worked minutes in a day, status is "half-day" instead of
-// "present". (Overtime — worked minutes ABOVE a threshold — is Story 2.1.)
+// Below this many worked minutes in a day, status is "half-day" instead of "present".
 const HALF_DAY_THRESHOLD_MINUTES = 240;
 
 const DEFAULT_PAGE_SIZE = 20;
@@ -89,7 +90,19 @@ export const attendanceService = {
     const workedMinutes = minutesBetween(record.clockIn, now);
     const status = statusForWorkedMinutes(workedMinutes);
 
-    return attendanceRepository.updateById(record._id, { clockOut: now, workedMinutes, status });
+    const updated = await attendanceRepository.updateById(record._id, { clockOut: now, workedMinutes, status });
+
+    const overtimeMinutes = workedMinutes - env.overtimeThresholdMinutes;
+    if (overtimeMinutes > 0) {
+      await overtimeRepository.createForAttendance({
+        user: userId,
+        attendance: record._id,
+        date: record.date,
+        overtimeMinutes,
+      });
+    }
+
+    return updated;
   },
 
   // Manager/admin correction. Changing clock times recomputes workedMinutes and

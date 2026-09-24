@@ -12,6 +12,8 @@ export const env = {
   jwtSecret: process.env.JWT_SECRET || "dev_secret_change_me",
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || "7d",
   clientOrigin: process.env.CLIENT_ORIGIN || "http://localhost:5173",
+  // Worked minutes per day above which the excess becomes overtime (SRS: 10 hours).
+  overtimeThresholdMinutes: Number(process.env.OVERTIME_THRESHOLD_MINUTES) || 600,
 };
 
 export const isProduction = env.nodeEnv === "production";
