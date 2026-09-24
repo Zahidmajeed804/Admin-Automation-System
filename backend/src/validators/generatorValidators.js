@@ -35,6 +35,33 @@ export const createGeneratorLogValidator = [
   body("meterReadingHours").optional().isFloat({ min: 0 }).withMessage("meterReadingHours must be a non-negative number"),
   body("fuelAddedLiters").optional().isFloat({ min: 0 }).withMessage("fuelAddedLiters must be a non-negative number"),
   body("fuelConsumedLiters").optional().isFloat({ min: 0 }).withMessage("fuelConsumedLiters must be a non-negative number"),
+  body("openingFuelLiters").optional().isFloat({ min: 0 }).withMessage("openingFuelLiters must be a non-negative number"),
+  body("closingFuelLiters")
+    .optional()
+    .isFloat({ min: 0 })
+    .withMessage("closingFuelLiters must be a non-negative number")
+    .bail()
+    .custom((closing, { req }) => {
+      const { openingFuelLiters, fuelAddedLiters } = req.body;
+      if (openingFuelLiters === undefined) return true;
+      if (Number(closing) > Number(openingFuelLiters) + Number(fuelAddedLiters ?? 0)) {
+        throw new Error("closingFuelLiters cannot exceed openingFuelLiters plus fuelAddedLiters");
+      }
+      return true;
+    }),
+  body("fuelCostPerLiter")
+    .optional()
+    .isFloat({ min: 0 })
+    .withMessage("fuelCostPerLiter must be a non-negative number")
+    .bail()
+    .custom((_, { req }) => {
+      if (!(Number(req.body.fuelAddedLiters) > 0)) {
+        throw new Error("fuelCostPerLiter needs fuelAddedLiters greater than 0");
+      }
+      return true;
+    }),
+  body("fuelCostTotal").optional().isFloat({ min: 0 }).withMessage("fuelCostTotal must be a non-negative number"),
+  body("fuelVendor").optional().trim(),
   body("reason").optional().trim(),
   body("notes").optional().trim(),
   runValidation,
