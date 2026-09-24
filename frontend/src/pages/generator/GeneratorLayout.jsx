@@ -6,8 +6,8 @@ import Tabs from "../../components/common/Tabs";
 // bookmarked and the browser's back button works. Maintenance and Reports
 // get added here when those pages are built.
 const GENERATOR_TABS = [
-  { value: "/generator", label: "Registry" },
-  { value: "/generator/logs", label: "Fuel & Usage Logs" },
+  { id: "registry", path: "/generator", label: "Registry" },
+  { id: "logs", path: "/generator/logs", label: "Fuel & Usage Logs" },
 ];
 
 /**
@@ -21,13 +21,18 @@ export default function GeneratorLayout() {
 
   // The longest matching path wins, so "/generator/logs" doesn't also match "/generator".
   const active = [...GENERATOR_TABS]
-    .sort((a, b) => b.value.length - a.value.length)
-    .find((tab) => pathname === tab.value || pathname.startsWith(`${tab.value}/`));
+    .sort((a, b) => b.path.length - a.path.length)
+    .find((tab) => pathname === tab.path || pathname.startsWith(`${tab.path}/`));
 
   return (
     <div className="flex flex-col gap-5">
       <PageHeader title="Generator Management" description="Track the organization's backup generators, their fuel and running hours." />
-      <Tabs tabs={GENERATOR_TABS} value={active?.value} onChange={navigate} />
+      <Tabs
+        tabs={GENERATOR_TABS}
+        value={active?.id}
+        onChange={(id) => navigate(GENERATOR_TABS.find((tab) => tab.id === id).path)}
+        label="Generator sections"
+      />
       <Outlet />
     </div>
   );

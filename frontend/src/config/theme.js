@@ -42,6 +42,7 @@ export const statusStyles = {
 
   pending: { label: "Pending", color: colors.warning, bg: "#FFFBEB" },
   halfDay: { label: "Half Day", color: colors.warning, bg: "#FFFBEB" },
+  late: { label: "Late", color: colors.warning, bg: "#FFFBEB" },
   lowStock: { label: "Low Stock", color: colors.warning, bg: "#FFFBEB" },
   maintenance: { label: "Maintenance", color: colors.warning, bg: "#FFFBEB" },
   onLeave: { label: "On Leave", color: colors.warning, bg: "#FFFBEB" },

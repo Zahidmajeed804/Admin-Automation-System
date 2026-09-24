@@ -89,6 +89,7 @@ export const defaultRoles = [
       "inventory.read",
       "generator.read", "generator_log.create",
       "attendance.read", "attendance.create",
+      "overtime.read",
       "leave.read", "leave.create",
       "dashboard.read",
     ],

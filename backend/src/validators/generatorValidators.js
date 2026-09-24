@@ -1,5 +1,5 @@
 import { body, query } from "express-validator";
-import { runValidation } from "./authValidators.js";
+import { runValidation } from "../middleware/runValidation.js";
 
 // Must stay in sync with the enums on models/Generator.js.
 const FUEL_TYPES = ["diesel", "petrol", "gas"];

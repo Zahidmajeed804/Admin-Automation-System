@@ -1,69 +1,56 @@
-import { useRef } from "react";
 import clsx from "clsx";
 
 /**
- * Generic controlled tab strip. Not routing-aware — pages that need each
- * tab to be its own URL (e.g. Generator's registry/logs/maintenance) wire
- * `value`/`onChange` to useLocation/useNavigate themselves; a page that
- * just wants to switch between local views can use plain useState instead.
- *
- * `tabs` is [{ value, label }]. Follows the WAI-ARIA tabs pattern: arrow
- * keys move focus and select, Home/End jump to the first/last tab.
+ * Controlled tab bar. `tabs` is [{ id, label }]; render the matching panel
+ * yourself with role="tabpanel", id={`panel-${id}`} and aria-labelledby={`tab-${id}`}.
+ * Left/Right arrows move between tabs (roving tabindex); Home/End jump to the
+ * first/last tab. Not routing-aware: a page whose tabs are URLs (Generator)
+ * maps `value`/`onChange` to the route itself.
  */
-export default function Tabs({ tabs, value, onChange, className }) {
-  const tabRefs = useRef([]);
-
-  const focusAndSelect = (index) => {
-    const tab = tabs[index];
-    tabRefs.current[index]?.focus();
-    onChange(tab.value);
+export default function Tabs({ tabs, value, onChange, label = "Sections" }) {
+  const select = (index) => {
+    const next = tabs[index];
+    onChange(next.id);
+    document.getElementById(`tab-${next.id}`)?.focus();
   };
 
   const handleKeyDown = (event, index) => {
-    switch (event.key) {
-      case "ArrowRight":
-        event.preventDefault();
-        focusAndSelect((index + 1) % tabs.length);
-        break;
-      case "ArrowLeft":
-        event.preventDefault();
-        focusAndSelect((index - 1 + tabs.length) % tabs.length);
-        break;
-      case "Home":
-        event.preventDefault();
-        focusAndSelect(0);
-        break;
-      case "End":
-        event.preventDefault();
-        focusAndSelect(tabs.length - 1);
-        break;
-      default:
-        break;
+    if (event.key === "ArrowRight") {
+      event.preventDefault();
+      select((index + 1) % tabs.length);
+    } else if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      select((index - 1 + tabs.length) % tabs.length);
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      select(0);
+    } else if (event.key === "End") {
+      event.preventDefault();
+      select(tabs.length - 1);
     }
   };
 
   return (
-    <div role="tablist" className={clsx("flex items-center gap-1 border-b border-border", className)}>
+    <div role="tablist" aria-label={label} className="flex gap-1 border-b border-border">
       {tabs.map((tab, index) => {
-        const selected = tab.value === value;
+        const selected = tab.id === value;
         return (
           <button
-            key={tab.value}
-            ref={(el) => (tabRefs.current[index] = el)}
-            role="tab"
+            key={tab.id}
+            id={`tab-${tab.id}`}
             type="button"
-            id={`tab-${tab.value}`}
+            role="tab"
             aria-selected={selected}
-            aria-controls={`tabpanel-${tab.value}`}
+            aria-controls={`panel-${tab.id}`}
             tabIndex={selected ? 0 : -1}
-            onClick={() => onChange(tab.value)}
+            onClick={() => onChange(tab.id)}
             onKeyDown={(event) => handleKeyDown(event, index)}
             className={clsx(
-              "px-4 py-2.5 text-body font-medium border-b-2 -mb-px transition-colors duration-150",
+              "px-4 py-2.5 -mb-px border-b-2 text-body font-medium whitespace-nowrap transition-colors duration-150",
               "focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 rounded-t-md",
               selected
                 ? "border-primary text-primary"
-                : "border-transparent text-ink-muted hover:text-ink-secondary"
+                : "border-transparent text-ink-secondary hover:text-ink"
             )}
           >
             {tab.label}
