@@ -47,7 +47,9 @@ export default function AppRoutes() {
           <Route element={<ProtectedRoute permission="attendance.read" />}>
             <Route path="/attendance" element={<AttendancePage />} />
           </Route>
-          <Route path="/attendance/overtime" element={<OvertimePage />} />
+          <Route element={<ProtectedRoute permission="overtime.read" />}>
+            <Route path="/attendance/overtime" element={<OvertimePage />} />
+          </Route>
           <Route
             path="/attendance/leave"
             element={<ComingSoon title="Leave" moduleLabel="Module 5 — Attendance & Overtime" />}
