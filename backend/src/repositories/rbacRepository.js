@@ -17,7 +17,7 @@ export const rbacRepository = {
     UserRole.findOneAndUpdate(
       { user: userId, role: roleId },
       { user: userId, role: roleId },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: "after" }
     ),
   removeRoleFromUser: (userId, roleId) => UserRole.deleteOne({ user: userId, role: roleId }),
   findRolesForUser: async (userId) => {
@@ -30,7 +30,7 @@ export const rbacRepository = {
     RolePermission.findOneAndUpdate(
       { role: roleId, permission: permissionId },
       { role: roleId, permission: permissionId },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: "after" }
     ),
   removePermissionFromRole: (roleId, permissionId) =>
     RolePermission.deleteOne({ role: roleId, permission: permissionId }),

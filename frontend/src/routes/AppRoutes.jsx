@@ -11,6 +11,8 @@ import GiveawaysPage from "../pages/giveaways/GiveawaysPage";
 import InventoryPage from "../pages/inventory/InventoryPage";
 import GeneratorPage from "../pages/generator/GeneratorPage";
 import AttendancePage from "../pages/attendance/AttendancePage";
+import OvertimePage from "../pages/overtime/OvertimePage";
+import LeavePage from "../pages/leave/LeavePage";
 import ReportsPage from "../pages/reports/ReportsPage";
 import NotificationsPage from "../pages/notifications/NotificationsPage";
 import ProfilePage from "../pages/profile/ProfilePage";
@@ -42,9 +44,15 @@ export default function AppRoutes() {
           <Route path="/generator" element={<GeneratorPage />} />
           <Route path="/generator/logs" element={<GeneratorPage />} />
           <Route path="/generator/maintenance" element={<GeneratorPage />} />
-          <Route path="/attendance" element={<AttendancePage />} />
-          <Route path="/attendance/overtime" element={<AttendancePage />} />
-          <Route path="/attendance/leave" element={<AttendancePage />} />
+          <Route element={<ProtectedRoute permission="attendance.read" />}>
+            <Route path="/attendance" element={<AttendancePage />} />
+          </Route>
+          <Route element={<ProtectedRoute permission="overtime.read" />}>
+            <Route path="/attendance/overtime" element={<OvertimePage />} />
+          </Route>
+          <Route element={<ProtectedRoute permission="leave.read" />}>
+            <Route path="/attendance/leave" element={<LeavePage />} />
+          </Route>
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/profile" element={<ProfilePage />} />

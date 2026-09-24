@@ -1,6 +1,7 @@
 import { NavLink } from "react-router-dom";
 import { ShieldCheck, X } from "lucide-react";
 import clsx from "clsx";
+import { useAuth } from "../../context/AuthContext";
 import { navSections } from "../../constants/navigation";
 
 /**
@@ -8,6 +9,7 @@ import { navSections } from "../../constants/navigation";
  * Same component renders both — only the wrapping classes differ by breakpoint.
  */
 export default function Sidebar({ open, onClose }) {
+  const { hasPermission } = useAuth();
   const content = (
     <div className="flex h-full flex-col bg-white">
       <div className="flex items-center gap-2.5 px-5 h-16 border-b border-border flex-shrink-0">
@@ -35,10 +37,11 @@ export default function Sidebar({ open, onClose }) {
                 {section.label}
               </p>
             )}
-            {section.items.map((item) => (
+            {section.items.filter((item) => !item.permission || hasPermission(item.permission)).map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}
+                end={item.end}
                 onClick={onClose}
                 className={({ isActive }) =>
                   clsx(
