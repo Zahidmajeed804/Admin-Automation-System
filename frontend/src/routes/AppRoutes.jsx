@@ -12,12 +12,12 @@ import InventoryPage from "../pages/inventory/InventoryPage";
 import GeneratorPage from "../pages/generator/GeneratorPage";
 import AttendancePage from "../pages/attendance/AttendancePage";
 import OvertimePage from "../pages/overtime/OvertimePage";
+import LeavePage from "../pages/leave/LeavePage";
 import ReportsPage from "../pages/reports/ReportsPage";
 import NotificationsPage from "../pages/notifications/NotificationsPage";
 import ProfilePage from "../pages/profile/ProfilePage";
 import SettingsPage from "../pages/settings/SettingsPage";
 import NotFoundPage from "../pages/NotFoundPage";
-import ComingSoon from "../components/common/ComingSoon";
 
 /**
  * Central route map. Public routes (login/register/unauthorized) sit
@@ -50,10 +50,7 @@ export default function AppRoutes() {
           <Route element={<ProtectedRoute permission="overtime.read" />}>
             <Route path="/attendance/overtime" element={<OvertimePage />} />
           </Route>
-          <Route
-            path="/attendance/leave"
-            element={<ComingSoon title="Leave" moduleLabel="Module 5 — Attendance & Overtime" />}
-          />
+          <Route path="/attendance/leave" element={<LeavePage />} />
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/profile" element={<ProfilePage />} />
