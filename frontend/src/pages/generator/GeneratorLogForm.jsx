@@ -11,20 +11,35 @@ const BLANK = {
   date: "",
   hoursRun: "",
   meterReadingHours: "",
+  openingFuelLiters: "",
   fuelAddedLiters: "",
+  closingFuelLiters: "",
   fuelConsumedLiters: "",
+  fuelCostPerLiter: "",
+  fuelVendor: "",
   reason: "",
   notes: "",
 };
 
+const NUMBER_FIELDS = [
+  ["meterReadingHours", "Meter reading"],
+  ["openingFuelLiters", "Opening fuel"],
+  ["fuelAddedLiters", "Fuel added"],
+  ["closingFuelLiters", "Closing fuel"],
+  ["fuelConsumedLiters", "Fuel consumed"],
+  ["fuelCostPerLiter", "Price per litre"],
+];
+
 // Blank optional fields are left out so the backend's defaults apply
-// (date: now, fuel fields: 0).
+// (date: now, fuel fields: 0). Fuel consumed and total cost are worked out
+// by the server when the readings and price are given.
 export function toPayload(values) {
   const payload = { generatorId: values.generatorId, hoursRun: Number(values.hoursRun) };
   if (values.date) payload.date = values.date;
-  if (values.meterReadingHours !== "") payload.meterReadingHours = Number(values.meterReadingHours);
-  if (values.fuelAddedLiters !== "") payload.fuelAddedLiters = Number(values.fuelAddedLiters);
-  if (values.fuelConsumedLiters !== "") payload.fuelConsumedLiters = Number(values.fuelConsumedLiters);
+  for (const [key] of NUMBER_FIELDS) {
+    if (values[key] !== "") payload[key] = Number(values[key]);
+  }
+  if (values.fuelVendor.trim()) payload.fuelVendor = values.fuelVendor.trim();
   if (values.reason.trim()) payload.reason = values.reason.trim();
   if (values.notes.trim()) payload.notes = values.notes.trim();
   return payload;
@@ -59,6 +74,17 @@ export default function GeneratorLogForm({ open, onClose, onSaved, generatorOpti
     const next = {};
     if (!values.generatorId) next.generatorId = "Generator is required";
     if (values.hoursRun === "" || Number(values.hoursRun) < 0) next.hoursRun = "Hours run is required and must be 0 or more";
+    for (const [key, label] of NUMBER_FIELDS) {
+      if (values[key] !== "" && !(Number(values[key]) >= 0)) next[key] = `${label} must be 0 or more`;
+    }
+    // Same two rules the server enforces on POST /generator/logs.
+    if (!next.closingFuelLiters && values.openingFuelLiters !== "" && values.closingFuelLiters !== "") {
+      const available = Number(values.openingFuelLiters) + (Number(values.fuelAddedLiters) || 0);
+      if (Number(values.closingFuelLiters) > available) next.closingFuelLiters = "Closing fuel cannot be more than opening plus fuel added";
+    }
+    if (!next.fuelCostPerLiter && values.fuelCostPerLiter !== "" && !(Number(values.fuelAddedLiters) > 0)) {
+      next.fuelCostPerLiter = "Enter the litres added to use a price per litre";
+    }
     setFieldErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -134,9 +160,14 @@ export default function GeneratorLogForm({ open, onClose, onSaved, generatorOpti
             step="0.1"
             value={values.meterReadingHours}
             onChange={setField("meterReadingHours")}
+            error={fieldErrors.meterReadingHours}
           />
-          <Input id="log-fuelAddedLiters" label="Fuel Added (L)" type="number" min="0" value={values.fuelAddedLiters} onChange={setField("fuelAddedLiters")} />
-          <Input id="log-fuelConsumedLiters" label="Fuel Consumed (L)" type="number" min="0" value={values.fuelConsumedLiters} onChange={setField("fuelConsumedLiters")} />
+          <Input id="log-openingFuelLiters" label="Opening Fuel (L)" type="number" min="0" value={values.openingFuelLiters} onChange={setField("openingFuelLiters")} error={fieldErrors.openingFuelLiters} />
+          <Input id="log-fuelAddedLiters" label="Fuel Added (L)" type="number" min="0" value={values.fuelAddedLiters} onChange={setField("fuelAddedLiters")} error={fieldErrors.fuelAddedLiters} />
+          <Input id="log-closingFuelLiters" label="Closing Fuel (L)" type="number" min="0" value={values.closingFuelLiters} onChange={setField("closingFuelLiters")} error={fieldErrors.closingFuelLiters} />
+          <Input id="log-fuelConsumedLiters" label="Fuel Consumed (L)" type="number" min="0" value={values.fuelConsumedLiters} onChange={setField("fuelConsumedLiters")} error={fieldErrors.fuelConsumedLiters} />
+          <Input id="log-fuelCostPerLiter" label="Price per Litre" type="number" min="0" step="0.01" value={values.fuelCostPerLiter} onChange={setField("fuelCostPerLiter")} error={fieldErrors.fuelCostPerLiter} />
+          <Input id="log-fuelVendor" label="Fuel Vendor" value={values.fuelVendor} onChange={setField("fuelVendor")} placeholder="e.g. PSO Pump" />
           <Input id="log-reason" label="Reason" value={values.reason} onChange={setField("reason")} placeholder="e.g. power outage" />
         </div>
 
