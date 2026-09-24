@@ -11,6 +11,7 @@ import GiveawaysPage from "../pages/giveaways/GiveawaysPage";
 import InventoryPage from "../pages/inventory/InventoryPage";
 import GeneratorPage from "../pages/generator/GeneratorPage";
 import AttendancePage from "../pages/attendance/AttendancePage";
+import OvertimePage from "../pages/overtime/OvertimePage";
 import ReportsPage from "../pages/reports/ReportsPage";
 import NotificationsPage from "../pages/notifications/NotificationsPage";
 import ProfilePage from "../pages/profile/ProfilePage";
@@ -46,10 +47,7 @@ export default function AppRoutes() {
           <Route element={<ProtectedRoute permission="attendance.read" />}>
             <Route path="/attendance" element={<AttendancePage />} />
           </Route>
-          <Route
-            path="/attendance/overtime"
-            element={<ComingSoon title="Overtime" moduleLabel="Module 5 — Attendance & Overtime" />}
-          />
+          <Route path="/attendance/overtime" element={<OvertimePage />} />
           <Route
             path="/attendance/leave"
             element={<ComingSoon title="Leave" moduleLabel="Module 5 — Attendance & Overtime" />}
