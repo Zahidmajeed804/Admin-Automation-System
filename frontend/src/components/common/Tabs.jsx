@@ -3,11 +3,13 @@ import clsx from "clsx";
 /**
  * Controlled tab bar. `tabs` is [{ id, label }]; render the matching panel
  * yourself with role="tabpanel", id={`panel-${id}`} and aria-labelledby={`tab-${id}`}.
- * Left/Right arrows move between tabs (roving tabindex).
+ * Left/Right arrows move between tabs (roving tabindex); Home/End jump to the
+ * first/last tab. Not routing-aware: a page whose tabs are URLs (Generator)
+ * maps `value`/`onChange` to the route itself.
  */
 export default function Tabs({ tabs, value, onChange, label = "Sections" }) {
-  const move = (index, delta) => {
-    const next = tabs[(index + delta + tabs.length) % tabs.length];
+  const select = (index) => {
+    const next = tabs[index];
     onChange(next.id);
     document.getElementById(`tab-${next.id}`)?.focus();
   };
@@ -15,10 +17,16 @@ export default function Tabs({ tabs, value, onChange, label = "Sections" }) {
   const handleKeyDown = (event, index) => {
     if (event.key === "ArrowRight") {
       event.preventDefault();
-      move(index, 1);
+      select((index + 1) % tabs.length);
     } else if (event.key === "ArrowLeft") {
       event.preventDefault();
-      move(index, -1);
+      select((index - 1 + tabs.length) % tabs.length);
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      select(0);
+    } else if (event.key === "End") {
+      event.preventDefault();
+      select(tabs.length - 1);
     }
   };
 

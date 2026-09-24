@@ -1,5 +1,5 @@
 import { body, query } from "express-validator";
-import { runValidation } from "./authValidators.js";
+import { runValidation } from "../middleware/runValidation.js";
 
 export const createItemValidator = [
   body("itemName").trim().notEmpty().withMessage("Item name is required"),
