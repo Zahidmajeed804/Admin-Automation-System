@@ -74,8 +74,6 @@ Rules the API enforces:
   Approve/Reject for `overtime.approve`.
 - `/attendance/leave` — Request leave form, own leave history, plus Pending
   approvals for users who can approve or reject leave.
-- Dashboard tiles: today's attendance, and pending overtime and leave counts for
-  approvers.
 - Sidebar entries and a page switcher for the three pages, shown only to users who
   hold each page's permission.
 

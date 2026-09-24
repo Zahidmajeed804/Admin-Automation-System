@@ -6,25 +6,27 @@ decisions. It records what was checked and is also a step-by-step guide you can
 repeat by hand in the browser.
 
 Run on 2026-09-24 in real Chrome against the live MongoDB, driving the actual
-Register, Login, Attendance, Overtime, Leave and Dashboard pages. **All 33 checks
-passed.**
+Register, Login, Attendance, Overtime and Leave pages. **All 33 checks passed.**
+
+The Dashboard is still the "Coming Soon" placeholder for Module 6, so it takes no
+part in this pass beyond being the page you land on after signing in.
 
 ## The flow
 
 ```
 STAFF                                           MANAGER
 1  Register, land on the Dashboard
-2  Dashboard: Not clocked in
+2  Sidebar shows Attendance, Overtime, Leave
 3  Attendance: Clock in
 4  Leave: request casual (3 days) and sick (1 day)
 5  ...work ~3 minutes, then Clock out
    └─ overtime request is created automatically
 6  Overtime page: 1 pending request
-                                               7  Login, Dashboard shows 1 overtime + 2 leave waiting
+                                               7  Login, open Overtime: the request is waiting
                                                8  Overtime: Approve with a note
                                                9  Leave: Approve casual, Reject sick (with notes)
                                               10  Attendance > Team: staff member's day is there
-                                              11  Dashboard: counts back to 0
+                                              11  Overtime and Leave: nothing left waiting
 12 Sign back in: Overtime approved,
    Leave approved and rejected, each with
    the manager's name and note
@@ -37,19 +39,17 @@ threshold, so about 3 minutes of work produced 2 minutes of overtime.
 
 | Step | Checked | Result |
 |---|---|---|
-| 1 | Register page signs the new user in | lands on `/dashboard` |
-| 2 | Staff Dashboard | one tile, "Today's attendance: Not clocked in". No approval tiles |
+| 1 | Register page signs the new user in | lands on `/dashboard` (the Coming Soon placeholder) |
 | 2 | Sidebar | Attendance, Overtime and Leave are listed |
 | 3 | Attendance page | not clocked in, no Team tab. **Clock in** works, status becomes Clocked in |
 | 4 | Leave page | casual 10 to 12 Apr 2035 (3 days) and sick 5 May 2035 (1 day) submitted. Banner shows "(3 days)". Table lists both as Pending |
 | 5 | Clock out after about 2.5 minutes | status Clocked out. History row: worked **3m** |
 | 6 | Overtime page (staff) | 1 row: **2m**, Pending (worked 3m minus the 1m threshold). No "Pending approvals" section |
-| 6 | Staff Dashboard | "Clocked out · 3m" |
-| 7 | Manager logs in through the Login page | Dashboard: Overtime awaiting **1**, Leave awaiting **2** |
+| 7 | Manager logs in through the Login page | lands on `/dashboard` |
 | 8 | Overtime page (manager) | Pending approvals lists the staff member with 2m. Approve with a note. Row disappears |
 | 9 | Leave page (manager) | both requests listed with type, dates, days and reason. Approve casual with a note, Reject sick with a note |
 | 10 | Attendance, Team tab, filter by the staff member | clock in, clock out, **3m**, **Half Day** |
-| 11 | Manager Dashboard | both counts back to 0 |
+| 11 | Manager: Overtime and Leave, Pending approvals | the staff member no longer appears in either |
 | 12 | Staff signs back in: Overtime | **Approved**, by the manager, note "Thanks for staying late" |
 | 12 | Staff: Leave | casual **Approved** ("Enjoy the time off"), sick **Rejected** ("Short-staffed that day") |
 | 13 | Database | attendance worked 3, overtime 2 min approved and linked to that attendance, leave 3 and 1 days with the right statuses and reviewer |
@@ -122,19 +122,18 @@ Takes about 15 minutes, including a 3 minute wait.
 
 ## 1. As the staff member
 
-Log in as `e2e.staff@test.local` (registering already signs you in).
+Log in as `e2e.staff@test.local` (registering already signs you in). You land on
+the Dashboard, which is a "Coming Soon" page for now.
 
 | # | Do this | You should see |
 |---|---|---|
-| 1 | Open **Dashboard** | one tile: Today's attendance, "Not clocked in". No approval tiles |
-| 2 | Look at the sidebar | Attendance, Overtime and Leave are listed |
-| 3 | Click **Attendance**, then **Clock in** | status becomes "Clocked in at HH:MM", the button changes to Clock out. **Note the time** |
-| 4 | Click **Leave**, then **Request leave**. Type **Casual leave**, From **10/04/2035**, To **12/04/2035**, Reason "Family event". **Submit request** | green banner "...(3 days). It is pending approval." |
-| 5 | Request again: **Sick leave**, From and To **05/05/2035**, no reason | the table lists both requests as **Pending** |
-| 6 | **Wait until about 3 minutes have passed since clock in** | |
-| 7 | Click **Attendance**, then **Clock out** | "Clocked out", "Done for today". History row shows worked **3m** (2 to 4m is fine) |
-| 8 | Click **Overtime** | one request, Pending, for **worked minutes minus 1** (2m for a 3m day). No "Pending approvals" section |
-| 9 | Click **Dashboard** | "Clocked out · 3m" |
+| 1 | Look at the sidebar | Attendance, Overtime and Leave are listed |
+| 2 | Click **Attendance**, then **Clock in** | status becomes "Clocked in at HH:MM", the button changes to Clock out. **Note the time** |
+| 3 | Click **Leave**, then **Request leave**. Type **Casual leave**, From **10/04/2035**, To **12/04/2035**, Reason "Family event". **Submit request** | green banner "...(3 days). It is pending approval." |
+| 4 | Request again: **Sick leave**, From and To **05/05/2035**, no reason | the table lists both requests as **Pending** |
+| 5 | **Wait until about 3 minutes have passed since clock in** | |
+| 6 | Click **Attendance**, then **Clock out** | "Clocked out", "Done for today". History row shows worked **3m** (2 to 4m is fine) |
+| 7 | Click **Overtime** | one request, Pending, for **worked minutes minus 1** (2m for a 3m day). No "Pending approvals" section |
 
 ## 2. As the manager
 
@@ -142,14 +141,13 @@ Log in as `e2e.staff@test.local` (registering already signs you in).
 
 | # | Do this | You should see |
 |---|---|---|
-| 10 | Open **Dashboard** | three tiles. "Overtime awaiting approval: 1" and "Leave awaiting approval: 2" (higher if real requests are pending too) |
-| 11 | Click the **Overtime awaiting approval** tile | Overtime page with **Pending approvals**: E2E Staff, today, 2m |
-| 12 | Click **Approve**, type the note "Thanks for staying late", confirm | the dialog closes and the row disappears |
-| 13 | Click **Leave** in the sidebar | **Pending approvals** lists both requests, with type, dates, days and reason |
-| 14 | **Approve** the casual leave with the note "Enjoy the time off" | row disappears |
-| 15 | **Reject** the sick leave with the note "Short-staffed that day" | row disappears |
-| 16 | **Attendance**, then the **Team** tab. Pick **E2E Staff** in the Employee filter | one row: clock in, clock out, **3m**, **Half Day** |
-| 17 | Back to **Dashboard** | both counts are back to what they were before |
+| 8 | Click **Overtime** in the sidebar | **Pending approvals**: E2E Staff, today, 2m (real people's requests may be listed too) |
+| 9 | Click **Approve** on that row, type the note "Thanks for staying late", confirm | the dialog closes and the row disappears |
+| 10 | Click **Leave** in the sidebar | **Pending approvals** lists both requests, with type, dates, days and reason |
+| 11 | **Approve** the casual leave with the note "Enjoy the time off" | row disappears |
+| 12 | **Reject** the sick leave with the note "Short-staffed that day" | row disappears |
+| 13 | **Attendance**, then the **Team** tab. Pick **E2E Staff** in the Employee filter | one row: clock in, clock out, **3m**, **Half Day** |
+| 14 | Open **Overtime** and **Leave** again | E2E Staff no longer appears in either Pending approvals table |
 
 ## 3. As the staff member again
 
@@ -157,8 +155,8 @@ Log in as `e2e.staff@test.local` (registering already signs you in).
 
 | # | Do this | You should see |
 |---|---|---|
-| 18 | **Overtime** | the request is **Approved**, Reviewed by E2E Manager, note "Thanks for staying late" |
-| 19 | **Leave** | casual is **Approved** ("Enjoy the time off"), sick is **Rejected** ("Short-staffed that day"), both reviewed by E2E Manager. Nothing is Pending |
+| 15 | **Overtime** | the request is **Approved**, Reviewed by E2E Manager, note "Thanks for staying late" |
+| 16 | **Leave** | casual is **Approved** ("Enjoy the time off"), sick is **Rejected** ("Short-staffed that day"), both reviewed by E2E Manager. Nothing is Pending |
 
 ## 4. Clean up
 
@@ -190,6 +188,6 @@ threshold goes back to 10 hours.
 | Staff is sent to "Unauthorized" when opening Overtime | `npm run seed` was not run, so staff lack `overtime.read` |
 | No overtime request after clocking out | the backend was not started with `OVERTIME_THRESHOLD_MINUTES=1`, or less than about 2 minutes were worked (the 1 minute threshold needs at least 2 minutes worked) |
 | The manager has no "Pending approvals" and only sees their own data | the manager role was not assigned, or you have not logged out and in again since assigning it |
-| Dashboard shows more than 1 and 2 for the manager | other people's real requests are pending as well. Compare with what you saw before |
+| More requests listed for the manager than you created | other people's real requests are pending as well. Look for the E2E Staff rows |
 | Pages suddenly fail to load during repeated testing | the backend limits each address to 300 requests per 15 minutes. Wait a few minutes or restart the backend |
 | Register says the email is taken | the accounts already exist from an earlier run. Run step 4 (Clean up) first |
