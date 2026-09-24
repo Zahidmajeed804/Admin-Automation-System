@@ -1,19 +1,11 @@
 import { leaveRepository } from "../repositories/leaveRepository.js";
-import { LEAVE_TYPES } from "../models/LeaveRequest.js";
+import { LEAVE_TYPES, REVIEW_DECISIONS } from "../constants/attendance.js";
+import { startOfDay } from "../utils/dates.js";
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from "../errors/AppError.js";
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
-
-// The decision a reviewer sends maps 1:1 onto the request's status.
-const REVIEW_DECISIONS = ["approved", "rejected"];
-
-const startOfDay = (date) => {
-  const d = new Date(date);
-  d.setUTCHours(0, 0, 0, 0);
-  return d;
-};
 
 export const leaveService = {
   // Reviewers (canViewAll, i.e. leave.approve) may see everyone or filter by userId;

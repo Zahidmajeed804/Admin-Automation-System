@@ -1,11 +1,5 @@
 import { LeaveRequest } from "../models/index.js";
-
-// Leave dates are stored normalized to midnight UTC, so day filters normalize the same way.
-const startOfDay = (date) => {
-  const d = new Date(date);
-  d.setUTCHours(0, 0, 0, 0);
-  return d;
-};
+import { startOfDay } from "../utils/dates.js";
 
 export const leaveRepository = {
   create: (data) => LeaveRequest.create(data),

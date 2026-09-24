@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { ATTENDANCE_STATUSES } from "../constants/attendance.js";
 
 const attendanceSchema = new mongoose.Schema(
   {
@@ -10,7 +11,7 @@ const attendanceSchema = new mongoose.Schema(
     workedMinutes: { type: Number, default: 0 },
     status: {
       type: String,
-      enum: ["present", "absent", "half-day", "late"],
+      enum: ATTENDANCE_STATUSES,
       default: "present",
     },
     notes: { type: String, trim: true },

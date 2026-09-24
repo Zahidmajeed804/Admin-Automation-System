@@ -1,16 +1,6 @@
-import { body, param, query, validationResult } from "express-validator";
-import { BadRequestError } from "../errors/AppError.js";
-
-export const runValidation = (req, res, next) => {
-  const result = validationResult(req);
-  if (!result.isEmpty()) {
-    throw new BadRequestError(
-      "Validation failed",
-      result.array().map((e) => ({ field: e.path, message: e.msg }))
-    );
-  }
-  next();
-};
+import { body, param, query } from "express-validator";
+import { runValidation } from "../middleware/runValidation.js";
+import { ATTENDANCE_STATUSES } from "../constants/attendance.js";
 
 // Clock-in/clock-out act on the authenticated user (req.userId) and take no
 // body — these chains exist so the route wiring is consistent with every
@@ -28,8 +18,8 @@ export const updateAttendanceValidator = [
   body("clockOut").optional().isISO8601().withMessage("clockOut must be a valid date-time"),
   body("status")
     .optional()
-    .isIn(["present", "absent", "half-day", "late"])
-    .withMessage("status must be one of: present, absent, half-day, late"),
+    .isIn(ATTENDANCE_STATUSES)
+    .withMessage(`status must be one of: ${ATTENDANCE_STATUSES.join(", ")}`),
   body("notes")
     .optional()
     .isString()
@@ -54,8 +44,8 @@ export const listAttendanceValidator = [
     .withMessage("pageSize must be between 1 and 100"),
   query("status")
     .optional()
-    .isIn(["present", "absent", "half-day", "late"])
-    .withMessage("status must be one of: present, absent, half-day, late"),
+    .isIn(ATTENDANCE_STATUSES)
+    .withMessage(`status must be one of: ${ATTENDANCE_STATUSES.join(", ")}`),
   query("userId").optional().isMongoId().withMessage("userId must be a valid id"),
   query("startDate").optional().isISO8601().withMessage("startDate must be a valid date"),
   query("endDate")

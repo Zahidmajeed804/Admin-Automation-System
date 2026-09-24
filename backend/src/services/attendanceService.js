@@ -2,6 +2,7 @@ import { attendanceRepository } from "../repositories/attendanceRepository.js";
 import { userRepository } from "../repositories/userRepository.js";
 import { overtimeRepository } from "../repositories/overtimeRepository.js";
 import { env } from "../config/env.js";
+import { startOfDay } from "../utils/dates.js";
 import { BadRequestError, ConflictError, NotFoundError } from "../errors/AppError.js";
 
 // Below this many worked minutes in a day, status is "half-day" instead of "present".
@@ -9,12 +10,6 @@ const HALF_DAY_THRESHOLD_MINUTES = 240;
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
-
-const startOfDay = (date) => {
-  const d = new Date(date);
-  d.setUTCHours(0, 0, 0, 0);
-  return d;
-};
 
 const minutesBetween = (from, to) => Math.max(0, Math.round((to - from) / 60000));
 

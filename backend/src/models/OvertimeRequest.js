@@ -1,6 +1,5 @@
 import mongoose from "mongoose";
-
-export const OVERTIME_STATUSES = ["pending", "approved", "rejected"];
+import { OVERTIME_STATUSES } from "../constants/attendance.js";
 
 const overtimeRequestSchema = new mongoose.Schema(
   {

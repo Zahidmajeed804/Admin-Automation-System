@@ -7,7 +7,7 @@ import Button from "../../components/common/Button";
 import RequestLeaveModal from "../../components/leave/RequestLeaveModal";
 import LeaveHistoryTable from "../../components/leave/LeaveHistoryTable";
 import PendingLeaveTable from "../../components/leave/PendingLeaveTable";
-import { formatDate } from "../../utils/attendanceFormat";
+import { formatLeaveDate } from "../../utils/leaveFormat";
 
 export default function LeavePage() {
   const { hasPermission } = useAuth();
@@ -47,8 +47,8 @@ export default function LeavePage() {
           role="status"
           className="bg-status-successBg border border-green-200 text-status-success text-body rounded-md px-3 py-2"
         >
-          Leave request submitted for {formatDate(submitted.startDate)}
-          {submitted.totalDays > 1 && ` to ${formatDate(submitted.endDate)}`} ({submitted.totalDays}{" "}
+          Leave request submitted for {formatLeaveDate(submitted.startDate)}
+          {submitted.totalDays > 1 && ` – ${formatLeaveDate(submitted.endDate)}`} ({submitted.totalDays}{" "}
           {submitted.totalDays === 1 ? "day" : "days"}). It is pending approval.
         </div>
       )}

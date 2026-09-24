@@ -1,19 +1,12 @@
 import { Attendance } from "../models/index.js";
-
-// Attendance.date is always stored normalized to midnight UTC — one record
-// per user per day — so every lookup/filter by day goes through this.
-const startOfDay = (date) => {
-  const d = new Date(date);
-  d.setUTCHours(0, 0, 0, 0);
-  return d;
-};
+import { startOfDay } from "../utils/dates.js";
 
 export const attendanceRepository = {
   create: (data) => Attendance.create(data),
   findById: (id) => Attendance.findById(id),
   findTodayForUser: (userId, date = new Date()) =>
     Attendance.findOne({ user: userId, date: startOfDay(date) }),
-  updateById: (id, data) => Attendance.findByIdAndUpdate(id, data, { new: true }),
+  updateById: (id, data) => Attendance.findByIdAndUpdate(id, data, { returnDocument: "after" }),
   list: async ({ userId, status, startDate, endDate, page = 1, pageSize = 20 } = {}) => {
     const query = {};
     if (userId) query.user = userId;

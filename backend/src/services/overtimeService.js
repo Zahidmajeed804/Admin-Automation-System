@@ -1,11 +1,9 @@
 import { overtimeRepository } from "../repositories/overtimeRepository.js";
+import { REVIEW_DECISIONS } from "../constants/attendance.js";
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from "../errors/AppError.js";
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
-
-// The decision a reviewer sends maps 1:1 onto the request's status.
-const REVIEW_DECISIONS = ["approved", "rejected"];
 
 export const overtimeService = {
   // Reviewers (canViewAll, i.e. overtime.approve) may see everyone or filter by userId;

@@ -1,8 +1,6 @@
 import { body, param, query } from "express-validator";
-import { runValidation } from "./attendanceValidators.js";
-import { LEAVE_TYPES, LEAVE_STATUSES } from "../models/LeaveRequest.js";
-
-const DECISIONS = ["approved", "rejected"];
+import { runValidation } from "../middleware/runValidation.js";
+import { LEAVE_TYPES, LEAVE_STATUSES, REVIEW_DECISIONS } from "../constants/attendance.js";
 
 const typeMessage = `leaveType must be one of: ${LEAVE_TYPES.join(", ")}`;
 
@@ -64,8 +62,8 @@ export const reviewLeaveValidator = [
     .exists({ checkNull: true })
     .withMessage("decision is required")
     .bail()
-    .isIn(DECISIONS)
-    .withMessage(`decision must be one of: ${DECISIONS.join(", ")}`),
+    .isIn(REVIEW_DECISIONS)
+    .withMessage(`decision must be one of: ${REVIEW_DECISIONS.join(", ")}`),
   body("note")
     .optional()
     .isString()

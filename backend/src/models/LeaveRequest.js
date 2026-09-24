@@ -1,7 +1,5 @@
 import mongoose from "mongoose";
-
-export const LEAVE_TYPES = ["casual", "sick", "annual", "unpaid"];
-export const LEAVE_STATUSES = ["pending", "approved", "rejected"];
+import { LEAVE_TYPES, LEAVE_STATUSES } from "../constants/attendance.js";
 
 const leaveRequestSchema = new mongoose.Schema(
   {

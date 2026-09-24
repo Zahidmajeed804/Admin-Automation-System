@@ -1,22 +1,15 @@
 import { OvertimeRequest } from "../models/index.js";
-
-// OvertimeRequest.date is copied from Attendance.date (midnight UTC), so day filters normalize the same way.
-const startOfDay = (date) => {
-  const d = new Date(date);
-  d.setUTCHours(0, 0, 0, 0);
-  return d;
-};
+import { startOfDay } from "../utils/dates.js";
 
 export const overtimeRepository = {
   findById: (id) => OvertimeRequest.findById(id),
-  findByAttendanceId: (attendanceId) => OvertimeRequest.findOne({ attendance: attendanceId }),
 
   // Idempotent: one request per attendance record, so a repeated call returns the existing one.
   createForAttendance: ({ user, attendance, date, overtimeMinutes }) =>
     OvertimeRequest.findOneAndUpdate(
       { attendance },
       { $setOnInsert: { user, attendance, date, overtimeMinutes, status: "pending" } },
-      { upsert: true, new: true, runValidators: true }
+      { upsert: true, returnDocument: "after", runValidators: true }
     ),
 
   // Filtering on status "pending" inside the update makes the transition atomic:
@@ -25,7 +18,7 @@ export const overtimeRepository = {
     OvertimeRequest.findOneAndUpdate(
       { _id: id, status: "pending" },
       { status, reviewedBy, reviewNote, reviewedAt: new Date() },
-      { new: true }
+      { returnDocument: "after" }
     )
       .populate("user", "name email department")
       .populate("reviewedBy", "name email"),
