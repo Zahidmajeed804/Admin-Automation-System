@@ -1,4 +1,5 @@
 import { generatorRepository } from "../repositories/generatorRepository.js";
+import { generatorService } from "../services/generatorService.js";
 import { sendSuccess } from "../utils/apiResponse.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { NotFoundError } from "../errors/AppError.js";
@@ -38,9 +39,7 @@ export const generatorController = {
   }),
 
   remove: asyncHandler(async (req, res) => {
-    const existing = await generatorRepository.findById(req.params.id);
-    if (!existing || !existing.isActive) throw new NotFoundError("Generator not found");
-    await generatorRepository.softDeleteById(req.params.id);
-    sendSuccess(res, { message: "Generator deleted" });
+    const { deleted } = await generatorService.removeGenerator(req.params.id);
+    sendSuccess(res, { message: "Generator deleted", data: { deleted } });
   }),
 };

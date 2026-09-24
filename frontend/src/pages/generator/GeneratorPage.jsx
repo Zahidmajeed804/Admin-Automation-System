@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
 import { Zap, Wrench, AlertTriangle, Plus, Eye, Pencil, Trash2 } from "lucide-react";
-import PageHeader from "../../components/common/PageHeader";
 import StatCard from "../../components/common/StatCard";
 import FilterBar from "../../components/common/FilterBar";
 import Select from "../../components/common/Select";
@@ -10,6 +9,7 @@ import ConfirmDialog from "../../components/modals/ConfirmDialog";
 import Table from "../../components/tables/Table";
 import GeneratorForm, { extractErrorMessage } from "./GeneratorForm";
 import GeneratorDetails from "./GeneratorDetails";
+import { useAuth } from "../../context/AuthContext";
 import { generatorService } from "../../services/generatorService";
 
 const PAGE_SIZE = 10;
@@ -21,6 +21,8 @@ const STATUS_OPTIONS = [
   { value: "decommissioned", label: "Decommissioned" },
 ];
 
+// `onEdit` / `onDelete` are left undefined for users without the matching
+// permission, and then that button is not drawn at all.
 function buildColumns({ onView, onEdit, onDelete }) {
   return [
     { key: "tag", header: "Tag", render: (row) => <span className="font-medium text-ink">{row.tag}</span> },
@@ -38,8 +40,8 @@ function buildColumns({ onView, onEdit, onDelete }) {
       render: (row) => (
         <div className="flex items-center justify-end gap-1">
           <Button variant="ghost" size="sm" icon={Eye} aria-label={`View ${row.tag}`} onClick={() => onView(row)} />
-          <Button variant="ghost" size="sm" icon={Pencil} aria-label={`Edit ${row.tag}`} onClick={() => onEdit(row)} />
-          <Button variant="ghost" size="sm" icon={Trash2} aria-label={`Delete ${row.tag}`} onClick={() => onDelete(row)} />
+          {onEdit && <Button variant="ghost" size="sm" icon={Pencil} aria-label={`Edit ${row.tag}`} onClick={() => onEdit(row)} />}
+          {onDelete && <Button variant="ghost" size="sm" icon={Trash2} aria-label={`Delete ${row.tag}`} onClick={() => onDelete(row)} />}
         </div>
       ),
     },
@@ -47,6 +49,14 @@ function buildColumns({ onView, onEdit, onDelete }) {
 }
 
 export default function GeneratorPage() {
+  // The same permissions the backend enforces on these routes. Everyone who
+  // can open the page can view a generator; adding, editing and deleting are
+  // hidden for users who don't hold the permission.
+  const { hasPermission } = useAuth();
+  const canCreate = hasPermission("generator.create");
+  const canUpdate = hasPermission("generator.update");
+  const canDelete = hasPermission("generator.delete");
+
   const [items, setItems] = useState([]);
   const [meta, setMeta] = useState({ page: 1, totalPages: 1, totalItems: 0, pageSize: PAGE_SIZE });
   const [loading, setLoading] = useState(true);
@@ -160,14 +170,12 @@ export default function GeneratorPage() {
 
   const columns = buildColumns({
     onView: (row) => setViewingGenerator(row),
-    onEdit: openEditForm,
-    onDelete: (row) => setDeleteTarget(row),
+    onEdit: canUpdate ? openEditForm : undefined,
+    onDelete: canDelete ? (row) => setDeleteTarget(row) : undefined,
   });
 
   return (
     <div className="flex flex-col gap-5">
-      <PageHeader title="Generator Management" description="Track the organization's backup generators." />
-
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatCard
           label="Operational"
@@ -206,9 +214,11 @@ export default function GeneratorPage() {
         }
         onReset={search || status ? handleReset : undefined}
         actions={
-          <Button icon={Plus} onClick={openCreateForm}>
-            Add Generator
-          </Button>
+          canCreate ? (
+            <Button icon={Plus} onClick={openCreateForm}>
+              Add Generator
+            </Button>
+          ) : undefined
         }
       />
 
@@ -254,7 +264,7 @@ export default function GeneratorPage() {
         title="Delete generator?"
         description={
           deleteError ||
-          `This will remove ${deleteTarget?.tag ?? "this generator"} from the registry. Its logs and maintenance history are kept.`
+          `This permanently deletes ${deleteTarget?.tag ?? "this generator"} together with all of its fuel and usage logs and maintenance records. This cannot be undone.`
         }
       />
     </div>

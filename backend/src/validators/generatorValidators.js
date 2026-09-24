@@ -67,6 +67,24 @@ export const createGeneratorLogValidator = [
   runValidation,
 ];
 
+// PATCH /generator/logs/:logId — every field is optional. An optional number or
+// text field may be sent as null to clear it; hoursRun and date are required on
+// a log, so they can be changed but not cleared. The rules that compare fields
+// with each other (closing vs opening + added, price needs fuel added) run in
+// generatorService.updateLog, on the merged result, because a partial update
+// may only carry one side of the comparison.
+export const updateGeneratorLogValidator = [
+  body("hoursRun").optional().isFloat({ min: 0 }).withMessage("hoursRun must be a non-negative number"),
+  body("date").optional().isISO8601().withMessage("date must be a valid date"),
+  ...["meterReadingHours", "fuelAddedLiters", "fuelConsumedLiters", "openingFuelLiters", "closingFuelLiters", "fuelCostPerLiter", "fuelCostTotal"].map((field) =>
+    body(field).optional({ nullable: true }).isFloat({ min: 0 }).withMessage(`${field} must be a non-negative number or null`)
+  ),
+  body("fuelVendor").optional({ nullable: true }).trim(),
+  body("reason").optional({ nullable: true }).trim(),
+  body("notes").optional({ nullable: true }).trim(),
+  runValidation,
+];
+
 // Must stay in sync with the enums on models/GeneratorMaintenance.js.
 const MAINTENANCE_TYPES = ["scheduled", "unscheduled", "inspection"];
 

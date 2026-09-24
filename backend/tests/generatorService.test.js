@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import { jest } from "@jest/globals";
 import { Generator, GeneratorLog, GeneratorMaintenance } from "../src/models/index.js";
 import { generatorRepository } from "../src/repositories/generatorRepository.js";
+import { generatorLogRepository } from "../src/repositories/generatorLogRepository.js";
 import { generatorMaintenanceRepository } from "../src/repositories/generatorMaintenanceRepository.js";
 import { generatorService, computeAlertStatus, computeFuelFigures, daysUntilDue, withAlertInfo } from "../src/services/generatorService.js";
 import { NotFoundError, ConflictError } from "../src/errors/AppError.js";
@@ -189,6 +190,61 @@ describe("recordLog / removeLog", () => {
     expect(removed.generator.runningHoursTotal).toBe(2);
     expect(await GeneratorLog.findById(log._id)).toBeNull();
     await expect(generatorService.removeLog(UNKNOWN_ID)).rejects.toBeInstanceOf(NotFoundError);
+  });
+});
+
+describe("updateLog", () => {
+  const hoursOf = async (gen) => (await Generator.findById(gen._id)).runningHoursTotal;
+
+  it("adjusts the generator's total by the change in hours run", async () => {
+    const gen = await createGenerator();
+    const { log } = await generatorService.recordLog({ generatorId: gen._id, recordedBy: userId(), hoursRun: 4 });
+
+    const { log: updated, generator } = await generatorService.updateLog(log._id, { hoursRun: 1.5 });
+
+    expect(updated.hoursRun).toBe(1.5);
+    expect(generator.runningHoursTotal).toBe(1.5);
+    expect(await hoursOf(gen)).toBe(1.5);
+  });
+
+  it("rejects an unknown log with NotFound and changes nothing", async () => {
+    const gen = await createGenerator();
+    await generatorService.recordLog({ generatorId: gen._id, recordedBy: userId(), hoursRun: 4 });
+
+    await expect(generatorService.updateLog(UNKNOWN_ID, { hoursRun: 9 })).rejects.toBeInstanceOf(NotFoundError);
+    expect(await hoursOf(gen)).toBe(4);
+  });
+
+  it("puts the hours back if the log itself cannot be updated, so total and history stay consistent", async () => {
+    const gen = await createGenerator();
+    const { log } = await generatorService.recordLog({ generatorId: gen._id, recordedBy: userId(), hoursRun: 4 });
+    jest.spyOn(generatorLogRepository, "updateById").mockRejectedValue(new Error("database hiccup"));
+
+    await expect(generatorService.updateLog(log._id, { hoursRun: 10 })).rejects.toThrow("database hiccup");
+
+    expect(await hoursOf(gen)).toBe(4);
+    expect((await GeneratorLog.findById(log._id)).hoursRun).toBe(4);
+  });
+
+  it("puts the hours back if the log disappeared while it was being corrected", async () => {
+    const gen = await createGenerator();
+    const { log } = await generatorService.recordLog({ generatorId: gen._id, recordedBy: userId(), hoursRun: 4 });
+    jest.spyOn(generatorLogRepository, "updateById").mockResolvedValue(null);
+
+    await expect(generatorService.updateLog(log._id, { hoursRun: 10 })).rejects.toBeInstanceOf(NotFoundError);
+
+    expect(await hoursOf(gen)).toBe(4);
+  });
+
+  it("does nothing, and writes nothing, for an empty change", async () => {
+    const gen = await createGenerator();
+    const { log } = await generatorService.recordLog({ generatorId: gen._id, recordedBy: userId(), hoursRun: 4 });
+    const spy = jest.spyOn(generatorLogRepository, "updateById");
+
+    const { generator } = await generatorService.updateLog(log._id, {});
+
+    expect(spy).not.toHaveBeenCalled();
+    expect(generator.runningHoursTotal).toBe(4);
   });
 });
 

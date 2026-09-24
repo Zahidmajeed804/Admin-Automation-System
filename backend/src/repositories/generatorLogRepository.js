@@ -36,7 +36,14 @@ export const generatorLogRepository = {
     };
   },
 
+  // `update` is a Mongo update document ({ $set, $unset }). Returns the document
+  // as it is after the change, or null if it no longer exists.
+  updateById: (id, update) => GeneratorLog.findByIdAndUpdate(id, update, { returnDocument: "after", runValidators: true }),
+
   // Returns the deleted document (or null) so the caller can reverse any
   // side effects, e.g. subtracting its hoursRun from the generator's total.
   deleteById: (id) => GeneratorLog.findByIdAndDelete(id),
+
+  // Removes every log of one generator; resolves { deletedCount }.
+  deleteByGenerator: (generatorId) => GeneratorLog.deleteMany({ generator: generatorId }),
 };

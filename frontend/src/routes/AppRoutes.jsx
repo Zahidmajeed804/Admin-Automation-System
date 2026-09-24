@@ -9,6 +9,7 @@ import UnauthorizedPage from "../pages/UnauthorizedPage";
 import DashboardPage from "../pages/dashboard/DashboardPage";
 import GiveawaysPage from "../pages/giveaways/GiveawaysPage";
 import InventoryPage from "../pages/inventory/InventoryPage";
+import GeneratorLayout from "../pages/generator/GeneratorLayout";
 import GeneratorPage from "../pages/generator/GeneratorPage";
 import GeneratorLogsPage from "../pages/generator/GeneratorLogsPage";
 import AttendancePage from "../pages/attendance/AttendancePage";
@@ -40,9 +41,11 @@ export default function AppRoutes() {
           <Route path="/giveaways/new" element={<GiveawaysPage />} />
           <Route path="/inventory" element={<InventoryPage />} />
           <Route path="/inventory/new" element={<InventoryPage />} />
-          <Route path="/generator" element={<GeneratorPage />} />
-          <Route path="/generator/logs" element={<GeneratorLogsPage />} />
-          <Route path="/generator/maintenance" element={<GeneratorPage />} />
+          <Route path="/generator" element={<GeneratorLayout />}>
+            <Route index element={<GeneratorPage />} />
+            <Route path="logs" element={<GeneratorLogsPage />} />
+            <Route path="maintenance" element={<GeneratorPage />} />
+          </Route>
           <Route path="/attendance" element={<AttendancePage />} />
           <Route path="/attendance/overtime" element={<AttendancePage />} />
           <Route path="/attendance/leave" element={<AttendancePage />} />

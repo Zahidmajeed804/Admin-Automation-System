@@ -17,6 +17,7 @@ export const generatorService = {
   // Usage/fuel logs
   listLogs: (params) => apiClient.get("/generator/logs", { params }).then(list),
   createLog: (payload) => apiClient.post("/generator/logs", payload).then(one),
+  updateLog: (logId, payload) => apiClient.patch(`/generator/logs/${logId}`, payload).then(one),
   deleteLog: (logId) => apiClient.delete(`/generator/logs/${logId}`).then(one),
 
   // Maintenance

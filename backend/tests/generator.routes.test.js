@@ -1,5 +1,7 @@
 import { as, anonymous, makeUsers, createGenerator, UNKNOWN_ID } from "./helpers/generatorTestUtils.js";
-import { Generator } from "../src/models/index.js";
+import { jest } from "@jest/globals";
+import { Generator, GeneratorLog, GeneratorMaintenance } from "../src/models/index.js";
+import { generatorMaintenanceRepository } from "../src/repositories/generatorMaintenanceRepository.js";
 
 describe("Generator registry API — /api/v1/generator", () => {
   describe("authentication and permissions", () => {
@@ -170,7 +172,9 @@ describe("Generator registry API — /api/v1/generator", () => {
   });
 
   describe("delete (DELETE /:id)", () => {
-    it("soft-deletes: hidden from reads, but the record is kept", async () => {
+    afterEach(() => jest.restoreAllMocks());
+
+    it("deletes permanently: gone from reads and gone from the database", async () => {
       const { admin } = await makeUsers();
       const gen = await createGenerator();
 
@@ -179,7 +183,73 @@ describe("Generator registry API — /api/v1/generator", () => {
       expect(res.status).toBe(200);
       expect((await as(admin).get(`/${gen._id}`)).status).toBe(404);
       expect((await as(admin).get("/")).body.meta.totalItems).toBe(0);
-      expect((await Generator.findById(gen._id)).isActive).toBe(false); // still in the database
+      expect(await Generator.findById(gen._id)).toBeNull(); // not kept as an inactive record
+      expect(await Generator.countDocuments()).toBe(0);
+    });
+
+    it("also deletes the generator's logs and maintenance records, and only its own", async () => {
+      const { admin, manager } = await makeUsers();
+      const gone = await createGenerator();
+      const kept = await createGenerator();
+      for (const gen of [gone, kept]) {
+        await as(manager).post("/logs", { generatorId: gen._id, hoursRun: 2 });
+        await as(manager).post("/logs", { generatorId: gen._id, hoursRun: 3 });
+        await GeneratorMaintenance.create({ generator: gen._id, description: "Oil change", scheduledDate: new Date("2027-01-01") });
+      }
+
+      const res = await as(admin).delete(`/${gone._id}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.deleted).toEqual({ logs: 2, maintenance: 1 });
+      expect(await GeneratorLog.countDocuments({ generator: gone._id })).toBe(0);
+      expect(await GeneratorMaintenance.countDocuments({ generator: gone._id })).toBe(0);
+      expect(await GeneratorLog.countDocuments({ generator: kept._id })).toBe(2);
+      expect(await GeneratorMaintenance.countDocuments({ generator: kept._id })).toBe(1);
+      expect((await Generator.findById(kept._id)).runningHoursTotal).toBe(5);
+    });
+
+    it("deleting a generator with no logs or maintenance works and reports zero", async () => {
+      const { admin } = await makeUsers();
+      const gen = await createGenerator();
+
+      const res = await as(admin).delete(`/${gen._id}`);
+
+      expect(res.body.data.deleted).toEqual({ logs: 0, maintenance: 0 });
+    });
+
+    it("frees the tag, so a generator with the same tag can be added again", async () => {
+      const { admin } = await makeUsers();
+      const gen = await createGenerator({ tag: "GEN-REUSE" });
+      await as(admin).delete(`/${gen._id}`);
+
+      const again = await as(admin).post("/", { tag: "GEN-REUSE", name: "Replacement" });
+
+      expect(again.status).toBe(201);
+      expect(again.body.data.name).toBe("Replacement");
+    });
+
+    it("leaves the generator in place if clearing its records fails, so the delete can be repeated", async () => {
+      const { admin } = await makeUsers();
+      const gen = await createGenerator();
+      await GeneratorMaintenance.create({ generator: gen._id, description: "x", scheduledDate: new Date("2027-01-01") });
+      const spy = jest.spyOn(generatorMaintenanceRepository, "deleteByGenerator").mockRejectedValueOnce(new Error("database hiccup"));
+
+      const failed = await as(admin).delete(`/${gen._id}`);
+
+      expect(failed.status).toBe(500);
+      expect(await Generator.findById(gen._id)).not.toBeNull();
+      spy.mockRestore();
+      expect((await as(admin).delete(`/${gen._id}`)).status).toBe(200);
+      expect(await Generator.findById(gen._id)).toBeNull();
+      expect(await GeneratorMaintenance.countDocuments({ generator: gen._id })).toBe(0);
+    });
+
+    it("still treats a generator deleted the old way (isActive false) as not found, and cannot delete it again", async () => {
+      const { admin } = await makeUsers();
+      const legacy = await createGenerator({ isActive: false });
+
+      expect((await as(admin).get(`/${legacy._id}`)).status).toBe(404);
+      expect((await as(admin).delete(`/${legacy._id}`)).status).toBe(404);
     });
 
     it("returns 404 for an unknown id or one that is already deleted", async () => {

@@ -8,6 +8,7 @@ import {
   createGeneratorValidator,
   updateGeneratorValidator,
   createGeneratorLogValidator,
+  updateGeneratorLogValidator,
   createMaintenanceValidator,
   updateMaintenanceValidator,
   maintenanceAlertsValidator,
@@ -22,8 +23,9 @@ router.use(authenticate);
 // Logs — must be declared BEFORE the "/:id" routes below, otherwise
 // GET /generator/logs is captured by "/:id" with id = "logs".
 router.get("/logs", requirePermission("generator.read"), generatorLogController.list);
-router.post("/logs", requirePermission("generator.create"), createGeneratorLogValidator, generatorLogController.create);
-router.delete("/logs/:logId", requirePermission("generator.delete"), generatorLogController.remove);
+router.post("/logs", requirePermission("generator_log.create"), createGeneratorLogValidator, generatorLogController.create);
+router.patch("/logs/:logId", requirePermission("generator_log.update"), updateGeneratorLogValidator, generatorLogController.update);
+router.delete("/logs/:logId", requirePermission("generator_log.delete"), generatorLogController.remove);
 
 // Maintenance — same reason as logs: "/maintenance" must be declared before
 // "/:id" (and "/maintenance/alerts" before "/maintenance/:id").

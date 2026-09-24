@@ -32,7 +32,9 @@ export const generatorRepository = {
   },
 
   updateById: (id, data) => Generator.findByIdAndUpdate(id, data, { returnDocument: "after" }),
-  softDeleteById: (id) => Generator.findByIdAndUpdate(id, { isActive: false }, { returnDocument: "after" }),
+  // Permanently removes the generator. Its logs and maintenance records are
+  // removed by generatorService.removeGenerator, not here.
+  deleteById: (id) => Generator.findByIdAndDelete(id),
 
   // $max only writes when the new date is later than the stored one (or none
   // is stored), so completing an OLD job late can never move lastServiceDate

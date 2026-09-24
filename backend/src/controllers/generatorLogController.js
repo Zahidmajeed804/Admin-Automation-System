@@ -43,6 +43,22 @@ export const generatorLogController = {
     sendSuccess(res, { statusCode: 201, message: "Log recorded", data: result });
   }),
 
+  // Same idea as create: fields are picked explicitly, so the generator and
+  // recordedBy of an entry can never be changed through this route.
+  update: asyncHandler(async (req, res) => {
+    const {
+      date, hoursRun, meterReadingHours,
+      fuelAddedLiters, fuelConsumedLiters, openingFuelLiters, closingFuelLiters,
+      fuelCostPerLiter, fuelCostTotal, fuelVendor, reason, notes,
+    } = req.body;
+    const result = await generatorService.updateLog(req.params.logId, {
+      date, hoursRun, meterReadingHours,
+      fuelAddedLiters, fuelConsumedLiters, openingFuelLiters, closingFuelLiters,
+      fuelCostPerLiter, fuelCostTotal, fuelVendor, reason, notes,
+    });
+    sendSuccess(res, { message: "Log updated", data: result });
+  }),
+
   remove: asyncHandler(async (req, res) => {
     const result = await generatorService.removeLog(req.params.logId);
     sendSuccess(res, { message: "Log deleted", data: result });

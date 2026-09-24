@@ -59,4 +59,7 @@ export const generatorMaintenanceRepository = {
 
   // Returns the deleted document (or null).
   deleteById: (id) => GeneratorMaintenance.findByIdAndDelete(id),
+
+  // Removes every maintenance record of one generator; resolves { deletedCount }.
+  deleteByGenerator: (generatorId) => GeneratorMaintenance.deleteMany({ generator: generatorId }),
 };

@@ -1,7 +1,7 @@
 import { generatorRepository } from "../repositories/generatorRepository.js";
 import { generatorLogRepository } from "../repositories/generatorLogRepository.js";
 import { generatorMaintenanceRepository } from "../repositories/generatorMaintenanceRepository.js";
-import { NotFoundError, ConflictError } from "../errors/AppError.js";
+import { NotFoundError, ConflictError, BadRequestError } from "../errors/AppError.js";
 import { logger } from "../utils/logger.js";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -134,6 +134,108 @@ export const generatorService = {
     if (!log) throw new NotFoundError("Log entry not found");
 
     const generator = await generatorRepository.incrementRunningHours(log.generator, -log.hoursRun);
+    return { log, generator };
+  },
+
+  /**
+   * Permanently deletes a generator together with all of its log entries and
+   * maintenance records, so nothing is left behind and its tag can be used
+   * again. The related records go first and the generator last: these are
+   * separate writes, not a transaction, so if one fails part-way the
+   * generator is still there and the delete can simply be repeated.
+   */
+  async removeGenerator(id) {
+    const generator = await findActiveGenerator(id);
+
+    const logs = await generatorLogRepository.deleteByGenerator(id);
+    const maintenance = await generatorMaintenanceRepository.deleteByGenerator(id);
+    await generatorRepository.deleteById(id);
+
+    return { generator, deleted: { logs: logs.deletedCount, maintenance: maintenance.deletedCount } };
+  },
+
+  /**
+   * Corrects an existing log entry. `changes` holds only the fields to change;
+   * an optional field sent as null is cleared. The generator and who recorded
+   * the entry cannot be changed. Consumption and cost are recalculated from the
+   * result (see computeFuelFigures), and if hoursRun changes the difference is
+   * applied to the generator's running-hours total. Entries recorded after this
+   * one are not recalculated.
+   */
+  async updateLog(logId, changes) {
+    const existing = await generatorLogRepository.findById(logId);
+    if (!existing) throw new NotFoundError("Log entry not found");
+    const before = existing.toObject();
+
+    // The entry as it will look afterwards, so the rules below judge the whole
+    // entry and not just the fields that happen to be in this request.
+    const merged = { ...before };
+    const $set = {};
+    const $unset = {};
+    for (const [key, value] of Object.entries(withoutUndefined(changes))) {
+      if (value === null) {
+        delete merged[key];
+        $unset[key] = 1;
+      } else {
+        merged[key] = value;
+        $set[key] = value;
+      }
+    }
+
+    const opening = isGiven(merged.openingFuelLiters) ? Number(merged.openingFuelLiters) : null;
+    const closing = isGiven(merged.closingFuelLiters) ? Number(merged.closingFuelLiters) : null;
+    const added = Number(merged.fuelAddedLiters) || 0;
+    if (opening !== null && closing !== null && closing > opening + added) {
+      throw new BadRequestError("Validation failed", [
+        { field: "closingFuelLiters", message: "closingFuelLiters cannot exceed openingFuelLiters plus fuelAddedLiters" },
+      ]);
+    }
+    if (isGiven(merged.fuelCostPerLiter) && !(added > 0)) {
+      throw new BadRequestError("Validation failed", [
+        { field: "fuelCostPerLiter", message: "fuelCostPerLiter needs fuelAddedLiters greater than 0" },
+      ]);
+    }
+
+    // Derived figures win over anything sent; and figures that were derived
+    // before but no longer can be must not be left behind, stale.
+    const derived = computeFuelFigures(merged);
+    for (const [key, value] of Object.entries(derived)) {
+      $set[key] = value;
+      delete $unset[key];
+    }
+    const hadReadings = before.openingFuelLiters != null && before.closingFuelLiters != null;
+    if (hadReadings && derived.fuelConsumedLiters === undefined && changes.fuelConsumedLiters === undefined) {
+      $set.fuelConsumedLiters = 0;
+    }
+    const hadCostRule = before.fuelCostPerLiter != null && before.fuelAddedLiters > 0;
+    if (hadCostRule && derived.fuelCostTotal === undefined && changes.fuelCostTotal === undefined) {
+      $unset.fuelCostTotal = 1;
+    }
+
+    const update = {
+      ...(Object.keys($set).length ? { $set } : {}),
+      ...(Object.keys($unset).length ? { $unset } : {}),
+    };
+    if (!Object.keys(update).length) {
+      return { log: existing, generator: await generatorRepository.findById(before.generator) };
+    }
+
+    // Signed (a correction can lower the hours), so not round2, which never goes below 0.
+    const hoursDelta = changes.hoursRun !== undefined ? Math.round((Number(changes.hoursRun) - before.hoursRun) * 100) / 100 : 0;
+    let generator = null;
+    if (hoursDelta !== 0) generator = await generatorRepository.incrementRunningHours(before.generator, hoursDelta);
+
+    let log;
+    try {
+      log = await generatorLogRepository.updateById(logId, update);
+      if (!log) throw new NotFoundError("Log entry not found");
+    } catch (err) {
+      // The two writes are not a transaction: put the hours back if the log did not change.
+      if (hoursDelta !== 0) await generatorRepository.incrementRunningHours(before.generator, -hoursDelta);
+      throw err;
+    }
+
+    generator ??= await generatorRepository.findById(before.generator);
     return { log, generator };
   },
 

@@ -25,7 +25,7 @@ const generatorSchema = new mongoose.Schema(
     runningHoursTotal: { type: Number, default: 0 }, // kept in sync by generatorService.recordLog()
     lastServiceDate: { type: Date }, // kept in sync by generatorService.completeMaintenance()
     notes: { type: String, trim: true },
-    isActive: { type: Boolean, default: true }, // soft delete
+    isActive: { type: Boolean, default: true }, // only false on generators deleted before deletion became permanent; every read still skips them
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   },
