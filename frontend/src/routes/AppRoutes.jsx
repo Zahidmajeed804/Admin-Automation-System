@@ -50,7 +50,9 @@ export default function AppRoutes() {
           <Route element={<ProtectedRoute permission="overtime.read" />}>
             <Route path="/attendance/overtime" element={<OvertimePage />} />
           </Route>
-          <Route path="/attendance/leave" element={<LeavePage />} />
+          <Route element={<ProtectedRoute permission="leave.read" />}>
+            <Route path="/attendance/leave" element={<LeavePage />} />
+          </Route>
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/profile" element={<ProfilePage />} />
