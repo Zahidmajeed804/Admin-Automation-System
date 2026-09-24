@@ -5,3 +5,4 @@ export { default as UserRole } from "./UserRole.js";
 export { default as RolePermission } from "./RolePermission.js";
 export { default as Attendance } from "./Attendance.js";
 export { default as OvertimeRequest } from "./OvertimeRequest.js";
+export { default as LeaveRequest } from "./LeaveRequest.js";
