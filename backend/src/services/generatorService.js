@@ -1,0 +1,342 @@
+import { generatorRepository } from "../repositories/generatorRepository.js";
+import { generatorLogRepository } from "../repositories/generatorLogRepository.js";
+import { generatorMaintenanceRepository } from "../repositories/generatorMaintenanceRepository.js";
+import { NotFoundError, ConflictError, BadRequestError } from "../errors/AppError.js";
+import { logger } from "../utils/logger.js";
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const DEFAULT_ALERT_THRESHOLD_DAYS = 7;
+
+// Whole UTC days since the epoch — lets us compare calendar days rather
+// than instants, so a job due "today" isn't called overdue at 10am.
+const utcDay = (d) => Math.floor(new Date(d).getTime() / MS_PER_DAY);
+
+const withoutUndefined = (obj) => Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined));
+
+// Builds the update that puts `keys` back to what `original` had: fields it
+// had are $set again, fields it didn't have are $unset.
+function restoreUpdate(original, keys) {
+  const $set = {};
+  const $unset = {};
+  keys.forEach((k) => (original[k] === undefined ? ($unset[k] = 1) : ($set[k] = original[k])));
+  return {
+    ...(Object.keys($set).length ? { $set } : {}),
+    ...(Object.keys($unset).length ? { $unset } : {}),
+  };
+}
+
+async function findActiveGenerator(id) {
+  const generator = await generatorRepository.findById(id);
+  if (!generator || !generator.isActive) throw new NotFoundError("Generator not found");
+  return generator;
+}
+
+/** Whole days from `now` until the due date: 0 = today, negative = overdue. */
+export function daysUntilDue(scheduledDate, now = new Date()) {
+  return utcDay(scheduledDate) - utcDay(now);
+}
+
+/**
+ * Pure function: what should we tell the user about this maintenance record
+ * today? Nothing is stored — the answer depends on the date, so it is
+ * computed on read.
+ *
+ *   completed / cancelled -> returned as-is (not an alert)
+ *   overdue   -> due date is before today
+ *   upcoming  -> due today, or within alertThresholdDays days from today
+ *   scheduled -> further out than the threshold
+ */
+export function computeAlertStatus(maintenance, now = new Date()) {
+  if (maintenance.status !== "scheduled") return maintenance.status;
+
+  const threshold = maintenance.alertThresholdDays ?? DEFAULT_ALERT_THRESHOLD_DAYS;
+  const days = daysUntilDue(maintenance.scheduledDate, now);
+
+  if (days < 0) return "overdue";
+  if (days <= threshold) return "upcoming";
+  return "scheduled";
+}
+
+/** A plain-object copy of a maintenance record with its computed alert fields attached. */
+export function withAlertInfo(maintenance, now = new Date()) {
+  const plain = typeof maintenance.toObject === "function" ? maintenance.toObject() : { ...maintenance };
+  return {
+    ...plain,
+    alertStatus: computeAlertStatus(plain, now),
+    daysUntilDue: daysUntilDue(plain.scheduledDate, now),
+  };
+}
+
+const isGiven = (v) => v !== undefined && v !== null && v !== "";
+// Money and litres are kept to 2 decimals so float noise (0.1 + 0.2) never reaches the database.
+const round2 = (n) => Math.max(0, Math.round(n * 100) / 100);
+
+/**
+ * Pure function: the fuel figures we work out ourselves instead of trusting
+ * the client. Returns only the fields it can derive.
+ *
+ *   fuelConsumedLiters = opening + added - closing   (needs both readings)
+ *   fuelCostTotal      = added x price per litre     (needs a price and litres added)
+ */
+export function computeFuelFigures({ openingFuelLiters, closingFuelLiters, fuelAddedLiters, fuelCostPerLiter } = {}) {
+  const derived = {};
+  const added = Number(fuelAddedLiters) || 0;
+
+  if (isGiven(openingFuelLiters) && isGiven(closingFuelLiters)) {
+    derived.fuelConsumedLiters = round2(Number(openingFuelLiters) + added - Number(closingFuelLiters));
+  }
+  if (isGiven(fuelCostPerLiter) && added > 0) {
+    derived.fuelCostTotal = round2(added * Number(fuelCostPerLiter));
+  }
+  return derived;
+}
+
+export const generatorService = {
+  computeAlertStatus,
+  computeFuelFigures,
+
+  /**
+   * Records a usage/fuel log and adds its hoursRun to the generator's
+   * runningHoursTotal. The increment itself is atomic ($inc); the two
+   * writes are not a transaction, so if the increment fails the log is
+   * removed again to keep the total and the log history consistent.
+   * Fuel consumed and fuel cost are derived here (see computeFuelFigures)
+   * and override anything the client sent for them.
+   */
+  async recordLog({ generatorId, recordedBy, ...fields }) {
+    await findActiveGenerator(generatorId);
+
+    const log = await generatorLogRepository.create({
+      ...fields,
+      ...computeFuelFigures(fields),
+      generator: generatorId,
+      recordedBy,
+    });
+
+    let generator;
+    try {
+      generator = await generatorRepository.incrementRunningHours(generatorId, log.hoursRun);
+    } catch (err) {
+      await generatorLogRepository.deleteById(log._id);
+      throw err;
+    }
+
+    return { log, generator };
+  },
+
+  /**
+   * Deletes a log and subtracts its hoursRun from the generator's total —
+   * the reverse of recordLog, so removing a mistaken entry doesn't leave
+   * runningHoursTotal overstated.
+   */
+  async removeLog(logId) {
+    const log = await generatorLogRepository.deleteById(logId);
+    if (!log) throw new NotFoundError("Log entry not found");
+
+    const generator = await generatorRepository.incrementRunningHours(log.generator, -log.hoursRun);
+    return { log, generator };
+  },
+
+  /**
+   * Permanently deletes a generator together with all of its log entries and
+   * maintenance records, so nothing is left behind and its tag can be used
+   * again. The related records go first and the generator last: these are
+   * separate writes, not a transaction, so if one fails part-way the
+   * generator is still there and the delete can simply be repeated.
+   */
+  async removeGenerator(id) {
+    const generator = await findActiveGenerator(id);
+
+    const logs = await generatorLogRepository.deleteByGenerator(id);
+    const maintenance = await generatorMaintenanceRepository.deleteByGenerator(id);
+    await generatorRepository.deleteById(id);
+
+    return { generator, deleted: { logs: logs.deletedCount, maintenance: maintenance.deletedCount } };
+  },
+
+  /**
+   * Corrects an existing log entry. `changes` holds only the fields to change;
+   * an optional field sent as null is cleared. The generator and who recorded
+   * the entry cannot be changed. Consumption and cost are recalculated from the
+   * result (see computeFuelFigures), and if hoursRun changes the difference is
+   * applied to the generator's running-hours total. Entries recorded after this
+   * one are not recalculated.
+   */
+  async updateLog(logId, changes) {
+    const existing = await generatorLogRepository.findById(logId);
+    if (!existing) throw new NotFoundError("Log entry not found");
+    const before = existing.toObject();
+
+    // The entry as it will look afterwards, so the rules below judge the whole
+    // entry and not just the fields that happen to be in this request.
+    const merged = { ...before };
+    const $set = {};
+    const $unset = {};
+    for (const [key, value] of Object.entries(withoutUndefined(changes))) {
+      if (value === null) {
+        delete merged[key];
+        $unset[key] = 1;
+      } else {
+        merged[key] = value;
+        $set[key] = value;
+      }
+    }
+
+    const opening = isGiven(merged.openingFuelLiters) ? Number(merged.openingFuelLiters) : null;
+    const closing = isGiven(merged.closingFuelLiters) ? Number(merged.closingFuelLiters) : null;
+    const added = Number(merged.fuelAddedLiters) || 0;
+    if (opening !== null && closing !== null && closing > opening + added) {
+      throw new BadRequestError("Validation failed", [
+        { field: "closingFuelLiters", message: "closingFuelLiters cannot exceed openingFuelLiters plus fuelAddedLiters" },
+      ]);
+    }
+    if (isGiven(merged.fuelCostPerLiter) && !(added > 0)) {
+      throw new BadRequestError("Validation failed", [
+        { field: "fuelCostPerLiter", message: "fuelCostPerLiter needs fuelAddedLiters greater than 0" },
+      ]);
+    }
+
+    // Derived figures win over anything sent; and figures that were derived
+    // before but no longer can be must not be left behind, stale.
+    const derived = computeFuelFigures(merged);
+    for (const [key, value] of Object.entries(derived)) {
+      $set[key] = value;
+      delete $unset[key];
+    }
+    const hadReadings = before.openingFuelLiters != null && before.closingFuelLiters != null;
+    if (hadReadings && derived.fuelConsumedLiters === undefined && changes.fuelConsumedLiters === undefined) {
+      $set.fuelConsumedLiters = 0;
+    }
+    const hadCostRule = before.fuelCostPerLiter != null && before.fuelAddedLiters > 0;
+    if (hadCostRule && derived.fuelCostTotal === undefined && changes.fuelCostTotal === undefined) {
+      $unset.fuelCostTotal = 1;
+    }
+
+    const update = {
+      ...(Object.keys($set).length ? { $set } : {}),
+      ...(Object.keys($unset).length ? { $unset } : {}),
+    };
+    if (!Object.keys(update).length) {
+      return { log: existing, generator: await generatorRepository.findById(before.generator) };
+    }
+
+    // Signed (a correction can lower the hours), so not round2, which never goes below 0.
+    const hoursDelta = changes.hoursRun !== undefined ? Math.round((Number(changes.hoursRun) - before.hoursRun) * 100) / 100 : 0;
+    let generator = null;
+    if (hoursDelta !== 0) generator = await generatorRepository.incrementRunningHours(before.generator, hoursDelta);
+
+    let log;
+    try {
+      log = await generatorLogRepository.updateById(logId, update);
+      if (!log) throw new NotFoundError("Log entry not found");
+    } catch (err) {
+      // The two writes are not a transaction: put the hours back if the log did not change.
+      if (hoursDelta !== 0) await generatorRepository.incrementRunningHours(before.generator, -hoursDelta);
+      throw err;
+    }
+
+    generator ??= await generatorRepository.findById(before.generator);
+    return { log, generator };
+  },
+
+  /**
+   * Schedules a new maintenance job for an existing, active generator. A new
+   * job is always "scheduled" — status and completedDate can't be supplied
+   * here, because finishing a job goes through completeMaintenance (which
+   * keeps lastServiceDate and recurrence right).
+   */
+  async scheduleMaintenance({ generatorId, createdBy, ...fields }) {
+    await findActiveGenerator(generatorId);
+
+    const allowed = withoutUndefined(fields);
+    delete allowed.status; // a new job is always "scheduled"…
+    delete allowed.completedDate; // …and cannot arrive already completed
+
+    return generatorMaintenanceRepository.create({ ...allowed, generator: generatorId, createdBy });
+  },
+
+  /**
+   * Edits or cancels a maintenance job. Only jobs that are still "scheduled"
+   * can change — completed and cancelled jobs are history. The check is the
+   * atomic updateIfScheduled, so it also holds against a concurrent
+   * completion. (Completing is a separate operation: completeMaintenance.)
+   */
+  async updateMaintenance(maintenanceId, changes) {
+    const updated = await generatorMaintenanceRepository.updateIfScheduled(maintenanceId, withoutUndefined(changes));
+    if (updated) return updated;
+
+    const exists = await generatorMaintenanceRepository.findById(maintenanceId);
+    if (!exists) throw new NotFoundError("Maintenance record not found");
+    throw new ConflictError("Only scheduled maintenance can be changed");
+  },
+
+  /**
+   * Marks a scheduled maintenance record completed, moves the generator's
+   * lastServiceDate forward, and — if the record recurs (intervalDays) —
+   * schedules the next one intervalDays after the day it was actually done.
+   *
+   * The status flip is an atomic "only if still scheduled", so a repeated or
+   * racing request gets a 409 instead of a duplicate next occurrence. The
+   * remaining writes are not a transaction; if one fails, the earlier ones
+   * are undone so nothing is left half-completed.
+   */
+  async completeMaintenance(maintenanceId, { completedDate, performedBy, cost, partsReplaced, notes } = {}) {
+    const original = await generatorMaintenanceRepository.findById(maintenanceId);
+    if (!original) throw new NotFoundError("Maintenance record not found");
+
+    const when = completedDate ? new Date(completedDate) : new Date();
+    const changes = withoutUndefined({ status: "completed", completedDate: when, performedBy, cost, partsReplaced, notes });
+
+    const maintenance = await generatorMaintenanceRepository.updateIfScheduled(maintenanceId, changes);
+    if (!maintenance) throw new ConflictError("Only scheduled maintenance can be completed");
+
+    let next = null;
+    try {
+      if (original.intervalDays) {
+        next = await generatorMaintenanceRepository.create({
+          generator: original.generator,
+          type: original.type,
+          description: original.description,
+          scheduledDate: new Date(when.getTime() + original.intervalDays * MS_PER_DAY),
+          intervalDays: original.intervalDays,
+          alertThresholdDays: original.alertThresholdDays,
+          createdBy: original.createdBy,
+        });
+      }
+      const generator = await generatorRepository.recordServiceDate(original.generator, when);
+      return { maintenance, next, generator };
+    } catch (err) {
+      try {
+        if (next) await generatorMaintenanceRepository.deleteById(next._id);
+        await generatorMaintenanceRepository.updateById(maintenanceId, restoreUpdate(original, Object.keys(changes)));
+      } catch (undoErr) {
+        logger.error(`Could not roll back maintenance ${maintenanceId}: ${undoErr.message}`);
+      }
+      throw err;
+    }
+  },
+
+  /**
+   * The alerts feed: every open job that is overdue or coming up, split into
+   * two lists (most overdue / soonest first). By default each job uses its own
+   * alertThresholdDays to decide "upcoming"; passing `withinDays` overrides
+   * that for all jobs, to look further (or nearer) ahead. Jobs belonging to
+   * soft-deleted generators are left out.
+   */
+  async getMaintenanceAlerts({ withinDays, now = new Date() } = {}) {
+    const open = await generatorMaintenanceRepository.listOpen();
+    const overdue = [];
+    const upcoming = [];
+
+    for (const record of open) {
+      if (!record.generator || !record.generator.isActive) continue;
+
+      const view = withAlertInfo(record, now);
+      const status = withinDays === undefined ? view.alertStatus : computeAlertStatus({ ...view, alertThresholdDays: withinDays }, now);
+      if (status === "overdue") overdue.push({ ...view, alertStatus: status });
+      else if (status === "upcoming") upcoming.push({ ...view, alertStatus: status });
+    }
+
+    return { counts: { overdue: overdue.length, upcoming: upcoming.length }, overdue, upcoming };
+  },
+};

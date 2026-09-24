@@ -42,6 +42,7 @@ export const statusStyles = {
 
   pending: { label: "Pending", color: colors.warning, bg: "#FFFBEB" },
   halfDay: { label: "Half Day", color: colors.warning, bg: "#FFFBEB" },
+  late: { label: "Late", color: colors.warning, bg: "#FFFBEB" },
   lowStock: { label: "Low Stock", color: colors.warning, bg: "#FFFBEB" },
   maintenance: { label: "Maintenance", color: colors.warning, bg: "#FFFBEB" },
   onLeave: { label: "On Leave", color: colors.warning, bg: "#FFFBEB" },
@@ -56,6 +57,24 @@ export const statusStyles = {
   info: { label: "Info", color: colors.info, bg: "#F0F9FF" },
   weekend: { label: "Weekend", color: colors.textMuted, bg: "#F8FAFC" },
   holiday: { label: "Holiday", color: colors.info, bg: "#F0F9FF" },
+
+  // Generator asset status (Generator.status)
+  operational: { label: "Operational", color: colors.success, bg: "#F0FDF4" },
+  under_maintenance: { label: "Under Maintenance", color: colors.warning, bg: "#FFFBEB" },
+  faulty: { label: "Faulty", color: colors.error, bg: "#FEF2F2" },
+  decommissioned: { label: "Decommissioned", color: colors.textMuted, bg: "#F8FAFC" },
+
+  // Generator maintenance alertStatus (computed by the backend, never
+  // stored — see generatorService.computeAlertStatus) plus the two real
+  // stored statuses that aren't alerts, "completed" and "cancelled".
+  overdue: { label: "Overdue", color: colors.error, bg: "#FEF2F2" },
+  upcoming: { label: "Upcoming", color: colors.warning, bg: "#FFFBEB" },
+  // "scheduled" reuses the existing generic `info` key's colors but needs
+  // its own entry so Badge's default label lookup (style?.label) resolves
+  // to "Scheduled" instead of "Info".
+  scheduled: { label: "Scheduled", color: colors.info, bg: "#F0F9FF" },
+  completed: { label: "Completed", color: colors.success, bg: "#F0FDF4" },
+  cancelled: { label: "Cancelled", color: colors.textMuted, bg: "#F8FAFC" },
 };
 
 export const layout = {

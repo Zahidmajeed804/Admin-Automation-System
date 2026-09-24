@@ -1,4 +1,6 @@
 import mongoose from "mongoose";
+import { pathToFileURL } from "node:url";
+import { setServers } from "node:dns/promises";
 import { connectDatabase, disconnectDatabase } from "../config/database.js";
 import { rbacRepository } from "../repositories/rbacRepository.js";
 import { permissionsCatalog, defaultRoles } from "../constants/permissions.js";
@@ -6,7 +8,7 @@ import { hashPassword } from "../utils/password.js";
 import { User } from "../models/index.js";
 import { logger } from "../utils/logger.js";
 
-async function seedPermissions() {
+export async function seedPermissions() {
   const permissionIdByName = {};
   for (const p of permissionsCatalog) {
     const name = `${p.resource}.${p.action}`;
@@ -25,7 +27,7 @@ async function seedPermissions() {
   return permissionIdByName;
 }
 
-async function seedRoles(permissionIdByName) {
+export async function seedRoles(permissionIdByName) {
   for (const r of defaultRoles) {
     let role = await rbacRepository.findRoleByName(r.name);
     if (!role) {
@@ -44,7 +46,7 @@ async function seedRoles(permissionIdByName) {
   }
 }
 
-async function seedDefaultAdmin() {
+export async function seedDefaultAdmin() {
   const existing = await User.findOne({ email: "admin@admin-automation.local" });
   if (existing) return;
 
@@ -63,11 +65,22 @@ async function seedDefaultAdmin() {
   logger.info("Created default admin user: admin@admin-automation.local / ChangeMe123! (change this password immediately)");
 }
 
-async function run() {
-  await connectDatabase();
-  logger.info("Seeding RBAC data...");
+// Convenience wrapper the test suite reuses so it never has to duplicate
+// seedPermissions/seedRoles ordering logic.
+export async function seedRbacCatalog() {
   const permissionIdByName = await seedPermissions();
   await seedRoles(permissionIdByName);
+  return permissionIdByName;
+}
+
+async function run() {
+  // Same resolver override as server.js, so mongodb+srv:// Atlas URIs resolve
+  // on networks whose default DNS refuses SRV lookups. Kept inside run() (not
+  // top-level) so merely importing this module from tests has no side effect.
+  setServers(["1.1.1.1", "8.8.8.8"]);
+  await connectDatabase();
+  logger.info("Seeding RBAC data...");
+  await seedRbacCatalog();
   await seedDefaultAdmin();
   logger.info("RBAC seeding complete.");
   await disconnectDatabase();
@@ -75,7 +88,15 @@ async function run() {
   process.exit(0);
 }
 
-run().catch((err) => {
-  logger.error(`Seeding failed: ${err.message}`);
-  process.exit(1);
-});
+// ESM equivalent of `require.main === module` — only self-run when invoked
+// directly (`node src/seeders/index.js` / `npm run seed`), never on import.
+// pathToFileURL (not a manual `file://` + string concat) is required here:
+// process.argv[1] can be relative and uses OS-native separators, so on
+// Windows a naive comparison against import.meta.url never matches and this
+// guard silently never fires.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  run().catch((err) => {
+    logger.error(`Seeding failed: ${err.message}`);
+    process.exit(1);
+  });
+}

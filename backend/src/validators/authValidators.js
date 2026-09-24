@@ -1,16 +1,5 @@
-import { body, validationResult } from "express-validator";
-import { BadRequestError } from "../errors/AppError.js";
-
-export const runValidation = (req, res, next) => {
-  const result = validationResult(req);
-  if (!result.isEmpty()) {
-    throw new BadRequestError(
-      "Validation failed",
-      result.array().map((e) => ({ field: e.path, message: e.msg }))
-    );
-  }
-  next();
-};
+import { body } from "express-validator";
+import { runValidation } from "../middleware/runValidation.js";
 
 export const registerValidator = [
   body("name").trim().notEmpty().withMessage("Name is required"),
