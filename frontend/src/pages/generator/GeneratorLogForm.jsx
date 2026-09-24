@@ -5,6 +5,8 @@ import Input from "../../components/common/Input";
 import Select from "../../components/common/Select";
 import { generatorService } from "../../services/generatorService";
 import { extractErrorMessage } from "./GeneratorForm";
+import { computeFuelFigures, closingExceedsAvailable } from "../../utils/fuelFigures";
+import { formatNumber } from "../../utils/formatNumber";
 
 const BLANK = {
   generatorId: "",
@@ -70,6 +72,14 @@ export default function GeneratorLogForm({ open, onClose, onSaved, generatorOpti
     setValues((v) => ({ ...v, [key]: value }));
   };
 
+  // What the server will work out on save, shown before the person submits.
+  const derived = computeFuelFigures(values);
+  const closingTooHigh = closingExceedsAvailable(values);
+  const consumed = closingTooHigh ? undefined : derived.fuelConsumedLiters;
+  const typedConsumed = values.fuelConsumedLiters !== "" ? Number(values.fuelConsumedLiters) : null;
+  const replacesTyped = consumed !== undefined && typedConsumed !== null && typedConsumed !== consumed;
+  const showPreview = closingTooHigh || consumed !== undefined || derived.fuelCostTotal !== undefined;
+
   const validate = () => {
     const next = {};
     if (!values.generatorId) next.generatorId = "Generator is required";
@@ -78,9 +88,8 @@ export default function GeneratorLogForm({ open, onClose, onSaved, generatorOpti
       if (values[key] !== "" && !(Number(values[key]) >= 0)) next[key] = `${label} must be 0 or more`;
     }
     // Same two rules the server enforces on POST /generator/logs.
-    if (!next.closingFuelLiters && values.openingFuelLiters !== "" && values.closingFuelLiters !== "") {
-      const available = Number(values.openingFuelLiters) + (Number(values.fuelAddedLiters) || 0);
-      if (Number(values.closingFuelLiters) > available) next.closingFuelLiters = "Closing fuel cannot be more than opening plus fuel added";
+    if (!next.closingFuelLiters && closingExceedsAvailable(values)) {
+      next.closingFuelLiters = "Closing fuel cannot be more than opening plus fuel added";
     }
     if (!next.fuelCostPerLiter && values.fuelCostPerLiter !== "" && !(Number(values.fuelAddedLiters) > 0)) {
       next.fuelCostPerLiter = "Enter the litres added to use a price per litre";
@@ -168,6 +177,33 @@ export default function GeneratorLogForm({ open, onClose, onSaved, generatorOpti
           <Input id="log-fuelConsumedLiters" label="Fuel Consumed (L)" type="number" min="0" value={values.fuelConsumedLiters} onChange={setField("fuelConsumedLiters")} error={fieldErrors.fuelConsumedLiters} />
           <Input id="log-fuelCostPerLiter" label="Price per Litre" type="number" min="0" step="0.01" value={values.fuelCostPerLiter} onChange={setField("fuelCostPerLiter")} error={fieldErrors.fuelCostPerLiter} />
           <Input id="log-fuelVendor" label="Fuel Vendor" value={values.fuelVendor} onChange={setField("fuelVendor")} placeholder="e.g. PSO Pump" />
+          {showPreview && (
+            <div id="log-fuel-preview" aria-live="polite" className="sm:col-span-2 rounded-md border border-border bg-surface-subtle px-3 py-2.5 flex flex-col gap-1">
+              <span className="text-helper font-semibold text-ink-secondary uppercase tracking-wide">Calculated on save</span>
+              {closingTooHigh && (
+                <span className="text-body text-status-error">Closing fuel is higher than opening plus fuel added, so consumption can't be worked out.</span>
+              )}
+              {consumed !== undefined && (
+                <span className="text-body text-ink">
+                  Fuel consumed: <strong>{formatNumber(consumed)} L</strong>
+                  <span className="text-ink-muted">
+                    {" "}({formatNumber(Number(values.openingFuelLiters))} + {formatNumber(Number(values.fuelAddedLiters) || 0)} − {formatNumber(Number(values.closingFuelLiters))})
+                  </span>
+                </span>
+              )}
+              {replacesTyped && (
+                <span className="text-helper text-ink-muted">This replaces the {formatNumber(typedConsumed)} L typed in Fuel Consumed.</span>
+              )}
+              {derived.fuelCostTotal !== undefined && (
+                <span className="text-body text-ink">
+                  Total cost: <strong>{formatNumber(derived.fuelCostTotal)}</strong>
+                  <span className="text-ink-muted">
+                    {" "}({formatNumber(Number(values.fuelAddedLiters))} L × {formatNumber(Number(values.fuelCostPerLiter))})
+                  </span>
+                </span>
+              )}
+            </div>
+          )}
           <Input id="log-reason" label="Reason" value={values.reason} onChange={setField("reason")} placeholder="e.g. power outage" />
         </div>
 
