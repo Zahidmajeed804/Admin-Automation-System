@@ -4,12 +4,15 @@ import { useAuth } from "../../context/AuthContext";
 import PageHeader from "../../components/common/PageHeader";
 import Button from "../../components/common/Button";
 import RequestLeaveModal from "../../components/leave/RequestLeaveModal";
+import LeaveHistoryTable from "../../components/leave/LeaveHistoryTable";
 import { formatDate } from "../../utils/attendanceFormat";
 
 export default function LeavePage() {
   const { hasPermission } = useAuth();
   const [requesting, setRequesting] = useState(false);
   const [submitted, setSubmitted] = useState(null);
+  // Bumped after every new request so the history table re-fetches.
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Requesting is for users who can submit leave; the API enforces the same rule independently.
   const canRequest = hasPermission("leave.create");
@@ -43,12 +46,17 @@ export default function LeavePage() {
           {submitted.totalDays === 1 ? "day" : "days"}). It is pending approval.
         </div>
       )}
+      <section className="flex flex-col gap-3">
+        <h2 className="text-section-heading text-ink">My leave requests</h2>
+        <LeaveHistoryTable refreshKey={refreshKey} />
+      </section>
       <RequestLeaveModal
         open={requesting}
         onClose={() => setRequesting(false)}
         onSubmitted={(leave) => {
           setRequesting(false);
           setSubmitted(leave);
+          setRefreshKey((k) => k + 1);
         }}
       />
     </>

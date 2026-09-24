@@ -6,6 +6,12 @@ export const leaveTypeOptions = [
   { value: "unpaid", label: "Unpaid leave" },
 ];
 
+// Leave dates are stored as midnight UTC, so render in UTC or users west of UTC see the previous day.
+export const formatLeaveDate = (iso) =>
+  new Date(iso).toLocaleDateString([], { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+
+export const leaveTypeLabel =Object.fromEntries(leaveTypeOptions.map((o) => [o.value, o.label]));
+
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 // Calendar days from start to end inclusive, for "YYYY-MM-DD" strings (same rule as the API).
