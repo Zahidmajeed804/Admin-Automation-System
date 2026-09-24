@@ -1,7 +1,7 @@
 import { NavLink } from "react-router-dom";
 import clsx from "clsx";
 import { useAuth } from "../../context/AuthContext";
-import { attendanceSections } from "../../constants/navigation";
+import { attendanceNav } from "../../constants/navigation";
 
 /**
  * Switcher between the Attendance, Overtime and Leave pages. Lists only the
@@ -9,7 +9,7 @@ import { attendanceSections } from "../../constants/navigation";
  */
 export default function AttendanceSectionNav() {
   const { hasPermission } = useAuth();
-  const sections = attendanceSections.filter((s) => hasPermission(s.permission));
+  const sections = attendanceNav.filter((s) => hasPermission(s.permission));
   if (sections.length < 2) return null;
 
   return (
@@ -19,7 +19,7 @@ export default function AttendanceSectionNav() {
           key={section.to}
           to={section.to}
           // "/attendance" is a prefix of the other two, so match it exactly.
-          end={section.to === "/attendance"}
+          end={section.end}
           className={({ isActive }) =>
             clsx(
               "inline-flex items-center h-9 px-3 rounded-md text-body font-medium transition-colors duration-150",
