@@ -3,7 +3,7 @@ import { jest } from "@jest/globals";
 import { Generator, GeneratorLog, GeneratorMaintenance } from "../src/models/index.js";
 import { generatorRepository } from "../src/repositories/generatorRepository.js";
 import { generatorMaintenanceRepository } from "../src/repositories/generatorMaintenanceRepository.js";
-import { generatorService, computeAlertStatus, daysUntilDue, withAlertInfo } from "../src/services/generatorService.js";
+import { generatorService, computeAlertStatus, computeFuelFigures, daysUntilDue, withAlertInfo } from "../src/services/generatorService.js";
 import { NotFoundError, ConflictError } from "../src/errors/AppError.js";
 import { createGenerator, UNKNOWN_ID } from "./helpers/generatorTestUtils.js";
 
@@ -66,6 +66,36 @@ describe("daysUntilDue and withAlertInfo (pure)", () => {
   });
 });
 
+describe("computeFuelFigures (pure)", () => {
+  it.each([
+    ["consumption is opening + added - closing", { openingFuelLiters: 100, fuelAddedLiters: 50, closingFuelLiters: 120 }, { fuelConsumedLiters: 30 }],
+    ["consumption with no fuel added", { openingFuelLiters: 100, closingFuelLiters: 70 }, { fuelConsumedLiters: 30 }],
+    ["closing equal to opening + added means 0 consumed", { openingFuelLiters: 10, fuelAddedLiters: 5, closingFuelLiters: 15 }, { fuelConsumedLiters: 0 }],
+    ["numbers sent as strings", { openingFuelLiters: "100", fuelAddedLiters: "50", closingFuelLiters: "120" }, { fuelConsumedLiters: 30 }],
+    ["float noise is rounded away (0.1 + 0.2 - 0.3)", { openingFuelLiters: 0.1, fuelAddedLiters: 0.2, closingFuelLiters: 0.3 }, { fuelConsumedLiters: 0 }],
+    ["only an opening reading derives nothing", { openingFuelLiters: 100, fuelAddedLiters: 50 }, {}],
+    ["only a closing reading derives nothing", { closingFuelLiters: 100 }, {}],
+    ["cost is litres added x price", { fuelAddedLiters: 40, fuelCostPerLiter: 285.5 }, { fuelCostTotal: 11420 }],
+    ["cost is rounded to 2 decimals", { fuelAddedLiters: 3, fuelCostPerLiter: 0.333 }, { fuelCostTotal: 1 }],
+    ["a price with no litres added derives no cost", { fuelCostPerLiter: 285 }, {}],
+    ["a price with 0 litres added derives no cost", { fuelAddedLiters: 0, fuelCostPerLiter: 285 }, {}],
+    ["a price of 0 is honoured (free fuel)", { fuelAddedLiters: 10, fuelCostPerLiter: 0 }, { fuelCostTotal: 0 }],
+    ["both figures together", { openingFuelLiters: 100, fuelAddedLiters: 50, closingFuelLiters: 120, fuelCostPerLiter: 2 }, { fuelConsumedLiters: 30, fuelCostTotal: 100 }],
+    ["an empty input", {}, {}],
+    ["no input at all", undefined, {}],
+  ])("%s", (_label, input, expected) => {
+    expect(computeFuelFigures(input)).toEqual(expected);
+  });
+
+  it("is also exposed on the service and does not modify its input", () => {
+    const input = { openingFuelLiters: 10, fuelAddedLiters: 5, closingFuelLiters: 4 };
+    const before = { ...input };
+
+    expect(generatorService.computeFuelFigures(input)).toEqual({ fuelConsumedLiters: 11 });
+    expect(input).toEqual(before);
+  });
+});
+
 describe("recordLog / removeLog", () => {
   it("recordLog stores the entry and adds its hours to the generator", async () => {
     const gen = await createGenerator();
@@ -91,6 +121,52 @@ describe("recordLog / removeLog", () => {
     await expect(generatorService.recordLog({ generatorId: UNKNOWN_ID, recordedBy: userId(), hoursRun: 1 })).rejects.toBeInstanceOf(NotFoundError);
     await expect(generatorService.recordLog({ generatorId: deleted._id, recordedBy: userId(), hoursRun: 1 })).rejects.toBeInstanceOf(NotFoundError);
     expect(await GeneratorLog.countDocuments()).toBe(0);
+  });
+
+  it("stores derived fuel consumption and cost, overriding client-sent values, and keeps the vendor", async () => {
+    const gen = await createGenerator();
+
+    const { log } = await generatorService.recordLog({
+      generatorId: gen._id,
+      recordedBy: userId(),
+      hoursRun: 3,
+      openingFuelLiters: 100,
+      fuelAddedLiters: 50,
+      closingFuelLiters: 120,
+      fuelCostPerLiter: 285.5,
+      fuelVendor: "PSO Pump",
+      fuelConsumedLiters: 999,
+      fuelCostTotal: 1,
+    });
+
+    expect(log).toMatchObject({ fuelConsumedLiters: 30, fuelCostTotal: 14275, fuelVendor: "PSO Pump" });
+    expect(await GeneratorLog.findById(log._id)).toMatchObject({ fuelConsumedLiters: 30, fuelCostTotal: 14275 }); // persisted
+  });
+
+  it("keeps a client-supplied consumed figure and total when they cannot be derived", async () => {
+    const gen = await createGenerator();
+
+    const { log } = await generatorService.recordLog({
+      generatorId: gen._id,
+      recordedBy: userId(),
+      hoursRun: 1,
+      fuelAddedLiters: 20,
+      fuelConsumedLiters: 8,
+      fuelCostTotal: 5000,
+    });
+
+    expect(log).toMatchObject({ fuelConsumedLiters: 8, fuelCostTotal: 5000 });
+  });
+
+  it("leaves the new fuel fields unset on an old-style entry", async () => {
+    const gen = await createGenerator();
+
+    const { log } = await generatorService.recordLog({ generatorId: gen._id, recordedBy: userId(), hoursRun: 2, fuelAddedLiters: 10 });
+
+    expect(log.openingFuelLiters).toBeUndefined();
+    expect(log.closingFuelLiters).toBeUndefined();
+    expect(log.fuelCostTotal).toBeUndefined();
+    expect(log.fuelConsumedLiters).toBe(0);
   });
 
   it("removes the log again if adding its hours fails, so history and total stay consistent", async () => {

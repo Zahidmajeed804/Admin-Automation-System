@@ -47,8 +47,44 @@ describe("GeneratorLog model", () => {
     await expect(GeneratorLog.create({ generator: oid(), hoursRun: 1 })).rejects.toThrow(); // no recordedBy
   });
 
-  it.each([["hoursRun"], ["meterReadingHours"], ["fuelAddedLiters"], ["fuelConsumedLiters"]])("rejects a negative %s", async (field) => {
+  it.each([
+    ["hoursRun"], ["meterReadingHours"], ["fuelAddedLiters"], ["fuelConsumedLiters"],
+    ["openingFuelLiters"], ["closingFuelLiters"], ["fuelCostPerLiter"], ["fuelCostTotal"],
+  ])("rejects a negative %s", async (field) => {
     await expect(GeneratorLog.create({ generator: oid(), recordedBy: oid(), hoursRun: 1, [field]: -1 })).rejects.toThrow();
+  });
+
+  it("stores the opening/closing fuel, price, total and vendor when given, and trims the vendor", async () => {
+    const gen = await createGenerator();
+
+    const log = await GeneratorLog.create({
+      generator: gen._id, recordedBy: oid(), hoursRun: 1,
+      openingFuelLiters: 100, closingFuelLiters: 60, fuelCostPerLiter: 285.5, fuelCostTotal: 5710, fuelVendor: "  PSO  ",
+    });
+
+    expect(await GeneratorLog.findById(log._id)).toMatchObject({
+      openingFuelLiters: 100, closingFuelLiters: 60, fuelCostPerLiter: 285.5, fuelCostTotal: 5710, fuelVendor: "PSO",
+    });
+  });
+
+  it("leaves the new fuel fields unset (not 0) when they are not given", async () => {
+    const gen = await createGenerator();
+
+    const log = await GeneratorLog.create({ generator: gen._id, hoursRun: 1, recordedBy: oid() });
+
+    expect(log.openingFuelLiters).toBeUndefined();
+    expect(log.closingFuelLiters).toBeUndefined();
+    expect(log.fuelCostPerLiter).toBeUndefined();
+    expect(log.fuelCostTotal).toBeUndefined();
+    expect(log.fuelVendor).toBeUndefined();
+  });
+
+  it("accepts 0 for the opening reading, closing reading and price", async () => {
+    const gen = await createGenerator();
+
+    await expect(
+      GeneratorLog.create({ generator: gen._id, recordedBy: oid(), hoursRun: 1, openingFuelLiters: 0, closingFuelLiters: 0, fuelCostPerLiter: 0 })
+    ).resolves.toBeTruthy();
   });
 
   it("is indexed by generator then date", async () => {

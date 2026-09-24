@@ -45,6 +45,68 @@ describe("Generator usage logs API — /api/v1/generator/logs", () => {
       expect(await hoursOf(gen._id)).toBe(3.5); // persisted, not just echoed
     });
 
+    it("derives fuel consumed and cost from the readings, ignoring client-sent values, and trims the vendor", async () => {
+      const { manager } = await makeUsers();
+      const gen = await createGenerator();
+
+      const res = await as(manager).post("/logs", {
+        generatorId: gen._id,
+        hoursRun: 3,
+        openingFuelLiters: 100,
+        fuelAddedLiters: 50,
+        closingFuelLiters: 120,
+        fuelCostPerLiter: 285.5,
+        fuelVendor: "  PSO Pump  ",
+        fuelConsumedLiters: 999, // spoof attempt
+        fuelCostTotal: 1, // spoof attempt
+      });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.log).toMatchObject({
+        openingFuelLiters: 100,
+        closingFuelLiters: 120,
+        fuelAddedLiters: 50,
+        fuelConsumedLiters: 30,
+        fuelCostPerLiter: 285.5,
+        fuelCostTotal: 14275,
+        fuelVendor: "PSO Pump",
+      });
+      expect(await GeneratorLog.findById(res.body.data.log._id)).toMatchObject({ fuelConsumedLiters: 30, fuelCostTotal: 14275 }); // persisted
+    });
+
+    it("keeps a client-sent consumed figure and total when they cannot be derived", async () => {
+      const { manager } = await makeUsers();
+      const gen = await createGenerator();
+
+      const res = await as(manager).post("/logs", { generatorId: gen._id, hoursRun: 1, fuelAddedLiters: 20, fuelConsumedLiters: 8, fuelCostTotal: 5000 });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.log).toMatchObject({ fuelConsumedLiters: 8, fuelCostTotal: 5000 });
+    });
+
+    it("accepts a closing reading exactly equal to opening + added", async () => {
+      const { manager } = await makeUsers();
+      const gen = await createGenerator();
+
+      const res = await as(manager).post("/logs", { generatorId: gen._id, hoursRun: 1, openingFuelLiters: 100, fuelAddedLiters: 50, closingFuelLiters: 150 });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.log.fuelConsumedLiters).toBe(0);
+    });
+
+    it("leaves the new fuel fields unset when the request does not send them", async () => {
+      const { manager } = await makeUsers();
+      const gen = await createGenerator();
+
+      const res = await as(manager).post("/logs", { generatorId: gen._id, hoursRun: 2, fuelAddedLiters: 10 });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.log.openingFuelLiters).toBeUndefined();
+      expect(res.body.data.log.fuelCostTotal).toBeUndefined();
+      expect(res.body.data.log.fuelVendor).toBeUndefined();
+      expect(res.body.data.log.fuelConsumedLiters).toBe(0);
+    });
+
     it("adds up across entries", async () => {
       const { manager } = await makeUsers();
       const gen = await createGenerator();
@@ -92,6 +154,15 @@ describe("Generator usage logs API — /api/v1/generator/logs", () => {
       ["negative fuel added", (id) => ({ generatorId: id, hoursRun: 1, fuelAddedLiters: -5 })],
       ["negative fuel consumed", (id) => ({ generatorId: id, hoursRun: 1, fuelConsumedLiters: -5 })],
       ["an invalid date", (id) => ({ generatorId: id, hoursRun: 1, date: "not a date" })],
+      ["a negative opening reading", (id) => ({ generatorId: id, hoursRun: 1, openingFuelLiters: -1 })],
+      ["a negative closing reading", (id) => ({ generatorId: id, hoursRun: 1, closingFuelLiters: -1 })],
+      ["a non-numeric opening reading", (id) => ({ generatorId: id, hoursRun: 1, openingFuelLiters: "abc" })],
+      ["a closing reading above opening + added", (id) => ({ generatorId: id, hoursRun: 1, openingFuelLiters: 100, fuelAddedLiters: 50, closingFuelLiters: 151 })],
+      ["a closing reading above opening with no fuel added", (id) => ({ generatorId: id, hoursRun: 1, openingFuelLiters: 100, closingFuelLiters: 101 })],
+      ["a negative price per litre", (id) => ({ generatorId: id, hoursRun: 1, fuelAddedLiters: 10, fuelCostPerLiter: -2 })],
+      ["a price per litre with no fuel added", (id) => ({ generatorId: id, hoursRun: 1, fuelCostPerLiter: 285 })],
+      ["a price per litre with 0 fuel added", (id) => ({ generatorId: id, hoursRun: 1, fuelAddedLiters: 0, fuelCostPerLiter: 285 })],
+      ["a negative total cost", (id) => ({ generatorId: id, hoursRun: 1, fuelCostTotal: -1 })],
     ])("rejects %s with 400", async (_label, buildPayload) => {
       const { manager } = await makeUsers();
       const gen = await createGenerator();
