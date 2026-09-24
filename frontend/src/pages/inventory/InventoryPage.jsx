@@ -380,6 +380,7 @@ export default function InventoryPage() {
           <InventoryItemForm
             initialValues={formModal.item}
             defaultType={activeType}
+            readOnly={formModal.readOnly}
             onSubmit={handleFormSubmit}
             onCancel={() => setFormModal(null)}
             submitting={submitting}
