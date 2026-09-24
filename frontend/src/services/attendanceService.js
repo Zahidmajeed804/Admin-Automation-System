@@ -1,11 +1,5 @@
 import apiClient from "./apiClient";
-
-// Filter inputs often arrive as "" (an empty select/date field). The backend
-// validators reject empty strings, so drop anything that isn't a real value.
-const cleanParams = (params = {}) =>
-  Object.fromEntries(
-    Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== "")
-  );
+import { cleanParams } from "../utils/cleanParams";
 
 export const attendanceService = {
   today: () => apiClient.get("/attendance/me/today").then((r) => r.data.data.attendance),
