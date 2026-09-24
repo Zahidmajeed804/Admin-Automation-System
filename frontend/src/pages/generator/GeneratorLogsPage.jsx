@@ -9,6 +9,7 @@ import Table from "../../components/tables/Table";
 import GeneratorLogForm from "./GeneratorLogForm";
 import { generatorService } from "../../services/generatorService";
 import { formatDate } from "../../utils/formatDate";
+import { formatNumber } from "../../utils/formatNumber";
 
 const PAGE_SIZE = 10;
 
@@ -32,11 +33,23 @@ const COLUMNS = [
     header: "Fuel",
     render: (row) => {
       const parts = [];
-      if (row.fuelAddedLiters > 0) parts.push(`+${row.fuelAddedLiters} L`);
-      if (row.fuelConsumedLiters > 0) parts.push(`-${row.fuelConsumedLiters} L`);
+      if (row.fuelAddedLiters > 0) parts.push(`+${formatNumber(row.fuelAddedLiters)} L`);
+      if (row.fuelConsumedLiters > 0) parts.push(`-${formatNumber(row.fuelConsumedLiters)} L`);
       return parts.length ? parts.join(" / ") : "—";
     },
   },
+  {
+    key: "tank",
+    header: "Tank Level",
+    render: (row) => {
+      const hasOpening = row.openingFuelLiters != null;
+      const hasClosing = row.closingFuelLiters != null;
+      if (!hasOpening && !hasClosing) return "—";
+      return `${formatNumber(row.openingFuelLiters)} → ${formatNumber(row.closingFuelLiters)} L`;
+    },
+  },
+  { key: "cost", header: "Fuel Cost", render: (row) => formatNumber(row.fuelCostTotal) },
+  { key: "vendor", header: "Vendor", render: (row) => row.fuelVendor || "—" },
   { key: "reason", header: "Reason", render: (row) => row.reason || "—" },
   { key: "recordedBy", header: "Recorded By", render: (row) => row.recordedBy?.name ?? "—" },
 ];
