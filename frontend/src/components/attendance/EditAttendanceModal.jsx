@@ -5,6 +5,7 @@ import Button from "../common/Button";
 import Input from "../common/Input";
 import Select from "../common/Select";
 import { formatDate, toDateTimeLocalValue } from "../../utils/attendanceFormat";
+import { apiErrorMessage } from "../../utils/apiError";
 
 const statusOptions = [
   { value: "present", label: "Present" },
@@ -15,11 +16,7 @@ const statusOptions = [
 
 const FORM_ID = "edit-attendance-form";
 
-const serverMessage = (err) => {
-  const data = err?.response?.data;
-  const details = data?.details?.map((d) => d.message).join(". ");
-  return details || data?.message || "Couldn't save changes. Please try again.";
-};
+const serverMessage = (err) => apiErrorMessage(err, "Couldn't save changes. Please try again.");
 
 function EditForm({ record, onClose, onSaved }) {
   const initial = {
