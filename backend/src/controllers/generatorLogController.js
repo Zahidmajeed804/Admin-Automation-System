@@ -19,7 +19,11 @@ export const generatorLogController = {
   // Fields are picked explicitly (not spread from req.body) so a client
   // can't set recordedBy, generator, or anything else the service owns.
   create: asyncHandler(async (req, res) => {
-    const { generatorId, date, hoursRun, meterReadingHours, fuelAddedLiters, fuelConsumedLiters, reason, notes } = req.body;
+    const {
+      generatorId, date, hoursRun, meterReadingHours,
+      fuelAddedLiters, fuelConsumedLiters, openingFuelLiters, closingFuelLiters,
+      fuelCostPerLiter, fuelCostTotal, fuelVendor, reason, notes,
+    } = req.body;
     const result = await generatorService.recordLog({
       generatorId,
       recordedBy: req.userId,
@@ -28,6 +32,11 @@ export const generatorLogController = {
       meterReadingHours,
       fuelAddedLiters,
       fuelConsumedLiters,
+      openingFuelLiters,
+      closingFuelLiters,
+      fuelCostPerLiter,
+      fuelCostTotal,
+      fuelVendor,
       reason,
       notes,
     });

@@ -67,19 +67,51 @@ export function withAlertInfo(maintenance, now = new Date()) {
   };
 }
 
+const isGiven = (v) => v !== undefined && v !== null && v !== "";
+// Money and litres are kept to 2 decimals so float noise (0.1 + 0.2) never reaches the database.
+const round2 = (n) => Math.max(0, Math.round(n * 100) / 100);
+
+/**
+ * Pure function: the fuel figures we work out ourselves instead of trusting
+ * the client. Returns only the fields it can derive.
+ *
+ *   fuelConsumedLiters = opening + added - closing   (needs both readings)
+ *   fuelCostTotal      = added x price per litre     (needs a price and litres added)
+ */
+export function computeFuelFigures({ openingFuelLiters, closingFuelLiters, fuelAddedLiters, fuelCostPerLiter } = {}) {
+  const derived = {};
+  const added = Number(fuelAddedLiters) || 0;
+
+  if (isGiven(openingFuelLiters) && isGiven(closingFuelLiters)) {
+    derived.fuelConsumedLiters = round2(Number(openingFuelLiters) + added - Number(closingFuelLiters));
+  }
+  if (isGiven(fuelCostPerLiter) && added > 0) {
+    derived.fuelCostTotal = round2(added * Number(fuelCostPerLiter));
+  }
+  return derived;
+}
+
 export const generatorService = {
   computeAlertStatus,
+  computeFuelFigures,
 
   /**
    * Records a usage/fuel log and adds its hoursRun to the generator's
    * runningHoursTotal. The increment itself is atomic ($inc); the two
    * writes are not a transaction, so if the increment fails the log is
    * removed again to keep the total and the log history consistent.
+   * Fuel consumed and fuel cost are derived here (see computeFuelFigures)
+   * and override anything the client sent for them.
    */
   async recordLog({ generatorId, recordedBy, ...fields }) {
     await findActiveGenerator(generatorId);
 
-    const log = await generatorLogRepository.create({ ...fields, generator: generatorId, recordedBy });
+    const log = await generatorLogRepository.create({
+      ...fields,
+      ...computeFuelFigures(fields),
+      generator: generatorId,
+      recordedBy,
+    });
 
     let generator;
     try {
