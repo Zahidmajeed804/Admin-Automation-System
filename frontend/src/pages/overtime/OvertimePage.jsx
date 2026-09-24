@@ -1,5 +1,6 @@
 import { useAuth } from "../../context/AuthContext";
 import PageHeader from "../../components/common/PageHeader";
+import AttendanceSectionNav from "../../components/attendance/AttendanceSectionNav";
 import OvertimeHistoryTable from "../../components/overtime/OvertimeHistoryTable";
 import PendingOvertimeTable from "../../components/overtime/PendingOvertimeTable";
 
@@ -14,6 +15,7 @@ export default function OvertimePage() {
         title="Overtime"
         description="Overtime is calculated automatically when you clock out, then reviewed by a manager."
       />
+      <AttendanceSectionNav />
       <div className="flex flex-col gap-8">
         {canReview && (
           <section className="flex flex-col gap-3">

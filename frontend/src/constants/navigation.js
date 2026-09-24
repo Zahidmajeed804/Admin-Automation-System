@@ -32,3 +32,11 @@ export const navSections = [
     ],
   },
 ];
+
+// Sibling pages of the Attendance module, shown as a switcher at the top of each one.
+// A section is listed only for users holding its permission.
+export const attendanceSections = [
+  { label: "Attendance", to: "/attendance", permission: "attendance.read" },
+  { label: "Overtime", to: "/attendance/overtime", permission: "overtime.read" },
+  { label: "Leave", to: "/attendance/leave", permission: "leave.read" },
+];

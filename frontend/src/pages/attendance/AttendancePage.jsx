@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import PageHeader from "../../components/common/PageHeader";
+import AttendanceSectionNav from "../../components/attendance/AttendanceSectionNav";
 import Tabs from "../../components/common/Tabs";
 import ClockWidget from "../../components/attendance/ClockWidget";
 import AttendanceHistoryTable from "../../components/attendance/AttendanceHistoryTable";
@@ -34,6 +35,7 @@ export default function AttendancePage() {
         title="Attendance"
         description="Clock in and out, and review your attendance history."
       />
+      <AttendanceSectionNav />
       {canViewTeam && <Tabs tabs={tabs} value={activeTab} onChange={selectTab} label="Attendance views" />}
       <div className="flex flex-col gap-6" {...panelProps}>
         {activeTab === "team" ? (

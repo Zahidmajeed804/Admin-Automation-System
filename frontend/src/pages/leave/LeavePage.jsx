@@ -2,6 +2,7 @@ import { useState } from "react";
 import { CalendarPlus } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import PageHeader from "../../components/common/PageHeader";
+import AttendanceSectionNav from "../../components/attendance/AttendanceSectionNav";
 import Button from "../../components/common/Button";
 import RequestLeaveModal from "../../components/leave/RequestLeaveModal";
 import LeaveHistoryTable from "../../components/leave/LeaveHistoryTable";
@@ -40,6 +41,7 @@ export default function LeavePage() {
           )
         }
       />
+      <AttendanceSectionNav />
       {submitted && (
         <div
           role="status"
