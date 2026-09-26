@@ -74,8 +74,9 @@ Rules the API enforces:
   Approve/Reject for `overtime.approve`.
 - `/attendance/leave` — Request leave form, own leave history, plus Pending
   approvals for users who can approve or reject leave.
-- Sidebar entries and a page switcher for the three pages, shown only to users who
-  hold each page's permission.
+- A single Attendance entry in the sidebar, and a page switcher at the top of the
+  three pages (Attendance, Overtime, Leave), each link shown only to users who hold
+  that page's permission.
 
 **Verified** over real HTTP and in real Chrome against a live MongoDB, with test
 data removed afterwards. Each guide can be repeated by hand:

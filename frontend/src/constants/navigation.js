@@ -4,20 +4,18 @@ import {
   ShoppingBasket,
   Zap,
   Users,
-  Timer,
-  CalendarDays,
   FileBarChart,
   Bell,
   Settings,
 } from "lucide-react";
 
-// The Attendance module's pages. One list feeds both the sidebar and the switcher at the top of
-// each page, so labels, paths and permissions can't drift apart. An item is shown only to users
-// holding its permission. `end` stops "/attendance" from also matching /attendance/overtime.
+// The Attendance module's pages, shown as a switcher at the top of each one (the sidebar
+// only lists "Attendance"). A page is listed only for users holding its permission.
+// `end` stops "/attendance" from also matching /attendance/overtime.
 export const attendanceNav = [
-  { label: "Attendance", to: "/attendance", icon: Users, permission: "attendance.read", end: true },
-  { label: "Overtime", to: "/attendance/overtime", icon: Timer, permission: "overtime.read" },
-  { label: "Leave", to: "/attendance/leave", icon: CalendarDays, permission: "leave.read" },
+  { label: "Attendance", to: "/attendance", permission: "attendance.read", end: true },
+  { label: "Overtime", to: "/attendance/overtime", permission: "overtime.read" },
+  { label: "Leave", to: "/attendance/leave", permission: "leave.read" },
 ];
 
 // Single source of truth for sidebar navigation. Add a module here and it
@@ -32,7 +30,8 @@ export const navSections = [
       { label: "Giveaways", to: "/giveaways", icon: Gift },
       { label: "Grocery & Cleaning", to: "/inventory", icon: ShoppingBasket },
       { label: "Generator", to: "/generator", icon: Zap },
-      ...attendanceNav,
+      // Stays highlighted on /attendance/overtime and /attendance/leave too (no `end`).
+      { label: "Attendance", to: "/attendance", icon: Users, permission: "attendance.read" },
     ],
   },
   {
