@@ -18,6 +18,12 @@ app.use(
   cors({
     origin: env.clientOrigin,
     credentials: true,
+    // Response headers are hidden from browser JS by default on a
+    // cross-origin request unless explicitly exposed. Content-Disposition
+    // carries the invoice's original filename for the frontend to save it
+    // under (see generatorService.downloadInvoice) — without this, every
+    // browser download falls back to a generic name.
+    exposedHeaders: ["Content-Disposition"],
   })
 );
 app.use(compression());

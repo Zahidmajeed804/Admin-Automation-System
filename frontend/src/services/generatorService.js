@@ -28,4 +28,22 @@ export const generatorService = {
   // the backend distinguishes them by the request body, not the route.
   updateMaintenance: (id, payload) => apiClient.patch(`/generator/maintenance/${id}`, payload).then(one),
   deleteMaintenance: (id) => apiClient.delete(`/generator/maintenance/${id}`).then(one),
+
+  // Invoices — at most one per maintenance job; uploading again replaces it.
+  // FormData is passed as-is: axios detects it and sets the multipart
+  // Content-Type (with boundary) itself, overriding apiClient's JSON default.
+  uploadInvoice: (id, file) => {
+    const form = new FormData();
+    form.append("invoice", file);
+    return apiClient.post(`/generator/maintenance/${id}/invoice`, form).then(one);
+  },
+  // Resolves { blob, filename } — the filename comes from the response's
+  // Content-Disposition (the ORIGINAL name it was uploaded as, not the random
+  // name it's stored under), for the caller to hand to the browser's save dialog.
+  downloadInvoice: async (id) => {
+    const res = await apiClient.get(`/generator/maintenance/${id}/invoice`, { responseType: "blob" });
+    const match = /filename="?([^"; ]+)"?/i.exec(res.headers["content-disposition"] || "");
+    return { blob: res.data, filename: match ? match[1] : "invoice" };
+  },
+  deleteInvoice: (id) => apiClient.delete(`/generator/maintenance/${id}/invoice`).then(one),
 };

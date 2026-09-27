@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Plus, Pencil, Trash2, CheckCircle2, Ban } from "lucide-react";
+import { Plus, Pencil, Trash2, CheckCircle2, Ban, Paperclip } from "lucide-react";
 import FilterBar from "../../components/common/FilterBar";
 import Select from "../../components/common/Select";
 import Badge from "../../components/common/Badge";
@@ -8,6 +8,7 @@ import ConfirmDialog from "../../components/modals/ConfirmDialog";
 import Table from "../../components/tables/Table";
 import GeneratorMaintenanceForm from "./GeneratorMaintenanceForm";
 import GeneratorMaintenanceCompleteForm from "./GeneratorMaintenanceCompleteForm";
+import GeneratorMaintenanceInvoice from "./GeneratorMaintenanceInvoice";
 import { extractErrorMessage } from "./GeneratorForm";
 import { useAuth } from "../../context/AuthContext";
 import { generatorService } from "../../services/generatorService";
@@ -27,8 +28,9 @@ const STATUS_OPTIONS = [
 // all — the same pattern GeneratorPage uses. Editing, completing and
 // cancelling only make sense for a job still "scheduled" — completed/
 // cancelled jobs are history, and the backend refuses all three anyway — so
-// those three are also skipped for rows that aren't.
-function buildColumns({ onEdit, onComplete, onCancel, onDelete }) {
+// those three are also skipped for rows that aren't. The invoice action has
+// no such restriction: a job can carry an invoice at any status.
+function buildColumns({ onEdit, onComplete, onCancel, onInvoice, onDelete }) {
   return [
     { key: "generator", header: "Generator", render: (row) => <span className="font-medium text-ink">{row.generator?.tag ?? "—"}</span> },
     { key: "description", header: "Description" },
@@ -53,6 +55,7 @@ function buildColumns({ onEdit, onComplete, onCancel, onDelete }) {
           {onCancel && row.status === "scheduled" && (
             <Button variant="ghost" size="sm" icon={Ban} aria-label={`Cancel ${row.description}`} onClick={() => onCancel(row)} />
           )}
+          <Button variant="ghost" size="sm" icon={Paperclip} aria-label={`Invoice for ${row.description}`} onClick={() => onInvoice(row)} />
           {onDelete && <Button variant="ghost" size="sm" icon={Trash2} aria-label={`Delete ${row.description}`} onClick={() => onDelete(row)} />}
         </div>
       ),
@@ -83,6 +86,8 @@ export default function GeneratorMaintenancePage() {
   const [editingJob, setEditingJob] = useState(null);
 
   const [completeTarget, setCompleteTarget] = useState(null);
+
+  const [invoiceTarget, setInvoiceTarget] = useState(null);
 
   const [cancelTarget, setCancelTarget] = useState(null);
   const [cancelError, setCancelError] = useState(null);
@@ -158,6 +163,12 @@ export default function GeneratorMaintenancePage() {
     load();
   };
 
+  // Keeps the row's own invoice field in sync without a full reload, in case
+  // it's reopened before the list next refreshes.
+  const handleInvoiceChanged = (updatedJob) => {
+    setItems((current) => current.map((j) => (j._id === updatedJob._id ? { ...j, invoice: updatedJob.invoice } : j)));
+  };
+
   const closeCancelDialog = () => {
     setCancelTarget(null);
     setCancelError(null);
@@ -202,6 +213,7 @@ export default function GeneratorMaintenancePage() {
     onEdit: canUpdate ? openEditForm : undefined,
     onComplete: canUpdate ? (row) => setCompleteTarget(row) : undefined,
     onCancel: canUpdate ? (row) => setCancelTarget(row) : undefined,
+    onInvoice: (row) => setInvoiceTarget(row),
     onDelete: canDelete ? (row) => setDeleteTarget(row) : undefined,
   });
 
@@ -256,6 +268,14 @@ export default function GeneratorMaintenancePage() {
         job={completeTarget}
         onClose={() => setCompleteTarget(null)}
         onSaved={handleCompleted}
+      />
+
+      <GeneratorMaintenanceInvoice
+        open={Boolean(invoiceTarget)}
+        job={invoiceTarget}
+        onClose={() => setInvoiceTarget(null)}
+        onChanged={handleInvoiceChanged}
+        canUpdate={canUpdate}
       />
 
       <ConfirmDialog
