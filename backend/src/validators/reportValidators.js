@@ -25,3 +25,5 @@ export const fuelCostReportValidator = [
   query("month").optional().matches(/^\d{4}-\d{2}$/).withMessage("month must be in YYYY-MM format"),
   runValidation,
 ];
+
+export const maintenanceCostReportValidator = [generatorIdFilter, ...dateRangeFilter, runValidation];

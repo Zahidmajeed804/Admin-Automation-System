@@ -18,4 +18,10 @@ export const reportController = {
     const report = await reportService.getFuelCostReport({ generatorId: req.query.generatorId, month: req.query.month });
     sendSuccess(res, { data: report });
   }),
+
+  maintenanceCost: asyncHandler(async (req, res) => {
+    const { generatorId, from, to } = req.query;
+    const report = await reportService.getMaintenanceCostReport({ generatorId, from, to });
+    sendSuccess(res, { data: report });
+  }),
 };

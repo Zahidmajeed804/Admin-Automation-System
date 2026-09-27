@@ -1,4 +1,4 @@
-import { Generator, GeneratorLog } from "../models/index.js";
+import { Generator, GeneratorLog, GeneratorMaintenance } from "../models/index.js";
 
 // Every report is scoped to generators that still exist (not soft-deleted) —
 // same convention as generatorRepository.list. With a generatorId, resolves
@@ -51,5 +51,15 @@ export const reportRepository = {
           logCount: { $sum: 1 },
         },
       },
+    ]),
+
+  // Only completed jobs count as an actual cost — a scheduled or cancelled
+  // job never happened. Ranged on completedDate (when the cost was actually
+  // incurred), not scheduledDate (when it was originally due), since a job
+  // can be completed well after — or, for backlog cleanup, before — that.
+  maintenanceCostByGenerator: (generatorIds, from, to) =>
+    GeneratorMaintenance.aggregate([
+      { $match: { generator: { $in: generatorIds }, status: "completed", completedDate: { $gte: from, $lte: to } } },
+      { $group: { _id: "$generator", cost: { $sum: "$cost" }, jobCount: { $sum: 1 } } },
     ]),
 };

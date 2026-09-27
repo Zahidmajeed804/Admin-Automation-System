@@ -176,4 +176,38 @@ export const reportService = {
       generators: result,
     };
   },
+
+  /**
+   * Maintenance-cost report (spec 4.2: "maintenance — cost"). One row per
+   * active generator (or just the one requested), summed from its completed
+   * maintenance jobs over an arbitrary date range; a generator with no
+   * completed jobs in range still appears, at 0.
+   */
+  async getMaintenanceCostReport({ generatorId, from, to } = {}) {
+    const range = resolveDateRange({ from, to });
+    const generators = await generatorsFor(generatorId);
+    if (!generators.length) return { ...range, totalCost: 0, totalJobCount: 0, generators: [] };
+
+    const rows = seedRows(generators, { cost: 0, jobCount: 0 });
+    const aggregated = await reportRepository.maintenanceCostByGenerator(
+      generators.map((g) => g._id),
+      range.from,
+      range.to
+    );
+    for (const row of aggregated) {
+      const entry = rows.get(String(row._id));
+      if (entry) {
+        entry.cost = round2(row.cost);
+        entry.jobCount = row.jobCount;
+      }
+    }
+
+    const result = [...rows.values()];
+    return {
+      ...range,
+      totalCost: round2(result.reduce((sum, r) => sum + r.cost, 0)),
+      totalJobCount: result.reduce((sum, r) => sum + r.jobCount, 0),
+      generators: result,
+    };
+  },
 };
