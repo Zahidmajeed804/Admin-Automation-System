@@ -50,6 +50,16 @@ const generatorMaintenanceSchema = new mongoose.Schema(
       default: undefined,
     },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    // What the daily reminder job (AAS-348) last emailed about this job, so
+    // it only sends again when the alert actually changes (e.g. "upcoming"
+    // becoming "overdue"), not once a day forever for an unchanged status.
+    // Unset until the first reminder goes out. Known limitation: editing a
+    // job's schedule doesn't clear this, so if it moves from "overdue" back
+    // to "upcoming" and later becomes "overdue" again the same way, it won't
+    // re-notify — an edge case left for later, same spirit as the S2.8
+    // hours-only-interval limitation.
+    notifiedStatus: { type: String, enum: ["upcoming", "overdue"] },
+    notifiedAt: { type: Date },
   },
   { timestamps: true }
 );
