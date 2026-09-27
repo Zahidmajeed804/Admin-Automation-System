@@ -14,12 +14,23 @@ const EXTENSION_BY_MIME = {
 
 // Resolved once at import time, relative to wherever the backend process is
 // run from (the same "cwd" convention every npm script — dev/start/test —
-// already uses). Created up front so the first upload doesn't race the folder.
+// already uses).
 export const invoiceUploadDir = path.resolve(env.invoiceUploadDir);
 fs.mkdirSync(invoiceUploadDir, { recursive: true });
 
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, invoiceUploadDir),
+  // Re-created on every request, not only at import: if the folder is ever
+  // removed while the process keeps running (a disk cleanup, a bad deploy
+  // step), the next upload recreates it instead of failing with an ENOENT
+  // that would otherwise reach the client as a raw 500.
+  destination: (req, file, cb) => {
+    try {
+      fs.mkdirSync(invoiceUploadDir, { recursive: true });
+      cb(null, invoiceUploadDir);
+    } catch (err) {
+      cb(err);
+    }
+  },
   // A random name on disk — never the client-supplied filename — so two
   // uploads can't collide and a crafted name can't escape the folder. The
   // original filename is kept separately, in the database, for display.
