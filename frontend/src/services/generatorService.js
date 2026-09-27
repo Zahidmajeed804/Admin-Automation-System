@@ -30,12 +30,16 @@ export const generatorService = {
   deleteMaintenance: (id) => apiClient.delete(`/generator/maintenance/${id}`).then(one),
 
   // Invoices — at most one per maintenance job; uploading again replaces it.
-  // FormData is passed as-is: axios detects it and sets the multipart
-  // Content-Type (with boundary) itself, overriding apiClient's JSON default.
+  // apiClient sets Content-Type: application/json as an axios INSTANCE
+  // default, which (unlike axios's own built-in default) is not cleared
+  // automatically just because the body is FormData — sending it unchanged
+  // reaches the server as JSON, and multer never sees a file. Explicitly
+  // unsetting it here lets the browser compute the real multipart
+  // Content-Type, boundary included.
   uploadInvoice: (id, file) => {
     const form = new FormData();
     form.append("invoice", file);
-    return apiClient.post(`/generator/maintenance/${id}/invoice`, form).then(one);
+    return apiClient.post(`/generator/maintenance/${id}/invoice`, form, { headers: { "Content-Type": undefined } }).then(one);
   },
   // Resolves { blob, filename } — the filename comes from the response's
   // Content-Disposition (the ORIGINAL name it was uploaded as, not the random
