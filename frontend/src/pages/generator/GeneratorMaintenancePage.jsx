@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, CheckCircle2, Ban } from "lucide-react";
 import FilterBar from "../../components/common/FilterBar";
 import Select from "../../components/common/Select";
 import Badge from "../../components/common/Badge";
@@ -7,6 +7,7 @@ import Button from "../../components/common/Button";
 import ConfirmDialog from "../../components/modals/ConfirmDialog";
 import Table from "../../components/tables/Table";
 import GeneratorMaintenanceForm from "./GeneratorMaintenanceForm";
+import GeneratorMaintenanceCompleteForm from "./GeneratorMaintenanceCompleteForm";
 import { extractErrorMessage } from "./GeneratorForm";
 import { useAuth } from "../../context/AuthContext";
 import { generatorService } from "../../services/generatorService";
@@ -21,12 +22,13 @@ const STATUS_OPTIONS = [
   { value: "cancelled", label: "Cancelled" },
 ];
 
-// `onEdit` / `onDelete` are left undefined for a user without the matching
-// permission, and then that button is not drawn at all — the same pattern
-// GeneratorPage uses. Editing only makes sense for a job still "scheduled" —
-// completed/cancelled jobs are history, and the backend refuses the edit
-// anyway — so onEdit is also skipped for those rows.
-function buildColumns({ onEdit, onDelete }) {
+// `onEdit` / `onComplete` / `onCancel` / `onDelete` are left undefined for a
+// user without the matching permission, and then that button is not drawn at
+// all — the same pattern GeneratorPage uses. Editing, completing and
+// cancelling only make sense for a job still "scheduled" — completed/
+// cancelled jobs are history, and the backend refuses all three anyway — so
+// those three are also skipped for rows that aren't.
+function buildColumns({ onEdit, onComplete, onCancel, onDelete }) {
   return [
     { key: "generator", header: "Generator", render: (row) => <span className="font-medium text-ink">{row.generator?.tag ?? "—"}</span> },
     { key: "description", header: "Description" },
@@ -42,8 +44,14 @@ function buildColumns({ onEdit, onDelete }) {
       header: "",
       render: (row) => (
         <div className="flex items-center justify-end gap-1">
+          {onComplete && row.status === "scheduled" && (
+            <Button variant="ghost" size="sm" icon={CheckCircle2} aria-label={`Complete ${row.description}`} onClick={() => onComplete(row)} />
+          )}
           {onEdit && row.status === "scheduled" && (
             <Button variant="ghost" size="sm" icon={Pencil} aria-label={`Edit ${row.description}`} onClick={() => onEdit(row)} />
+          )}
+          {onCancel && row.status === "scheduled" && (
+            <Button variant="ghost" size="sm" icon={Ban} aria-label={`Cancel ${row.description}`} onClick={() => onCancel(row)} />
           )}
           {onDelete && <Button variant="ghost" size="sm" icon={Trash2} aria-label={`Delete ${row.description}`} onClick={() => onDelete(row)} />}
         </div>
@@ -73,6 +81,12 @@ export default function GeneratorMaintenancePage() {
 
   const [formOpen, setFormOpen] = useState(false);
   const [editingJob, setEditingJob] = useState(null);
+
+  const [completeTarget, setCompleteTarget] = useState(null);
+
+  const [cancelTarget, setCancelTarget] = useState(null);
+  const [cancelError, setCancelError] = useState(null);
+  const [cancelling, setCancelling] = useState(false);
 
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleteError, setDeleteError] = useState(null);
@@ -139,6 +153,30 @@ export default function GeneratorMaintenancePage() {
     load();
   };
 
+  const handleCompleted = () => {
+    setCompleteTarget(null);
+    load();
+  };
+
+  const closeCancelDialog = () => {
+    setCancelTarget(null);
+    setCancelError(null);
+  };
+
+  const handleCancelConfirm = async () => {
+    setCancelling(true);
+    setCancelError(null);
+    try {
+      await generatorService.updateMaintenance(cancelTarget._id, { status: "cancelled" });
+      setCancelTarget(null);
+      load();
+    } catch (err) {
+      setCancelError(extractErrorMessage(err));
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   const closeDeleteDialog = () => {
     setDeleteTarget(null);
     setDeleteError(null);
@@ -162,6 +200,8 @@ export default function GeneratorMaintenancePage() {
 
   const columns = buildColumns({
     onEdit: canUpdate ? openEditForm : undefined,
+    onComplete: canUpdate ? (row) => setCompleteTarget(row) : undefined,
+    onCancel: canUpdate ? (row) => setCancelTarget(row) : undefined,
     onDelete: canDelete ? (row) => setDeleteTarget(row) : undefined,
   });
 
@@ -209,6 +249,28 @@ export default function GeneratorMaintenancePage() {
         onSaved={handleSaved}
         generatorOptions={generatorOptions}
         defaultGeneratorId={generatorId}
+      />
+
+      <GeneratorMaintenanceCompleteForm
+        open={Boolean(completeTarget)}
+        job={completeTarget}
+        onClose={() => setCompleteTarget(null)}
+        onSaved={handleCompleted}
+      />
+
+      <ConfirmDialog
+        open={Boolean(cancelTarget)}
+        onClose={closeCancelDialog}
+        onConfirm={handleCancelConfirm}
+        loading={cancelling}
+        variant="danger"
+        confirmLabel="Cancel Job"
+        cancelLabel="Back"
+        title="Cancel this maintenance job?"
+        description={
+          cancelError ||
+          `"${cancelTarget?.description ?? "This job"}" is kept as history, marked cancelled, but a recurring job's next occurrence is not created. This cannot be undone.`
+        }
       />
 
       <ConfirmDialog
