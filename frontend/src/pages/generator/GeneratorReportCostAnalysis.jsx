@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { DollarSign, Fuel, Wrench } from "lucide-react";
+import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import Card from "../../components/common/Card";
 import StatCard from "../../components/common/StatCard";
 import FilterBar from "../../components/common/FilterBar";
 import Select from "../../components/common/Select";
@@ -10,12 +12,19 @@ const CURRENT_YEAR = new Date().getUTCFullYear();
 // Same range as GeneratorReportOperatingCost's own year picker, for the same reason.
 const YEAR_OPTIONS = Array.from({ length: 6 }, (_, i) => CURRENT_YEAR - 4 + i).map((y) => ({ value: String(y), label: String(y) }));
 
+const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+// Chart colors are the theme's actual hex values (tailwind.config.js), since
+// recharts' SVG stroke/fill props need real colors, not Tailwind classes.
+const CHART_COLORS = { fuel: "#2563EB", maintenance: "#F59E0B", total: "#16A34A", grid: "#E2E8F0" };
+
 /**
  * Spec 4.2's "cost-analysis dashboard" — fuel cost, maintenance cost and
  * their combined total for a chosen year, fleet-wide or for one generator.
- * Reuses getOperatingCostReport for these totals since it's already the
- * yearly, 12-month-complete endpoint the dashboard's charts (AAS-368/369)
- * are built on. The per-generator breakdown/consumption charts come next.
+ * Reuses getOperatingCostReport for these totals and for the monthly trend
+ * chart below them, since it's already the yearly, 12-month-complete
+ * endpoint spec 4.2 asks for. The per-generator breakdown/consumption
+ * charts (AAS-369) come next.
  */
 export default function GeneratorReportCostAnalysis({ generatorOptions }) {
   const [generatorId, setGeneratorId] = useState("");
@@ -48,6 +57,13 @@ export default function GeneratorReportCostAnalysis({ generatorOptions }) {
     setYear("");
   };
 
+  const trendData = (operating?.months ?? []).map((m) => ({
+    name: MONTH_SHORT[m.month - 1],
+    fuelCost: m.fuelCost,
+    maintenanceCost: m.maintenanceCost,
+    operatingCost: m.operatingCost,
+  }));
+
   return (
     <div className="flex flex-col gap-5">
       <FilterBar
@@ -65,6 +81,24 @@ export default function GeneratorReportCostAnalysis({ generatorOptions }) {
         <StatCard label={`Maintenance Cost — ${operating?.year ?? "—"}`} value={operating ? formatNumber(operating.totalMaintenanceCost) : "—"} icon={Wrench} />
         <StatCard label={`Total Operating Cost — ${operating?.year ?? "—"}`} value={operating ? formatNumber(operating.totalOperatingCost) : "—"} icon={DollarSign} />
       </div>
+
+      <Card>
+        <p className="text-card-heading text-ink mb-4">Monthly Cost Trend — {operating?.year ?? "—"}</p>
+        <div className="h-72">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={trendData} margin={{ top: 4, right: 12, left: 0, bottom: 0 }}>
+              <CartesianGrid stroke={CHART_COLORS.grid} vertical={false} />
+              <XAxis dataKey="name" tick={{ fontSize: 12, fill: "#64748B" }} axisLine={{ stroke: CHART_COLORS.grid }} tickLine={false} />
+              <YAxis tick={{ fontSize: 12, fill: "#64748B" }} axisLine={false} tickLine={false} width={70} tickFormatter={(v) => formatNumber(v)} />
+              <Tooltip formatter={(value) => formatNumber(value)} />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Line type="monotone" dataKey="fuelCost" name="Fuel Cost" stroke={CHART_COLORS.fuel} strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="maintenanceCost" name="Maintenance Cost" stroke={CHART_COLORS.maintenance} strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="operatingCost" name="Total Operating Cost" stroke={CHART_COLORS.total} strokeWidth={2} dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </Card>
     </div>
   );
 }
