@@ -407,8 +407,9 @@ export const generatorService = {
     for (const record of open) {
       if (!record.generator || !record.generator.isActive) continue;
 
-      const view = withAlertInfo(record, now);
-      const status = withinDays === undefined ? view.alertStatus : computeAlertStatus({ ...view, alertThresholdDays: withinDays }, now);
+      const currentRunningHours = record.generator.runningHoursTotal;
+      const view = withAlertInfo(record, now, currentRunningHours);
+      const status = withinDays === undefined ? view.alertStatus : computeAlertStatus({ ...view, alertThresholdDays: withinDays }, now, currentRunningHours);
       if (status === "overdue") overdue.push({ ...view, alertStatus: status });
       else if (status === "upcoming") upcoming.push({ ...view, alertStatus: status });
     }

@@ -20,7 +20,7 @@ export const generatorMaintenanceRepository = {
         .sort({ scheduledDate: dir, createdAt: dir })
         .skip(skip)
         .limit(pageSize)
-        .populate("generator", "tag name"),
+        .populate("generator", "tag name runningHoursTotal"),
       GeneratorMaintenance.countDocuments(filter),
     ]);
 
@@ -40,11 +40,12 @@ export const generatorMaintenanceRepository = {
 
   // Every not-yet-done job across all generators (the alerts feed). Open work
   // is a small, bounded set, so this is not paginated. `isActive` is selected
-  // so callers can skip jobs belonging to soft-deleted generators.
+  // so callers can skip jobs belonging to soft-deleted generators;
+  // `runningHoursTotal` so a running-hours-based job can be checked.
   listOpen: () =>
     GeneratorMaintenance.find({ status: "scheduled" })
       .sort({ scheduledDate: 1, createdAt: 1 })
-      .populate("generator", "tag name isActive"),
+      .populate("generator", "tag name isActive runningHoursTotal"),
 
   // Atomic "update it only if it's still scheduled". The status is part of
   // the filter, so if two requests race — two completions, or a cancel against

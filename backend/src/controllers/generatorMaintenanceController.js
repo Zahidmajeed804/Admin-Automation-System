@@ -16,7 +16,7 @@ export const generatorMaintenanceController = {
       pageSize: pageSize ? Number(pageSize) : undefined,
     });
     const now = new Date();
-    sendSuccess(res, { data: items.map((item) => withAlertInfo(item, now)), meta });
+    sendSuccess(res, { data: items.map((item) => withAlertInfo(item, now, item.generator?.runningHoursTotal)), meta });
   }),
 
   alerts: asyncHandler(async (req, res) => {
