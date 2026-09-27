@@ -2,7 +2,7 @@ import { generatorService } from "../services/generatorService.js";
 import { generatorMaintenanceRepository } from "../repositories/generatorMaintenanceRepository.js";
 import { getMaintenanceReminderRecipients } from "../services/notificationRecipients.js";
 import { buildMaintenanceReminderEmail } from "../utils/emailTemplates/maintenanceReminder.js";
-import { sendMail } from "../utils/mailer.js";
+import { mailer } from "../utils/mailer.js";
 import { logger } from "../utils/logger.js";
 
 // Only a job whose alert has actually changed since the last reminder is
@@ -34,7 +34,7 @@ export async function runMaintenanceReminderJob(now = new Date()) {
     return { sent: false, reason: "no-recipients", overdue: freshOverdue.length, upcoming: freshUpcoming.length };
   }
 
-  await sendMail({ to: recipients, subject: email.subject, html: email.html, text: email.text });
+  await mailer.sendMail({ to: recipients, subject: email.subject, html: email.html, text: email.text });
 
   await generatorMaintenanceRepository.markNotified(
     [
