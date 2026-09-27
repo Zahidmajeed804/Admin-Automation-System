@@ -22,7 +22,9 @@ const generatorMaintenanceSchema = new mongoose.Schema(
     completedDate: { type: Date },
     intervalDays: { type: Number, min: 1 }, // recurrence: on completion, the next one is scheduled this many days later
     alertThresholdDays: { type: Number, default: 7, min: 0 }, // start flagging as "upcoming" this many days before due
-    performedBy: { type: String, trim: true }, // technician / vendor
+    performedBy: { type: String, trim: true }, // technician
+    vendor: { type: String, trim: true }, // company the service was bought from
+    hoursAtService: { type: Number, min: 0 }, // generator's running hours when the job was completed
     cost: { type: Number, min: 0 },
     partsReplaced: { type: String, trim: true },
     notes: { type: String, trim: true },
