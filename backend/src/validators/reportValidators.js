@@ -10,3 +10,12 @@ export const runningHoursReportValidator = [
   query("month").optional().matches(/^\d{4}-\d{2}$/).withMessage("month must be in YYYY-MM format"),
   runValidation,
 ];
+
+// Shared by every report that takes an arbitrary from/to range instead of a
+// calendar month (the service resolves the default when either is absent).
+const dateRangeFilter = [
+  query("from").optional().isISO8601().withMessage("from must be a valid date"),
+  query("to").optional().isISO8601().withMessage("to must be a valid date"),
+];
+
+export const dieselConsumptionReportValidator = [generatorIdFilter, ...dateRangeFilter, runValidation];

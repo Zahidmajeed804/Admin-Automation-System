@@ -22,4 +22,19 @@ export const reportRepository = {
       { $match: { generator: { $in: generatorIds }, date: { $gte: from, $lt: to } } },
       { $group: { _id: "$generator", hoursRun: { $sum: "$hoursRun" }, logCount: { $sum: 1 } } },
     ]),
+
+  // Diesel added/consumed per generator within [from, to] (inclusive both
+  // ends — same convention as generatorLogRepository.list's from/to).
+  fuelByGenerator: (generatorIds, from, to) =>
+    GeneratorLog.aggregate([
+      { $match: { generator: { $in: generatorIds }, date: { $gte: from, $lte: to } } },
+      {
+        $group: {
+          _id: "$generator",
+          fuelConsumedLiters: { $sum: "$fuelConsumedLiters" },
+          fuelAddedLiters: { $sum: "$fuelAddedLiters" },
+          logCount: { $sum: 1 },
+        },
+      },
+    ]),
 };

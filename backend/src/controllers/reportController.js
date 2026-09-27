@@ -7,4 +7,10 @@ export const reportController = {
     const report = await reportService.getRunningHoursReport({ generatorId: req.query.generatorId, month: req.query.month });
     sendSuccess(res, { data: report });
   }),
+
+  dieselConsumption: asyncHandler(async (req, res) => {
+    const { generatorId, from, to } = req.query;
+    const report = await reportService.getDieselConsumptionReport({ generatorId, from, to });
+    sendSuccess(res, { data: report });
+  }),
 };

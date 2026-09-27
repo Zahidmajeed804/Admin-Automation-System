@@ -27,6 +27,20 @@ export function resolveMonthRange(month) {
   return { from, to, year, month: monthIndex + 1 };
 }
 
+/**
+ * An arbitrary [from, to] range (inclusive both ends, matching
+ * generatorLogRepository.list's own from/to convention), for reports that
+ * aren't locked to a calendar month. With nothing given, defaults to "this
+ * month so far": from the 1st of the current UTC month, to now.
+ */
+export function resolveDateRange({ from, to } = {}) {
+  const now = new Date();
+  const resolvedTo = to ? new Date(to) : now;
+  const resolvedFrom = from ? new Date(from) : new Date(Date.UTC(resolvedTo.getUTCFullYear(), resolvedTo.getUTCMonth(), 1));
+  if (resolvedFrom > resolvedTo) throw new BadRequestError("from must not be after to");
+  return { from: resolvedFrom, to: resolvedTo };
+}
+
 async function generatorsFor(generatorId) {
   const generators = await reportRepository.resolveGenerators(generatorId);
   if (generatorId && !generators.length) throw new NotFoundError("Generator not found");
@@ -77,6 +91,43 @@ export const reportService = {
       from,
       to,
       totalHoursRun: round2(result.reduce((sum, r) => sum + r.hoursRun, 0)),
+      generators: result,
+    };
+  },
+
+  /**
+   * Diesel-consumption report (spec 4.2: "diesel consumption — additions,
+   * opening/closing fuel, consumption"). One row per active generator (or
+   * just the one requested), summed from its usage logs over an arbitrary
+   * date range; a generator with no logs in range still appears, at 0.
+   */
+  async getDieselConsumptionReport({ generatorId, from, to } = {}) {
+    const range = resolveDateRange({ from, to });
+    const generators = await generatorsFor(generatorId);
+    if (!generators.length) {
+      return { ...range, totalFuelConsumedLiters: 0, totalFuelAddedLiters: 0, generators: [] };
+    }
+
+    const rows = seedRows(generators, { fuelConsumedLiters: 0, fuelAddedLiters: 0, logCount: 0 });
+    const aggregated = await reportRepository.fuelByGenerator(
+      generators.map((g) => g._id),
+      range.from,
+      range.to
+    );
+    for (const row of aggregated) {
+      const entry = rows.get(String(row._id));
+      if (entry) {
+        entry.fuelConsumedLiters = round2(row.fuelConsumedLiters);
+        entry.fuelAddedLiters = round2(row.fuelAddedLiters);
+        entry.logCount = row.logCount;
+      }
+    }
+
+    const result = [...rows.values()];
+    return {
+      ...range,
+      totalFuelConsumedLiters: round2(result.reduce((sum, r) => sum + r.fuelConsumedLiters, 0)),
+      totalFuelAddedLiters: round2(result.reduce((sum, r) => sum + r.fuelAddedLiters, 0)),
       generators: result,
     };
   },

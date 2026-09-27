@@ -15,7 +15,7 @@ import {
   updateMaintenanceValidator,
   maintenanceAlertsValidator,
 } from "../validators/generatorValidators.js";
-import { runningHoursReportValidator } from "../validators/reportValidators.js";
+import { runningHoursReportValidator, dieselConsumptionReportValidator } from "../validators/reportValidators.js";
 
 const router = Router();
 
@@ -48,6 +48,7 @@ router.delete("/maintenance/:id/invoice", requirePermission("generator.update"),
 // kind of access than day-to-day operation. Must be declared before "/:id"
 // like the other fixed sub-paths above.
 router.get("/reports/running-hours", requirePermission("reports.read"), runningHoursReportValidator, reportController.runningHours);
+router.get("/reports/diesel-consumption", requirePermission("reports.read"), dieselConsumptionReportValidator, reportController.dieselConsumption);
 
 router.get("/", requirePermission("generator.read"), generatorController.list);
 router.post("/", requirePermission("generator.create"), createGeneratorValidator, generatorController.create);
