@@ -9,6 +9,7 @@ import { logger } from "../utils/logger.js";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const DEFAULT_ALERT_THRESHOLD_DAYS = 7;
+const DEFAULT_ALERT_THRESHOLD_HOURS = 25;
 
 // Whole UTC days since the epoch — lets us compare calendar days rather
 // than instants, so a job due "today" isn't called overdue at 10am.
@@ -54,33 +55,62 @@ export function daysUntilDue(scheduledDate, now = new Date()) {
 }
 
 /**
+ * Running hours left until due (spec: "alerts after predefined running
+ * hours"), or undefined when it can't be worked out — the job doesn't track
+ * hours (no intervalHours), it has no starting point yet (no
+ * hoursAtScheduling), or the caller doesn't know the generator's current
+ * hours. Negative means overdue, mirroring daysUntilDue.
+ */
+export function hoursUntilDue(maintenance, currentRunningHours) {
+  if (!maintenance.intervalHours) return undefined;
+  if (maintenance.hoursAtScheduling === undefined || maintenance.hoursAtScheduling === null) return undefined;
+  if (typeof currentRunningHours !== "number") return undefined;
+
+  return maintenance.intervalHours - (currentRunningHours - maintenance.hoursAtScheduling);
+}
+
+/**
  * Pure function: what should we tell the user about this maintenance record
- * today? Nothing is stored — the answer depends on the date, so it is
- * computed on read.
+ * today? Nothing is stored — the answer depends on the date (and, when the
+ * job tracks them, the generator's running hours) — so it is computed on read.
  *
  *   completed / cancelled -> returned as-is (not an alert)
- *   overdue   -> due date is before today
- *   upcoming  -> due today, or within alertThresholdDays days from today
- *   scheduled -> further out than the threshold
+ *   overdue   -> the due date has passed, OR the running-hours threshold has
+ *   upcoming  -> due date or running hours are within their alert threshold
+ *   scheduled -> both are further out than their threshold (or hours can't be worked out)
+ *
+ * A job can be flagged by date, by hours, by both, or by neither — whichever
+ * comes first wins, since either one means the generator is due for service.
  */
-export function computeAlertStatus(maintenance, now = new Date()) {
+export function computeAlertStatus(maintenance, now = new Date(), currentRunningHours) {
   if (maintenance.status !== "scheduled") return maintenance.status;
 
-  const threshold = maintenance.alertThresholdDays ?? DEFAULT_ALERT_THRESHOLD_DAYS;
+  const dayThreshold = maintenance.alertThresholdDays ?? DEFAULT_ALERT_THRESHOLD_DAYS;
   const days = daysUntilDue(maintenance.scheduledDate, now);
+  const dayStatus = days < 0 ? "overdue" : days <= dayThreshold ? "upcoming" : "scheduled";
 
-  if (days < 0) return "overdue";
-  if (days <= threshold) return "upcoming";
+  const hours = hoursUntilDue(maintenance, currentRunningHours);
+  const hourThreshold = maintenance.alertThresholdHours ?? DEFAULT_ALERT_THRESHOLD_HOURS;
+  const hourStatus = hours === undefined ? "scheduled" : hours < 0 ? "overdue" : hours <= hourThreshold ? "upcoming" : "scheduled";
+
+  if (dayStatus === "overdue" || hourStatus === "overdue") return "overdue";
+  if (dayStatus === "upcoming" || hourStatus === "upcoming") return "upcoming";
   return "scheduled";
 }
 
-/** A plain-object copy of a maintenance record with its computed alert fields attached. */
-export function withAlertInfo(maintenance, now = new Date()) {
+/**
+ * A plain-object copy of a maintenance record with its computed alert fields
+ * attached. `currentRunningHours` is the owning generator's running-hours
+ * total; omit it (or pass a generator the job's hours can't be checked
+ * against) and the hours side of the alert simply has no effect.
+ */
+export function withAlertInfo(maintenance, now = new Date(), currentRunningHours) {
   const plain = typeof maintenance.toObject === "function" ? maintenance.toObject() : { ...maintenance };
   return {
     ...plain,
-    alertStatus: computeAlertStatus(plain, now),
+    alertStatus: computeAlertStatus(plain, now, currentRunningHours),
     daysUntilDue: daysUntilDue(plain.scheduledDate, now),
+    hoursUntilDue: hoursUntilDue(plain, currentRunningHours),
   };
 }
 
