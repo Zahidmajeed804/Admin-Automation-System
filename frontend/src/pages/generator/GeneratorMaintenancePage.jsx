@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Plus, Pencil, Trash2, CheckCircle2, Ban, Paperclip, AlertTriangle, Clock3 } from "lucide-react";
+import { Plus, Pencil, Trash2, CheckCircle2, Ban, Paperclip, AlertTriangle, Clock3, Eye } from "lucide-react";
 import clsx from "clsx";
 import StatCard from "../../components/common/StatCard";
 import FilterBar from "../../components/common/FilterBar";
@@ -11,6 +11,7 @@ import Table from "../../components/tables/Table";
 import GeneratorMaintenanceForm from "./GeneratorMaintenanceForm";
 import GeneratorMaintenanceCompleteForm from "./GeneratorMaintenanceCompleteForm";
 import GeneratorMaintenanceInvoice from "./GeneratorMaintenanceInvoice";
+import GeneratorMaintenanceDetails from "./GeneratorMaintenanceDetails";
 import { extractErrorMessage } from "./GeneratorForm";
 import { useAuth } from "../../context/AuthContext";
 import { generatorService } from "../../services/generatorService";
@@ -29,12 +30,14 @@ const STATUS_OPTIONS = [
 // backend's computeAlertStatus) — this shows whichever of the two the job
 // actually tracks. Overdue reads as "by" (how far past), everything else as
 // "in" (how far ahead), matching how a person would say either out loud.
-function dueInLine(value, unit) {
+// Exported for reuse by GeneratorMaintenanceDetails, which shows the same
+// due-in line in its own layout.
+export function dueInLine(value, unit) {
   if (value === undefined || value === null) return null;
   return value < 0 ? `Overdue by ${formatNumber(-value)}${unit}` : `Due in ${formatNumber(value)}${unit}`;
 }
 
-function DueInfo({ row }) {
+export function DueInfo({ row }) {
   if (row.status !== "scheduled") return null;
   const days = dueInLine(row.daysUntilDue, "d");
   const hours = dueInLine(row.hoursUntilDue, "h");
@@ -54,7 +57,7 @@ function DueInfo({ row }) {
 // cancelled jobs are history, and the backend refuses all three anyway — so
 // those three are also skipped for rows that aren't. The invoice action has
 // no such restriction: a job can carry an invoice at any status.
-function buildColumns({ onEdit, onComplete, onCancel, onInvoice, onDelete }) {
+function buildColumns({ onView, onEdit, onComplete, onCancel, onInvoice, onDelete }) {
   return [
     { key: "generator", header: "Generator", render: (row) => <span className="font-medium text-ink">{row.generator?.tag ?? "—"}</span> },
     { key: "description", header: "Description" },
@@ -80,6 +83,7 @@ function buildColumns({ onEdit, onComplete, onCancel, onInvoice, onDelete }) {
       header: "",
       render: (row) => (
         <div className="flex items-center justify-end gap-1">
+          <Button variant="ghost" size="sm" icon={Eye} aria-label={`View ${row.description}`} onClick={() => onView(row)} />
           {onComplete && row.status === "scheduled" && (
             <Button variant="ghost" size="sm" icon={CheckCircle2} aria-label={`Complete ${row.description}`} onClick={() => onComplete(row)} />
           )}
@@ -115,6 +119,8 @@ export default function GeneratorMaintenancePage() {
   const [generatorId, setGeneratorId] = useState("");
   const [status, setStatus] = useState("");
   const [page, setPage] = useState(1);
+
+  const [viewingJob, setViewingJob] = useState(null);
 
   const [formOpen, setFormOpen] = useState(false);
   const [editingJob, setEditingJob] = useState(null);
@@ -263,7 +269,13 @@ export default function GeneratorMaintenancePage() {
     }
   };
 
+  const openInvoiceFromDetails = (job) => {
+    setViewingJob(null);
+    setInvoiceTarget(job);
+  };
+
   const columns = buildColumns({
+    onView: (row) => setViewingJob(row),
     onEdit: canUpdate ? openEditForm : undefined,
     onComplete: canUpdate ? (row) => setCompleteTarget(row) : undefined,
     onCancel: canUpdate ? (row) => setCancelTarget(row) : undefined,
@@ -323,6 +335,13 @@ export default function GeneratorMaintenancePage() {
           pageSize: meta.pageSize,
           onPageChange: setPage,
         }}
+      />
+
+      <GeneratorMaintenanceDetails
+        open={Boolean(viewingJob)}
+        job={viewingJob}
+        onClose={() => setViewingJob(null)}
+        onManageInvoice={openInvoiceFromDetails}
       />
 
       <GeneratorMaintenanceForm

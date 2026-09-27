@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Download, Paperclip, Trash2, UploadCloud } from "lucide-react";
 import Modal from "../../components/modals/Modal";
 import ConfirmDialog from "../../components/modals/ConfirmDialog";
@@ -45,6 +45,20 @@ export default function GeneratorMaintenanceInvoice({ open, onClose, onChanged, 
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState(null);
+
+  // This component stays mounted the whole time the page is open — only
+  // `open`/`job` change when a different row's invoice is opened — so its
+  // state has to be resynced explicitly here. Without this, useState's
+  // initial value (from whichever job first mounted the modal) would stick
+  // for every job opened afterwards in the same session.
+  useEffect(() => {
+    if (open) {
+      setInvoice(job?.invoice ?? null);
+      setError(null);
+      setConfirmDelete(false);
+      setDeleteError(null);
+    }
+  }, [open, job]);
 
   if (!job) return null;
 
