@@ -4,6 +4,8 @@ import Tabs from "../../components/common/Tabs";
 import { generatorService } from "../../services/generatorService";
 import GeneratorReportRunningHours from "./GeneratorReportRunningHours";
 import GeneratorReportDieselConsumption from "./GeneratorReportDieselConsumption";
+import GeneratorReportFuelCost from "./GeneratorReportFuelCost";
+import GeneratorReportMaintenanceCost from "./GeneratorReportMaintenanceCost";
 
 // The six spec 4.2 reports this page covers, in the order they read most
 // naturally (usage first, then cost, then the yearly/history rollups).
@@ -26,6 +28,8 @@ const REPORT_TABS = [
 const REPORT_VIEWS = {
   "running-hours": GeneratorReportRunningHours,
   "diesel-consumption": GeneratorReportDieselConsumption,
+  "fuel-cost": GeneratorReportFuelCost,
+  "maintenance-cost": GeneratorReportMaintenanceCost,
 };
 
 function NotBuiltYet({ label }) {
