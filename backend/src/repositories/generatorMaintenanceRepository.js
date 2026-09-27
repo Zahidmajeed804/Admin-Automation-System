@@ -63,4 +63,19 @@ export const generatorMaintenanceRepository = {
 
   // Removes every maintenance record of one generator; resolves { deletedCount }.
   deleteByGenerator: (generatorId) => GeneratorMaintenance.deleteMany({ generator: generatorId }),
+
+  // Records that a reminder went out for these jobs, so the daily job
+  // (AAS-348) doesn't email about the same unchanged alert again tomorrow.
+  // `updates` is [{ id, status }], status being "overdue" or "upcoming".
+  markNotified: (updates, at = new Date()) => {
+    if (!updates.length) return Promise.resolve();
+    return GeneratorMaintenance.bulkWrite(
+      updates.map(({ id, status }) => ({
+        updateOne: {
+          filter: { _id: id },
+          update: { $set: { notifiedStatus: status, notifiedAt: at } },
+        },
+      }))
+    );
+  },
 };
