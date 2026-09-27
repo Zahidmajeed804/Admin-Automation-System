@@ -123,7 +123,7 @@ function EditForm({ record, onClose, onSaved }) {
           options={statusOptions}
           helperText={
             timesChanged && !changed.includes("status")
-              ? "Worked time and status will be recalculated from the new times."
+              ? "Worked time, early departure and status will be recalculated from the new times."
               : undefined
           }
         />

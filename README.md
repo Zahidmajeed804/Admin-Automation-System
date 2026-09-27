@@ -58,6 +58,10 @@ index), `OvertimeRequest` (one per attendance record) and `LeaveRequest`
 
 Rules the API enforces:
 - Worked time is computed on clock-out; under 4 hours is a **half-day**.
+- The shift starts at clock-in and lasts as long as the overtime threshold (10 hours).
+  Clocking out before that records an **early departure** (`earlyDepartureMinutes`, 0 for
+  a full shift). It is recalculated when a manager corrects the times. Records from before
+  this was added have no value and show "—".
 - When worked time passes the daily threshold, a **pending overtime request** for the
   excess is created automatically. The threshold defaults to 10 hours and is set
   with `OVERTIME_THRESHOLD_MINUTES` (600 by default).
@@ -82,6 +86,7 @@ Rules the API enforces:
 data removed afterwards. Each guide can be repeated by hand:
 - [`docs/verification/AAS-91-clock-in-out.md`](docs/verification/AAS-91-clock-in-out.md)
 - [`docs/verification/AAS-96-attendance-list-and-edit.md`](docs/verification/AAS-96-attendance-list-and-edit.md)
+- [`docs/verification/early-departure.md`](docs/verification/early-departure.md)
 - [`docs/verification/AAS-280-overtime-auto-trigger-and-approval.md`](docs/verification/AAS-280-overtime-auto-trigger-and-approval.md)
 - [`docs/verification/AAS-290-leave-request-and-approval.md`](docs/verification/AAS-290-leave-request-and-approval.md)
 - [`docs/verification/AAS-302-end-to-end-attendance-overtime-leave.md`](docs/verification/AAS-302-end-to-end-attendance-overtime-leave.md) — full staff and manager walkthrough
@@ -92,7 +97,8 @@ permissions and is safe to repeat. Until then, staff are sent to "Unauthorized"
 when they open the Overtime page.
 
 **Not built yet** (in the requirements, outside the planned scope):
-- Late-arrival and early-departure tracking (needs shift start and end times).
+- Late-arrival tracking. Skipped on purpose: the shift starts at clock-in, so there is no
+  fixed start time to be late against.
 - Attendance statuses for Leave, Holiday and Weekend, and a holiday calendar.
   Approved leave does not yet create attendance records.
 - An Employee ID field on users.

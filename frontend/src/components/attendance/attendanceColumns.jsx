@@ -17,6 +17,17 @@ export const attendanceColumns = [
     // workedMinutes is only final once the day is clocked out.
     render: (row) => (row.clockOut ? formatDuration(row.workedMinutes) : "—"),
   },
+  {
+    key: "earlyDepartureMinutes",
+    header: "Left early",
+    // Only set on clock-out; open days and records from before it was tracked have no value.
+    render: (row) => {
+      const minutes = row.earlyDepartureMinutes;
+      if (!row.clockOut || minutes == null) return "—";
+      if (minutes === 0) return "Full shift";
+      return <span className="text-amber-700 font-medium">{formatDuration(minutes)} early</span>;
+    },
+  },
   { key: "status", header: "Status", render: (row) => <Badge status={statusBadgeKey[row.status]} /> },
   {
     key: "notes",
