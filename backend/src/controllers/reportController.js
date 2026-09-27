@@ -42,4 +42,10 @@ export const reportController = {
     });
     sendSuccess(res, { data: items, meta });
   }),
+
+  costSummary: asyncHandler(async (req, res) => {
+    const { generatorId, from, to } = req.query;
+    const report = await reportService.getCostSummaryReport({ generatorId, from, to });
+    sendSuccess(res, { data: report });
+  }),
 };

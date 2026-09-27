@@ -290,4 +290,50 @@ export const reportService = {
     });
     return { ...range, ...meta, items };
   },
+
+  /**
+   * Cost-analysis summary (spec 4.2: "cost-analysis dashboard" — this is the
+   * data behind it; the dashboard UI itself is a later story). Fuel cost
+   * plus maintenance cost, combined per generator over an arbitrary range,
+   * sorted highest total cost first, with each generator's share of the
+   * fleet total — the breakdown a dashboard would chart.
+   */
+  async getCostSummaryReport({ generatorId, from, to } = {}) {
+    const range = resolveDateRange({ from, to });
+    const generators = await generatorsFor(generatorId);
+    if (!generators.length) {
+      return { ...range, totalFuelCost: 0, totalMaintenanceCost: 0, totalCost: 0, generators: [] };
+    }
+
+    const rows = seedRows(generators, { fuelCost: 0, maintenanceCost: 0 });
+    const generatorIds = generators.map((g) => g._id);
+    const [fuelRows, maintenanceRows] = await Promise.all([
+      reportRepository.fuelCostByGeneratorRange(generatorIds, range.from, range.to),
+      reportRepository.maintenanceCostByGenerator(generatorIds, range.from, range.to),
+    ]);
+    for (const row of fuelRows) {
+      const entry = rows.get(String(row._id));
+      if (entry) entry.fuelCost = round2(row.fuelCostTotal);
+    }
+    for (const row of maintenanceRows) {
+      const entry = rows.get(String(row._id));
+      if (entry) entry.maintenanceCost = round2(row.cost);
+    }
+
+    const totalCost = round2([...rows.values()].reduce((sum, r) => sum + r.fuelCost + r.maintenanceCost, 0));
+    const result = [...rows.values()]
+      .map((row) => {
+        const rowTotal = round2(row.fuelCost + row.maintenanceCost);
+        return { ...row, totalCost: rowTotal, percentOfFleetCost: totalCost > 0 ? round2((rowTotal / totalCost) * 100) : 0 };
+      })
+      .sort((a, b) => b.totalCost - a.totalCost);
+
+    return {
+      ...range,
+      totalFuelCost: round2(result.reduce((sum, r) => sum + r.fuelCost, 0)),
+      totalMaintenanceCost: round2(result.reduce((sum, r) => sum + r.maintenanceCost, 0)),
+      totalCost,
+      generators: result,
+    };
+  },
 };

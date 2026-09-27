@@ -38,6 +38,15 @@ export const reportRepository = {
       },
     ]),
 
+  // Fuel cost per generator within [from, to] (inclusive both ends) — the
+  // cost-summary's counterpart to fuelCostByGenerator, which is [from, to)
+  // exclusive because it's paired with resolveMonthRange instead.
+  fuelCostByGeneratorRange: (generatorIds, from, to) =>
+    GeneratorLog.aggregate([
+      { $match: { generator: { $in: generatorIds }, date: { $gte: from, $lte: to } } },
+      { $group: { _id: "$generator", fuelCostTotal: { $sum: "$fuelCostTotal" } } },
+    ]),
+
   // Diesel added/consumed per generator within [from, to] (inclusive both
   // ends — same convention as generatorLogRepository.list's from/to).
   fuelByGenerator: (generatorIds, from, to) =>

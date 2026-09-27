@@ -44,3 +44,5 @@ export const serviceHistoryReportValidator = [
   query("pageSize").optional().isInt({ min: 1, max: 100 }).withMessage("pageSize must be a whole number between 1 and 100"),
   runValidation,
 ];
+
+export const costSummaryReportValidator = [generatorIdFilter, ...dateRangeFilter, runValidation];
