@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import Card from "../../components/common/Card";
 import Tabs from "../../components/common/Tabs";
 import { generatorService } from "../../services/generatorService";
+import GeneratorReportRunningHours from "./GeneratorReportRunningHours";
+import GeneratorReportDieselConsumption from "./GeneratorReportDieselConsumption";
 
 // The six spec 4.2 reports this page covers, in the order they read most
 // naturally (usage first, then cost, then the yearly/history rollups).
@@ -21,7 +23,10 @@ const REPORT_TABS = [
 // (running-hours/diesel-consumption, then fuel-cost/maintenance-cost, then
 // operating-cost/service-history); a tab not yet in here falls back to
 // NotBuiltYet below.
-const REPORT_VIEWS = {};
+const REPORT_VIEWS = {
+  "running-hours": GeneratorReportRunningHours,
+  "diesel-consumption": GeneratorReportDieselConsumption,
+};
 
 function NotBuiltYet({ label }) {
   return (
