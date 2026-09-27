@@ -78,4 +78,11 @@ export const generatorMaintenanceController = {
     if (!removed) throw new NotFoundError("Maintenance record not found");
     sendSuccess(res, { message: "Maintenance record deleted", data: removed });
   }),
+
+  // req.file comes from the uploadInvoice middleware, already saved to disk.
+  // Uploading again (with or without an existing invoice) replaces it.
+  uploadInvoice: asyncHandler(async (req, res) => {
+    const maintenance = await generatorService.attachInvoice(req.params.id, { file: req.file, uploadedBy: req.userId });
+    sendSuccess(res, { message: "Invoice uploaded", data: maintenance });
+  }),
 };

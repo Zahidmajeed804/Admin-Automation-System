@@ -3,6 +3,7 @@ import { generatorController } from "../controllers/generatorController.js";
 import { generatorLogController } from "../controllers/generatorLogController.js";
 import { generatorMaintenanceController } from "../controllers/generatorMaintenanceController.js";
 import { authenticate } from "../middleware/authenticate.js";
+import { uploadInvoice } from "../middleware/uploadInvoice.js";
 import { requirePermission } from "../authorization/requirePermission.js";
 import {
   createGeneratorValidator,
@@ -34,6 +35,8 @@ router.get("/maintenance", requirePermission("generator.read"), generatorMainten
 router.post("/maintenance", requirePermission("generator.create"), createMaintenanceValidator, generatorMaintenanceController.create);
 router.patch("/maintenance/:id", requirePermission("generator.update"), updateMaintenanceValidator, generatorMaintenanceController.update);
 router.delete("/maintenance/:id", requirePermission("generator.delete"), generatorMaintenanceController.remove);
+// Uploading an invoice is treated as editing the job, the same permission as PATCH.
+router.post("/maintenance/:id/invoice", requirePermission("generator.update"), uploadInvoice, generatorMaintenanceController.uploadInvoice);
 
 router.get("/", requirePermission("generator.read"), generatorController.list);
 router.post("/", requirePermission("generator.create"), createGeneratorValidator, generatorController.create);

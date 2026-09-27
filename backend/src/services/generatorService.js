@@ -1,6 +1,9 @@
+import fs from "node:fs/promises";
+import path from "node:path";
 import { generatorRepository } from "../repositories/generatorRepository.js";
 import { generatorLogRepository } from "../repositories/generatorLogRepository.js";
 import { generatorMaintenanceRepository } from "../repositories/generatorMaintenanceRepository.js";
+import { invoiceUploadDir } from "../middleware/uploadInvoice.js";
 import { NotFoundError, ConflictError, BadRequestError } from "../errors/AppError.js";
 import { logger } from "../utils/logger.js";
 
@@ -23,6 +26,18 @@ function restoreUpdate(original, keys) {
     ...(Object.keys($set).length ? { $set } : {}),
     ...(Object.keys($unset).length ? { $unset } : {}),
   };
+}
+
+const invoiceFilePath = (storedName) => path.join(invoiceUploadDir, storedName);
+
+// Best-effort delete: a file that is already gone (ENOENT) counts as success,
+// since the end state — no file — is what was wanted either way.
+async function deleteInvoiceFile(storedName) {
+  try {
+    await fs.unlink(invoiceFilePath(storedName));
+  } catch (err) {
+    if (err.code !== "ENOENT") throw err;
+  }
 }
 
 async function findActiveGenerator(id) {
@@ -348,5 +363,52 @@ export const generatorService = {
     }
 
     return { counts: { overdue: overdue.length, upcoming: upcoming.length }, overdue, upcoming };
+  },
+
+  /**
+   * Attaches an invoice to a job, or replaces the one it already has. `file`
+   * is multer's req.file — already saved to disk under invoiceUploadDir by
+   * the time this runs. The database write is what actually decides whether
+   * the upload "took"; the old file (if any) is only removed once the new
+   * metadata is safely stored, and the new file is cleaned up if it isn't.
+   */
+  async attachInvoice(maintenanceId, { file, uploadedBy }) {
+    const existing = await generatorMaintenanceRepository.findById(maintenanceId);
+    if (!existing) {
+      await deleteInvoiceFile(file.filename);
+      throw new NotFoundError("Maintenance record not found");
+    }
+
+    const previousInvoice = existing.invoice;
+    let updated;
+    try {
+      updated = await generatorMaintenanceRepository.updateById(maintenanceId, {
+        invoice: {
+          fileName: file.originalname,
+          storedName: file.filename,
+          mimeType: file.mimetype,
+          size: file.size,
+          uploadedAt: new Date(),
+          uploadedBy,
+        },
+      });
+    } catch (err) {
+      await deleteInvoiceFile(file.filename).catch(() => {}); // the just-uploaded file is now orphaned
+      throw err;
+    }
+
+    if (!updated) {
+      // The record was removed between the two lookups above.
+      await deleteInvoiceFile(file.filename).catch(() => {});
+      throw new NotFoundError("Maintenance record not found");
+    }
+
+    if (previousInvoice?.storedName) {
+      await deleteInvoiceFile(previousInvoice.storedName).catch((err) =>
+        logger.warn(`Could not remove replaced invoice file ${previousInvoice.storedName}: ${err.message}`)
+      );
+    }
+
+    return updated;
   },
 };
