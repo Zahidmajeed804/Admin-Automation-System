@@ -6,7 +6,7 @@ import { Generator, GeneratorLog, GeneratorMaintenance } from "../src/models/ind
 import { generatorRepository } from "../src/repositories/generatorRepository.js";
 import { generatorLogRepository } from "../src/repositories/generatorLogRepository.js";
 import { generatorMaintenanceRepository } from "../src/repositories/generatorMaintenanceRepository.js";
-import { generatorService, computeAlertStatus, computeFuelFigures, daysUntilDue, withAlertInfo } from "../src/services/generatorService.js";
+import { generatorService, computeAlertStatus, computeFuelFigures, daysUntilDue, hoursUntilDue, withAlertInfo } from "../src/services/generatorService.js";
 import { invoiceUploadDir } from "../src/middleware/uploadInvoice.js";
 import { NotFoundError, ConflictError } from "../src/errors/AppError.js";
 import { createGenerator, UNKNOWN_ID } from "./helpers/generatorTestUtils.js";
@@ -67,6 +67,79 @@ describe("daysUntilDue and withAlertInfo (pure)", () => {
 
     expect(view).toMatchObject({ alertStatus: "upcoming", daysUntilDue: 3 });
     expect(original.alertStatus).toBeUndefined();
+  });
+
+  it("withAlertInfo's hoursUntilDue is undefined for a job that doesn't track hours", () => {
+    expect(withAlertInfo(job("2026-10-13"), NOW).hoursUntilDue).toBeUndefined();
+  });
+
+  it("withAlertInfo carries hoursUntilDue through when the job tracks hours and the generator's hours are known", () => {
+    const view = withAlertInfo(job("2027-01-01", { intervalHours: 250, hoursAtScheduling: 100 }), NOW, 300);
+    expect(view.hoursUntilDue).toBe(50);
+  });
+});
+
+describe("hoursUntilDue (pure)", () => {
+  // A far-off scheduledDate throughout, so the day-based side never interferes.
+  const hourJob = (extra = {}) => job("2030-01-01", extra);
+
+  it("is undefined when the job doesn't track hours at all", () => {
+    expect(hoursUntilDue(hourJob(), 100)).toBeUndefined();
+  });
+
+  it("is undefined without a starting point (hoursAtScheduling)", () => {
+    expect(hoursUntilDue(hourJob({ intervalHours: 250 }), 100)).toBeUndefined();
+  });
+
+  it("is undefined without the generator's current running hours", () => {
+    expect(hoursUntilDue(hourJob({ intervalHours: 250, hoursAtScheduling: 100 }))).toBeUndefined();
+  });
+
+  it("a hoursAtScheduling of exactly 0 is honoured, not treated as missing", () => {
+    expect(hoursUntilDue(hourJob({ intervalHours: 250, hoursAtScheduling: 0 }), 100)).toBe(150);
+  });
+
+  it.each([
+    ["well before due", 100, 250, 200, 150],
+    ["exactly due", 100, 250, 350, 0],
+    ["past due (negative)", 100, 250, 400, -50],
+  ])("%s: baseline %i, interval %i, now at %i -> %i hours left", (_label, baseline, intervalHours, current, expected) => {
+    expect(hoursUntilDue(hourJob({ intervalHours, hoursAtScheduling: baseline }), current)).toBe(expected);
+  });
+});
+
+describe("computeAlertStatus with running hours (pure)", () => {
+  // Far off by date in every case, so only the hours side can flag these.
+  const hourJob = (extra = {}) => job("2030-01-01", { intervalHours: 250, hoursAtScheduling: 100, ...extra });
+
+  it.each([
+    ["50 hours left, default 25h threshold", 300, "scheduled"],
+    ["exactly at the default 25h threshold", 325, "upcoming"],
+    ["past due", 360, "overdue"],
+  ])("%s -> %s", (_label, currentRunningHours, expected) => {
+    expect(computeAlertStatus(hourJob(), NOW, currentRunningHours)).toBe(expected);
+  });
+
+  it("a custom alertThresholdHours is honoured instead of the default", () => {
+    expect(computeAlertStatus(hourJob({ alertThresholdHours: 5 }), NOW, 340)).toBe("scheduled"); // 60h left, threshold 5
+    expect(computeAlertStatus(hourJob({ alertThresholdHours: 5 }), NOW, 346)).toBe("upcoming"); // 4h left, threshold 5
+  });
+
+  it("completed/cancelled jobs are returned as-is even when hours would otherwise flag them", () => {
+    expect(computeAlertStatus(hourJob({ status: "completed" }), NOW, 999)).toBe("completed");
+  });
+
+  it("whichever comes first: an overdue date wins even when the hours are fine", () => {
+    const job = { status: "scheduled", scheduledDate: new Date("2026-10-01"), intervalHours: 250, hoursAtScheduling: 100 };
+    expect(computeAlertStatus(job, NOW, 100)).toBe("overdue");
+  });
+
+  it("whichever comes first: overdue hours win even when the date is far off", () => {
+    expect(computeAlertStatus(hourJob(), NOW, 400)).toBe("overdue");
+  });
+
+  it("a job with no currentRunningHours given falls back to date-only behaviour, unaffected by intervalHours", () => {
+    expect(computeAlertStatus(hourJob(), NOW)).toBe("scheduled"); // far-off date, hours can't be checked
   });
 });
 
@@ -367,6 +440,35 @@ describe("completeMaintenance", () => {
     expect(after.vendor).toBeUndefined();
     expect(after.hoursAtService).toBeUndefined();
   });
+
+  it("carries intervalHours and alertThresholdHours to the next occurrence, and starts its hour clock from the resolved hoursAtService", async () => {
+    const gen = await createGenerator();
+    const recurring = await insertJob(gen, { intervalDays: 90, intervalHours: 250, alertThresholdHours: 15 });
+
+    const { next } = await generatorService.completeMaintenance(recurring._id, { hoursAtService: 550 });
+
+    expect(next.intervalHours).toBe(250);
+    expect(next.alertThresholdHours).toBe(15);
+    expect(next.hoursAtScheduling).toBe(550);
+  });
+
+  it("does not set hoursAtScheduling on the next occurrence when this line of recurrence doesn't track hours", async () => {
+    const gen = await createGenerator();
+    const recurring = await insertJob(gen, { intervalDays: 90 });
+
+    const { next } = await generatorService.completeMaintenance(recurring._id, { hoursAtService: 550 });
+
+    expect(next.hoursAtScheduling).toBeUndefined();
+  });
+
+  it("a job that only tracks hours (intervalHours, no intervalDays) gets no automatic next occurrence", async () => {
+    const gen = await createGenerator();
+    const hoursOnly = await insertJob(gen, { intervalHours: 100 });
+
+    const { next } = await generatorService.completeMaintenance(hoursOnly._id, {});
+
+    expect(next).toBeNull();
+  });
 });
 
 describe("updateMaintenance", () => {
@@ -437,6 +539,26 @@ describe("getMaintenanceAlerts", () => {
 
     expect(overdue.map((j) => j.description)).toEqual(["counts"]);
   });
+
+  it("flags a job overdue by running hours even though its scheduled date is far off", async () => {
+    const gen = await createGenerator({ runningHoursTotal: 520 });
+    await GeneratorMaintenance.create({ generator: gen._id, description: "by hours", scheduledDate: new Date("2030-01-01"), intervalHours: 500, hoursAtScheduling: 0 });
+
+    const { overdue, counts } = await generatorService.getMaintenanceAlerts({ now: NOW });
+
+    expect(overdue.map((j) => j.description)).toEqual(["by hours"]);
+    expect(overdue[0].hoursUntilDue).toBe(-20);
+    expect(counts.overdue).toBe(1);
+  });
+
+  it("withinDays does not affect a job's own hours-based threshold", async () => {
+    const gen = await createGenerator({ runningHoursTotal: 340 }); // 60h left of a 250h interval from 100 -> within the default 25h? no, upcoming needs custom
+    await GeneratorMaintenance.create({ generator: gen._id, description: "by hours", scheduledDate: new Date("2030-01-01"), intervalHours: 250, hoursAtScheduling: 100, alertThresholdHours: 70 });
+
+    const { upcoming } = await generatorService.getMaintenanceAlerts({ withinDays: 0, now: NOW });
+
+    expect(upcoming.map((j) => j.description)).toEqual(["by hours"]); // still upcoming by its own 70h hours-threshold
+  });
 });
 
 describe("scheduleMaintenance", () => {
@@ -463,6 +585,30 @@ describe("scheduleMaintenance", () => {
 
     await expect(generatorService.scheduleMaintenance({ ...base, generatorId: UNKNOWN_ID })).rejects.toBeInstanceOf(NotFoundError);
     await expect(generatorService.scheduleMaintenance({ ...base, generatorId: deleted._id })).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  it("defaults hoursAtScheduling to the generator's current running hours when intervalHours is given but hoursAtScheduling isn't", async () => {
+    const gen = await createGenerator({ runningHoursTotal: 300 });
+
+    const created = await generatorService.scheduleMaintenance({
+      generatorId: gen._id, createdBy: userId(), description: "x", scheduledDate: new Date("2026-11-01"), intervalHours: 250,
+    });
+
+    expect(created.hoursAtScheduling).toBe(300);
+  });
+
+  it("an explicit hoursAtScheduling overrides the default, and no default is applied without intervalHours", async () => {
+    const gen = await createGenerator({ runningHoursTotal: 300 });
+
+    const explicit = await generatorService.scheduleMaintenance({
+      generatorId: gen._id, createdBy: userId(), description: "x", scheduledDate: new Date("2026-11-01"), intervalHours: 250, hoursAtScheduling: 100,
+    });
+    expect(explicit.hoursAtScheduling).toBe(100);
+
+    const noHours = await generatorService.scheduleMaintenance({
+      generatorId: gen._id, createdBy: userId(), description: "x", scheduledDate: new Date("2026-11-01"),
+    });
+    expect(noHours.hoursAtScheduling).toBeUndefined();
   });
 });
 

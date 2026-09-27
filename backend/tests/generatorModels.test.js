@@ -143,6 +143,26 @@ describe("GeneratorMaintenance model", () => {
     await expect(GeneratorMaintenance.create({ ...base(), hoursAtService: -1 })).rejects.toThrow();
   });
 
+  it("stores intervalHours, hoursAtScheduling, and defaults alertThresholdHours to 25", async () => {
+    const bare = await GeneratorMaintenance.create(base());
+    expect(bare.intervalHours).toBeUndefined();
+    expect(bare.hoursAtScheduling).toBeUndefined();
+    expect(bare.alertThresholdHours).toBe(25);
+
+    const job = await GeneratorMaintenance.create({ ...base(), intervalHours: 250, alertThresholdHours: 10, hoursAtScheduling: 400 });
+    expect(job.intervalHours).toBe(250);
+    expect(job.alertThresholdHours).toBe(10);
+    expect(job.hoursAtScheduling).toBe(400);
+
+    const zero = await GeneratorMaintenance.create({ ...base(), alertThresholdHours: 0, hoursAtScheduling: 0 });
+    expect(zero.alertThresholdHours).toBe(0);
+    expect(zero.hoursAtScheduling).toBe(0);
+
+    await expect(GeneratorMaintenance.create({ ...base(), intervalHours: 0 })).rejects.toThrow();
+    await expect(GeneratorMaintenance.create({ ...base(), alertThresholdHours: -1 })).rejects.toThrow();
+    await expect(GeneratorMaintenance.create({ ...base(), hoursAtScheduling: -1 })).rejects.toThrow();
+  });
+
   it("is indexed for per-generator listing and for the alerts query", async () => {
     expect(await hasIndex(GeneratorMaintenance, { generator: 1, scheduledDate: 1 })).toBe(true);
     expect(await hasIndex(GeneratorMaintenance, { status: 1, scheduledDate: 1 })).toBe(true);

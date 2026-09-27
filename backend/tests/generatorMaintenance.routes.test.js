@@ -109,6 +109,8 @@ describe("Generator maintenance API — /api/v1/generator/maintenance", () => {
       ["a negative alert threshold", (id) => ({ generatorId: id, description: "x", scheduledDate: inDays(1), alertThresholdDays: -1 })],
       ["an unknown type", (id) => ({ generatorId: id, description: "x", scheduledDate: inDays(1), type: "surprise" })],
       ["a negative cost", (id) => ({ generatorId: id, description: "x", scheduledDate: inDays(1), cost: -5 })],
+      ["intervalHours of 0", (id) => ({ generatorId: id, description: "x", scheduledDate: inDays(1), intervalHours: 0 })],
+      ["a negative alertThresholdHours", (id) => ({ generatorId: id, description: "x", scheduledDate: inDays(1), alertThresholdHours: -1 })],
     ])("rejects %s with 400", async (_label, buildPayload) => {
       const { manager } = await makeUsers();
       const gen = await createGenerator();
@@ -117,6 +119,16 @@ describe("Generator maintenance API — /api/v1/generator/maintenance", () => {
 
       expect(res.status).toBe(400);
       expect(await GeneratorMaintenance.countDocuments()).toBe(0);
+    });
+
+    it("defaults hoursAtScheduling to the generator's current running hours when intervalHours is given", async () => {
+      const { manager } = await makeUsers();
+      const gen = await createGenerator({ runningHoursTotal: 800 });
+
+      const res = await as(manager).post("/maintenance", { generatorId: gen._id, description: "Belt", scheduledDate: inDays(30), intervalHours: 250 });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.hoursAtScheduling).toBe(800);
     });
   });
 
@@ -216,6 +228,28 @@ describe("Generator maintenance API — /api/v1/generator/maintenance", () => {
       const completed = await as(manager).patch(`/maintenance/${job._id}`, { status: "completed" });
 
       expect(completed.body.data.next).toBeNull();
+    });
+
+    it("edits alertThresholdHours, and can clear intervalHours with null", async () => {
+      const { manager } = await makeUsers();
+      const job = await insertJob(await createGenerator(), { intervalDays: 30, intervalHours: 250 });
+
+      const edited = await as(manager).patch(`/maintenance/${job._id}`, { alertThresholdHours: 40 });
+      expect(edited.status).toBe(200);
+      expect(edited.body.data.alertThresholdHours).toBe(40);
+
+      await as(manager).patch(`/maintenance/${job._id}`, { intervalHours: null });
+      const completed = await as(manager).patch(`/maintenance/${job._id}`, { status: "completed" });
+      expect(completed.body.data.next.intervalHours).toBeFalsy(); // stopped tracking hours on the next occurrence too
+    });
+
+    it("intervalHours cannot be mixed with completing", async () => {
+      const { manager } = await makeUsers();
+      const job = await insertJob(await createGenerator());
+
+      const res = await as(manager).patch(`/maintenance/${job._id}`, { status: "completed", intervalHours: 500 });
+
+      expect(res.status).toBe(400);
     });
 
     it("treats completed and cancelled jobs as history: any further change is 409", async () => {
@@ -329,6 +363,8 @@ describe("Generator maintenance API — /api/v1/generator/maintenance", () => {
         type: "inspection",
         intervalDays: 90,
         alertThresholdDays: 14,
+        intervalHours: 250,
+        alertThresholdHours: 20,
         createdBy: manager.user._id,
         performedBy: "Someone else", // per-visit details are NOT carried over
         vendor: "Recurring Vendor Ltd", // ...but the vendor is, since it usually repeats
@@ -344,6 +380,9 @@ describe("Generator maintenance API — /api/v1/generator/maintenance", () => {
         type: "inspection",
         intervalDays: 90,
         alertThresholdDays: 14,
+        intervalHours: 250,
+        alertThresholdHours: 20,
+        hoursAtScheduling: 77, // starts counting from this job's own resolved hoursAtService
         status: "scheduled",
         createdBy: manager.user._id.toString(),
         vendor: "Recurring Vendor Ltd",
@@ -493,6 +532,21 @@ describe("Generator maintenance API — /api/v1/generator/maintenance", () => {
       const res = await as(staff).get("/maintenance/alerts");
 
       expect(res.body.data.counts).toBeDefined();
+    });
+
+    it("flags a job overdue by running hours even though its date is far off, and the list endpoint agrees", async () => {
+      const { staff } = await makeUsers();
+      const gen = await createGenerator({ runningHoursTotal: 520 });
+      const job = await insertJob(gen, { scheduledDate: inDays(3650), intervalHours: 500, hoursAtScheduling: 0 });
+
+      const alerts = await as(staff).get("/maintenance/alerts");
+      const found = alerts.body.data.overdue.find((j) => j._id === job._id.toString());
+      expect(found).toBeTruthy();
+      expect(found.hoursUntilDue).toBe(-20);
+
+      const list = await as(staff).get(`/maintenance?generatorId=${gen._id}`);
+      const listed = list.body.data.find((j) => j._id === job._id.toString());
+      expect(listed.alertStatus).toBe("overdue"); // the list endpoint isn't left showing a stale status
     });
   });
 
