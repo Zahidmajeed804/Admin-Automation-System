@@ -128,6 +128,21 @@ describe("GeneratorMaintenance model", () => {
     await expect(GeneratorMaintenance.create({ ...base(), intervalDays: 90, alertThresholdDays: 0, cost: 250.5 })).resolves.toBeTruthy();
   });
 
+  it("stores vendor (trimmed) and hoursAtService, both left unset by default", async () => {
+    const bare = await GeneratorMaintenance.create(base());
+    expect(bare.vendor).toBeUndefined();
+    expect(bare.hoursAtService).toBeUndefined();
+
+    const job = await GeneratorMaintenance.create({ ...base(), vendor: "  PSO Services  ", hoursAtService: 1234.5 });
+    expect(job.vendor).toBe("PSO Services");
+    expect(job.hoursAtService).toBe(1234.5);
+
+    const zero = await GeneratorMaintenance.create({ ...base(), hoursAtService: 0 });
+    expect(zero.hoursAtService).toBe(0);
+
+    await expect(GeneratorMaintenance.create({ ...base(), hoursAtService: -1 })).rejects.toThrow();
+  });
+
   it("is indexed for per-generator listing and for the alerts query", async () => {
     expect(await hasIndex(GeneratorMaintenance, { generator: 1, scheduledDate: 1 })).toBe(true);
     expect(await hasIndex(GeneratorMaintenance, { status: 1, scheduledDate: 1 })).toBe(true);

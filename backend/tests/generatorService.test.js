@@ -321,6 +321,49 @@ describe("completeMaintenance", () => {
     expect((await GeneratorMaintenance.findById(recurring._id)).status).toBe("scheduled");
     expect((await Generator.findById(gen._id)).lastServiceDate).toBeUndefined();
   });
+
+  it("defaults hoursAtService to the generator's current running hours when none is given", async () => {
+    const gen = await createGenerator({ runningHoursTotal: 500 });
+    const scheduled = await insertJob(gen);
+
+    const { maintenance } = await generatorService.completeMaintenance(scheduled._id, {});
+
+    expect(maintenance.hoursAtService).toBe(500);
+  });
+
+  it("an explicit hoursAtService (including 0) overrides the generator's current hours", async () => {
+    const gen = await createGenerator({ runningHoursTotal: 500 });
+
+    const overridden = await insertJob(gen);
+    expect((await generatorService.completeMaintenance(overridden._id, { hoursAtService: 42 })).maintenance.hoursAtService).toBe(42);
+
+    const zeroed = await insertJob(gen);
+    expect((await generatorService.completeMaintenance(zeroed._id, { hoursAtService: 0 })).maintenance.hoursAtService).toBe(0);
+  });
+
+  it("saves the vendor, and the next occurrence copies it but not hoursAtService", async () => {
+    const gen = await createGenerator();
+    const recurring = await insertJob(gen, { intervalDays: 30, vendor: "PSO Services" });
+
+    const { maintenance, next } = await generatorService.completeMaintenance(recurring._id, { hoursAtService: 10 });
+
+    expect(maintenance.vendor).toBe("PSO Services");
+    expect(next.vendor).toBe("PSO Services");
+    expect(next.hoursAtService).toBeUndefined();
+  });
+
+  it("rolls back vendor and hoursAtService along with the rest when completion fails", async () => {
+    const gen = await createGenerator({ runningHoursTotal: 500 });
+    const original = await insertJob(gen);
+    jest.spyOn(generatorRepository, "recordServiceDate").mockRejectedValue(new Error("boom"));
+
+    await expect(generatorService.completeMaintenance(original._id, { vendor: "New Vendor", hoursAtService: 99 })).rejects.toThrow("boom");
+
+    const after = await GeneratorMaintenance.findById(original._id);
+    expect(after.status).toBe("scheduled");
+    expect(after.vendor).toBeUndefined();
+    expect(after.hoursAtService).toBeUndefined();
+  });
 });
 
 describe("updateMaintenance", () => {

@@ -46,7 +46,7 @@ describe("Generator maintenance API — /api/v1/generator/maintenance", () => {
       const { manager } = await makeUsers();
       const gen = await createGenerator();
 
-      const res = await as(manager).post("/maintenance", { generatorId: gen._id, description: "Oil change", scheduledDate: inDays(30), cost: 120 });
+      const res = await as(manager).post("/maintenance", { generatorId: gen._id, description: "Oil change", scheduledDate: inDays(30), cost: 120, vendor: "  PSO Services  " });
 
       expect(res.status).toBe(201);
       expect(res.body.data).toMatchObject({
@@ -55,6 +55,7 @@ describe("Generator maintenance API — /api/v1/generator/maintenance", () => {
         status: "scheduled",
         type: "scheduled",
         alertThresholdDays: 7,
+        vendor: "PSO Services",
         createdBy: manager.user._id.toString(),
       });
       expect(res.body.data.completedDate).toBeUndefined();
@@ -71,12 +72,14 @@ describe("Generator maintenance API — /api/v1/generator/maintenance", () => {
         status: "completed", // spoof attempt
         completedDate: inDays(-1), // spoof attempt
         createdBy: staff.user._id, // spoof attempt
+        hoursAtService: 999, // spoof attempt — only makes sense when completing a job
       });
 
       expect(res.status).toBe(201);
       expect(res.body.data.status).toBe("scheduled");
       expect(res.body.data.completedDate).toBeUndefined();
       expect(res.body.data.createdBy).toBe(manager.user._id.toString());
+      expect(res.body.data.hoursAtService).toBeUndefined();
       expect((await Generator.findById(gen._id)).lastServiceDate).toBeUndefined(); // nothing was "serviced"
     });
 
@@ -242,6 +245,8 @@ describe("Generator maintenance API — /api/v1/generator/maintenance", () => {
       ["intervalDays of 0", { intervalDays: 0 }],
       ["a negative cost", { cost: -5 }],
       ["an unknown type", { type: "surprise" }],
+      ["hoursAtService without completing", { hoursAtService: 10 }],
+      ["a negative hoursAtService while completing", { status: "completed", hoursAtService: -1 }],
     ])("rejects %s with 400 and changes nothing", async (_label, payload) => {
       const { manager } = await makeUsers();
       const job = await insertJob(await createGenerator(), { description: "Untouched" });
@@ -266,6 +271,8 @@ describe("Generator maintenance API — /api/v1/generator/maintenance", () => {
         status: "completed",
         completedDate: "2026-11-03T09:00:00Z",
         performedBy: "ACME Power",
+        vendor: "  ACME Corp  ",
+        hoursAtService: 812.5,
         cost: 240,
         partsReplaced: "oil filter",
         notes: "all good",
@@ -276,6 +283,8 @@ describe("Generator maintenance API — /api/v1/generator/maintenance", () => {
         status: "completed",
         completedDate: "2026-11-03T09:00:00.000Z",
         performedBy: "ACME Power",
+        vendor: "ACME Corp",
+        hoursAtService: 812.5,
         cost: 240,
         partsReplaced: "oil filter",
         notes: "all good",
@@ -283,6 +292,16 @@ describe("Generator maintenance API — /api/v1/generator/maintenance", () => {
       expect(res.body.data.next).toBeNull();
       expect(res.body.data.generator.lastServiceDate).toBe("2026-11-03T09:00:00.000Z");
       expect(await GeneratorMaintenance.countDocuments({ generator: gen._id })).toBe(1);
+    });
+
+    it("defaults hoursAtService to the generator's current running hours when none is sent", async () => {
+      const { manager } = await makeUsers();
+      const gen = await createGenerator({ runningHoursTotal: 350.25 });
+      const job = await insertJob(gen);
+
+      const res = await as(manager).patch(`/maintenance/${job._id}`, { status: "completed" });
+
+      expect(res.body.data.maintenance.hoursAtService).toBe(350.25);
     });
 
     it("defaults the completion date to now", async () => {
@@ -307,10 +326,11 @@ describe("Generator maintenance API — /api/v1/generator/maintenance", () => {
         alertThresholdDays: 14,
         createdBy: manager.user._id,
         performedBy: "Someone else", // per-visit details are NOT carried over
+        vendor: "Recurring Vendor Ltd", // ...but the vendor is, since it usually repeats
         cost: 500,
       });
 
-      const res = await as(manager).patch(`/maintenance/${job._id}`, { status: "completed", completedDate: "2026-10-05T00:00:00Z" });
+      const res = await as(manager).patch(`/maintenance/${job._id}`, { status: "completed", completedDate: "2026-10-05T00:00:00Z", hoursAtService: 77 });
 
       const { next } = res.body.data;
       expect(next).toMatchObject({
@@ -321,11 +341,13 @@ describe("Generator maintenance API — /api/v1/generator/maintenance", () => {
         alertThresholdDays: 14,
         status: "scheduled",
         createdBy: manager.user._id.toString(),
+        vendor: "Recurring Vendor Ltd",
         scheduledDate: "2027-01-03T00:00:00.000Z", // 5 Oct + 90 days
       });
       expect(next.completedDate).toBeUndefined();
       expect(next.performedBy).toBeUndefined();
       expect(next.cost).toBeUndefined();
+      expect(next.hoursAtService).toBeUndefined(); // hoursAtService is per-visit, not carried over
       expect(await GeneratorMaintenance.countDocuments({ generator: gen._id })).toBe(2);
     });
 
