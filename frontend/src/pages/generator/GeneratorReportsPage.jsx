@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import Card from "../../components/common/Card";
 import Tabs from "../../components/common/Tabs";
 import { generatorService } from "../../services/generatorService";
 import GeneratorReportRunningHours from "./GeneratorReportRunningHours";
 import GeneratorReportDieselConsumption from "./GeneratorReportDieselConsumption";
 import GeneratorReportFuelCost from "./GeneratorReportFuelCost";
 import GeneratorReportMaintenanceCost from "./GeneratorReportMaintenanceCost";
+import GeneratorReportOperatingCost from "./GeneratorReportOperatingCost";
+import GeneratorReportServiceHistory from "./GeneratorReportServiceHistory";
 
 // The six spec 4.2 reports this page covers, in the order they read most
 // naturally (usage first, then cost, then the yearly/history rollups).
@@ -21,25 +22,15 @@ const REPORT_TABS = [
   { id: "service-history", label: "Service History" },
 ];
 
-// Filled in one pair at a time as each report view ships in this story
-// (running-hours/diesel-consumption, then fuel-cost/maintenance-cost, then
-// operating-cost/service-history); a tab not yet in here falls back to
-// NotBuiltYet below.
+// One component per REPORT_TABS entry.
 const REPORT_VIEWS = {
   "running-hours": GeneratorReportRunningHours,
   "diesel-consumption": GeneratorReportDieselConsumption,
   "fuel-cost": GeneratorReportFuelCost,
   "maintenance-cost": GeneratorReportMaintenanceCost,
+  "operating-cost": GeneratorReportOperatingCost,
+  "service-history": GeneratorReportServiceHistory,
 };
-
-function NotBuiltYet({ label }) {
-  return (
-    <Card className="flex flex-col items-center justify-center text-center gap-2 py-16">
-      <p className="text-card-heading text-ink">{label}</p>
-      <p className="text-body text-ink-muted max-w-sm">This report is being built out in this same story.</p>
-    </Card>
-  );
-}
 
 /**
  * The Generator section's reports: one panel per spec 4.2 report, switched
@@ -63,12 +54,11 @@ export default function GeneratorReportsPage() {
   }, []);
 
   const ReportView = REPORT_VIEWS[tab];
-  const activeLabel = REPORT_TABS.find((t) => t.id === tab)?.label;
 
   return (
     <div className="flex flex-col gap-5">
       <Tabs tabs={REPORT_TABS} value={tab} onChange={setTab} label="Report type" />
-      {ReportView ? <ReportView generatorOptions={generatorOptions} /> : <NotBuiltYet label={activeLabel} />}
+      <ReportView generatorOptions={generatorOptions} />
     </div>
   );
 }
