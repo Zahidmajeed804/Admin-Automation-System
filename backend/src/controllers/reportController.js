@@ -24,4 +24,9 @@ export const reportController = {
     const report = await reportService.getMaintenanceCostReport({ generatorId, from, to });
     sendSuccess(res, { data: report });
   }),
+
+  operatingCost: asyncHandler(async (req, res) => {
+    const report = await reportService.getOperatingCostReport({ generatorId: req.query.generatorId, year: req.query.year });
+    sendSuccess(res, { data: report });
+  }),
 };

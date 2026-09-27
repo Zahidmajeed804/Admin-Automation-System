@@ -27,3 +27,9 @@ export const fuelCostReportValidator = [
 ];
 
 export const maintenanceCostReportValidator = [generatorIdFilter, ...dateRangeFilter, runValidation];
+
+export const operatingCostReportValidator = [
+  generatorIdFilter,
+  query("year").optional().isInt({ min: 2000, max: 2100 }).withMessage("year must be a 4-digit year between 2000 and 2100"),
+  runValidation,
+];

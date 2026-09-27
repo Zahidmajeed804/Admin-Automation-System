@@ -53,6 +53,14 @@ export const reportRepository = {
       },
     ]),
 
+  // Fuel cost per generator, per calendar month (1-12, UTC) within [from, to)
+  // — the building block for the yearly operating-cost report's monthly trend.
+  fuelByGeneratorMonth: (generatorIds, from, to) =>
+    GeneratorLog.aggregate([
+      { $match: { generator: { $in: generatorIds }, date: { $gte: from, $lt: to } } },
+      { $group: { _id: { generator: "$generator", month: { $month: "$date" } }, fuelCostTotal: { $sum: "$fuelCostTotal" } } },
+    ]),
+
   // Only completed jobs count as an actual cost — a scheduled or cancelled
   // job never happened. Ranged on completedDate (when the cost was actually
   // incurred), not scheduledDate (when it was originally due), since a job
@@ -61,5 +69,12 @@ export const reportRepository = {
     GeneratorMaintenance.aggregate([
       { $match: { generator: { $in: generatorIds }, status: "completed", completedDate: { $gte: from, $lte: to } } },
       { $group: { _id: "$generator", cost: { $sum: "$cost" }, jobCount: { $sum: 1 } } },
+    ]),
+
+  // Same idea as fuelByGeneratorMonth, for maintenance cost.
+  maintenanceCostByGeneratorMonth: (generatorIds, from, to) =>
+    GeneratorMaintenance.aggregate([
+      { $match: { generator: { $in: generatorIds }, status: "completed", completedDate: { $gte: from, $lt: to } } },
+      { $group: { _id: { generator: "$generator", month: { $month: "$completedDate" } }, cost: { $sum: "$cost" } } },
     ]),
 };

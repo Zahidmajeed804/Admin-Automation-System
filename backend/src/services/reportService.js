@@ -41,6 +41,16 @@ export function resolveDateRange({ from, to } = {}) {
   return { from: resolvedFrom, to: resolvedTo };
 }
 
+/** A calendar year as a [from, to) range, `to` exclusive. No year given defaults to the current UTC year. */
+export function resolveYearRange(year) {
+  const now = new Date();
+  const y = year ? Number(year) : now.getUTCFullYear();
+  if (!Number.isInteger(y) || y < 2000 || y > 2100) throw new BadRequestError("year must be a 4-digit year between 2000 and 2100");
+  const from = new Date(Date.UTC(y, 0, 1));
+  const to = new Date(Date.UTC(y + 1, 0, 1));
+  return { from, to, year: y };
+}
+
 async function generatorsFor(generatorId) {
   const generators = await reportRepository.resolveGenerators(generatorId);
   if (generatorId && !generators.length) throw new NotFoundError("Generator not found");
@@ -208,6 +218,47 @@ export const reportService = {
       totalCost: round2(result.reduce((sum, r) => sum + r.cost, 0)),
       totalJobCount: result.reduce((sum, r) => sum + r.jobCount, 0),
       generators: result,
+    };
+  },
+
+  /**
+   * Yearly operating-cost report (spec 4.2: "yearly operating cost"). Fuel
+   * cost (from usage logs) plus maintenance cost (from completed jobs),
+   * combined into a 12-month trend across the requested year — fleet-wide,
+   * or for just one generator when generatorId is given. Every month
+   * appears even with nothing in it, at 0, so the trend line has no gaps.
+   */
+  async getOperatingCostReport({ generatorId, year } = {}) {
+    const { from, to, year: y } = resolveYearRange(year);
+    const months = Array.from({ length: 12 }, (_, i) => ({ month: i + 1, fuelCost: 0, maintenanceCost: 0, operatingCost: 0 }));
+    const generators = await generatorsFor(generatorId);
+    if (!generators.length) return { year: y, from, to, totalFuelCost: 0, totalMaintenanceCost: 0, totalOperatingCost: 0, months };
+
+    const generatorIds = generators.map((g) => g._id);
+    const [fuelRows, maintenanceRows] = await Promise.all([
+      reportRepository.fuelByGeneratorMonth(generatorIds, from, to),
+      reportRepository.maintenanceCostByGeneratorMonth(generatorIds, from, to),
+    ]);
+
+    const byMonth = new Map(months.map((m) => [m.month, m]));
+    for (const row of fuelRows) {
+      const entry = byMonth.get(row._id.month);
+      if (entry) entry.fuelCost = round2(entry.fuelCost + (row.fuelCostTotal || 0));
+    }
+    for (const row of maintenanceRows) {
+      const entry = byMonth.get(row._id.month);
+      if (entry) entry.maintenanceCost = round2(entry.maintenanceCost + (row.cost || 0));
+    }
+    for (const m of months) m.operatingCost = round2(m.fuelCost + m.maintenanceCost);
+
+    return {
+      year: y,
+      from,
+      to,
+      totalFuelCost: round2(months.reduce((sum, m) => sum + m.fuelCost, 0)),
+      totalMaintenanceCost: round2(months.reduce((sum, m) => sum + m.maintenanceCost, 0)),
+      totalOperatingCost: round2(months.reduce((sum, m) => sum + m.operatingCost, 0)),
+      months,
     };
   },
 };
