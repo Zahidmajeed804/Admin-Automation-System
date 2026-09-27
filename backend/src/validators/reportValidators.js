@@ -33,3 +33,14 @@ export const operatingCostReportValidator = [
   query("year").optional().isInt({ min: 2000, max: 2100 }).withMessage("year must be a 4-digit year between 2000 and 2100"),
   runValidation,
 ];
+
+// Must stay in sync with the status enum on models/GeneratorMaintenance.js.
+export const serviceHistoryReportValidator = [
+  generatorIdFilter,
+  ...dateRangeFilter,
+  query("status").optional().isIn(["scheduled", "completed", "cancelled"]).withMessage("status must be one of: scheduled, completed, cancelled"),
+  // No .toInt(): req.query is read-only in Express 5, so the controller converts with Number().
+  query("page").optional().isInt({ min: 1 }).withMessage("page must be a positive whole number"),
+  query("pageSize").optional().isInt({ min: 1, max: 100 }).withMessage("pageSize must be a whole number between 1 and 100"),
+  runValidation,
+];

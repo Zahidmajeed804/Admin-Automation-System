@@ -77,4 +77,26 @@ export const reportRepository = {
       { $match: { generator: { $in: generatorIds }, status: "completed", completedDate: { $gte: from, $lt: to } } },
       { $group: { _id: { generator: "$generator", month: { $month: "$completedDate" } }, cost: { $sum: "$cost" } } },
     ]),
+
+  // Service history: paginated, same page/pageSize/totalItems/totalPages
+  // shape as the other list() methods. `statuses` and the [from, to] range
+  // (inclusive, on scheduledDate) are decided by the caller (reportService),
+  // not here.
+  serviceHistory: async ({ generatorIds, statuses, from, to, page = 1, pageSize = 20 }) => {
+    const filter = {
+      generator: { $in: generatorIds },
+      status: { $in: statuses },
+      scheduledDate: { $gte: from, $lte: to },
+    };
+    const skip = (page - 1) * pageSize;
+    const [items, totalItems] = await Promise.all([
+      GeneratorMaintenance.find(filter)
+        .sort({ scheduledDate: -1, createdAt: -1 })
+        .skip(skip)
+        .limit(pageSize)
+        .populate("generator", "tag name"),
+      GeneratorMaintenance.countDocuments(filter),
+    ]);
+    return { items, page, pageSize, totalItems, totalPages: Math.ceil(totalItems / pageSize) || 0 };
+  },
 };

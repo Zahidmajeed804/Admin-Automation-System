@@ -261,4 +261,33 @@ export const reportService = {
       months,
     };
   },
+
+  // "History" defaults to jobs that are actually done with — completed or
+  // cancelled — not the open work already covered by the maintenance page's
+  // own list/alerts endpoints. A single `status` overrides that, e.g. to
+  // pull just "completed" jobs for an invoice audit.
+  /**
+   * Service-history report (spec 4.2: "maintenance service history"). A
+   * paginated, filterable list of past maintenance jobs, ranged on
+   * scheduledDate like the diesel/maintenance-cost reports.
+   */
+  async getServiceHistoryReport({ generatorId, status, from, to, page, pageSize } = {}) {
+    const range = resolveDateRange({ from, to });
+    const generators = await generatorsFor(generatorId);
+    const statuses = status ? [status] : ["completed", "cancelled"];
+
+    if (!generators.length) {
+      return { ...range, page: page || 1, pageSize: pageSize || 20, totalItems: 0, totalPages: 0, items: [] };
+    }
+
+    const { items, ...meta } = await reportRepository.serviceHistory({
+      generatorIds: generators.map((g) => g._id),
+      statuses,
+      from: range.from,
+      to: range.to,
+      page,
+      pageSize,
+    });
+    return { ...range, ...meta, items };
+  },
 };

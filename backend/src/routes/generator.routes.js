@@ -21,6 +21,7 @@ import {
   fuelCostReportValidator,
   maintenanceCostReportValidator,
   operatingCostReportValidator,
+  serviceHistoryReportValidator,
 } from "../validators/reportValidators.js";
 
 const router = Router();
@@ -58,6 +59,7 @@ router.get("/reports/diesel-consumption", requirePermission("reports.read"), die
 router.get("/reports/fuel-cost", requirePermission("reports.read"), fuelCostReportValidator, reportController.fuelCost);
 router.get("/reports/maintenance-cost", requirePermission("reports.read"), maintenanceCostReportValidator, reportController.maintenanceCost);
 router.get("/reports/operating-cost", requirePermission("reports.read"), operatingCostReportValidator, reportController.operatingCost);
+router.get("/reports/service-history", requirePermission("reports.read"), serviceHistoryReportValidator, reportController.serviceHistory);
 
 router.get("/", requirePermission("generator.read"), generatorController.list);
 router.post("/", requirePermission("generator.create"), createGeneratorValidator, generatorController.create);

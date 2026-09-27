@@ -29,4 +29,17 @@ export const reportController = {
     const report = await reportService.getOperatingCostReport({ generatorId: req.query.generatorId, year: req.query.year });
     sendSuccess(res, { data: report });
   }),
+
+  serviceHistory: asyncHandler(async (req, res) => {
+    const { generatorId, status, from, to, page, pageSize } = req.query;
+    const { items, ...meta } = await reportService.getServiceHistoryReport({
+      generatorId,
+      status,
+      from,
+      to,
+      page: page ? Number(page) : undefined,
+      pageSize: pageSize ? Number(pageSize) : undefined,
+    });
+    sendSuccess(res, { data: items, meta });
+  }),
 };
