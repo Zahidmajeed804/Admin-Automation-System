@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import { Plus, Pencil, Trash2, CheckCircle2, Ban, Paperclip } from "lucide-react";
+import { Plus, Pencil, Trash2, CheckCircle2, Ban, Paperclip, AlertTriangle, Clock3 } from "lucide-react";
+import clsx from "clsx";
+import StatCard from "../../components/common/StatCard";
 import FilterBar from "../../components/common/FilterBar";
 import Select from "../../components/common/Select";
 import Badge from "../../components/common/Badge";
@@ -23,6 +25,28 @@ const STATUS_OPTIONS = [
   { value: "cancelled", label: "Cancelled" },
 ];
 
+// A job can be due by date, by running hours, both, or neither (see the
+// backend's computeAlertStatus) — this shows whichever of the two the job
+// actually tracks. Overdue reads as "by" (how far past), everything else as
+// "in" (how far ahead), matching how a person would say either out loud.
+function dueInLine(value, unit) {
+  if (value === undefined || value === null) return null;
+  return value < 0 ? `Overdue by ${formatNumber(-value)}${unit}` : `Due in ${formatNumber(value)}${unit}`;
+}
+
+function DueInfo({ row }) {
+  if (row.status !== "scheduled") return null;
+  const days = dueInLine(row.daysUntilDue, "d");
+  const hours = dueInLine(row.hoursUntilDue, "h");
+  if (!days && !hours) return null;
+  const overdue = row.alertStatus === "overdue";
+  return (
+    <p className={clsx("text-helper mt-0.5", overdue ? "text-status-error font-medium" : "text-ink-muted")}>
+      {[days, hours].filter(Boolean).join(" · ")}
+    </p>
+  );
+}
+
 // `onEdit` / `onComplete` / `onCancel` / `onDelete` are left undefined for a
 // user without the matching permission, and then that button is not drawn at
 // all — the same pattern GeneratorPage uses. Editing, completing and
@@ -35,10 +59,20 @@ function buildColumns({ onEdit, onComplete, onCancel, onInvoice, onDelete }) {
     { key: "generator", header: "Generator", render: (row) => <span className="font-medium text-ink">{row.generator?.tag ?? "—"}</span> },
     { key: "description", header: "Description" },
     { key: "type", header: "Type", render: (row) => <span className="capitalize">{row.type}</span> },
-    { key: "scheduledDate", header: "Scheduled Date", render: (row) => formatDate(row.scheduledDate) },
-    // Shows the real stored status for now; a scheduled job's overdue/upcoming
-    // alert status is surfaced in 2.9.5, once it also needs a "due in" column.
-    { key: "status", header: "Status", render: (row) => <Badge status={row.status} /> },
+    {
+      key: "scheduledDate",
+      header: "Due",
+      render: (row) => (
+        <div>
+          {formatDate(row.scheduledDate)}
+          <DueInfo row={row} />
+        </div>
+      ),
+    },
+    // For a scheduled job this is alertStatus (overdue/upcoming/scheduled),
+    // which factors in running hours as well as the date — not just the raw
+    // stored status. Completed/cancelled jobs show their real status as-is.
+    { key: "status", header: "Status", render: (row) => <Badge status={row.status === "scheduled" ? row.alertStatus : row.status} /> },
     { key: "vendor", header: "Vendor", render: (row) => row.vendor || "—" },
     { key: "cost", header: "Cost", render: (row) => formatNumber(row.cost) },
     {
@@ -97,6 +131,11 @@ export default function GeneratorMaintenancePage() {
   const [deleteError, setDeleteError] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
+  // The list endpoint only returns totals for the current page/filter, so the
+  // two alert counts come from the dedicated alerts feed instead — the same
+  // approach GeneratorPage uses for its own stat cards.
+  const [alertCounts, setAlertCounts] = useState(null);
+
   useEffect(() => {
     generatorService
       .listGenerators({ pageSize: 200 })
@@ -129,6 +168,21 @@ export default function GeneratorMaintenancePage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    let cancelled = false;
+    generatorService
+      .getMaintenanceAlerts()
+      .then(({ counts }) => {
+        if (!cancelled) setAlertCounts(counts);
+      })
+      .catch(() => {
+        // Stat cards are a nice-to-have; a failure here shouldn't block the list.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [items]);
 
   const handleGeneratorChange = (value) => {
     setGeneratorId(value);
@@ -219,6 +273,23 @@ export default function GeneratorMaintenancePage() {
 
   return (
     <div className="flex flex-col gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <StatCard
+          label="Overdue"
+          value={alertCounts ? alertCounts.overdue : "—"}
+          icon={AlertTriangle}
+          iconColor="text-status-error"
+          iconBg="bg-red-50"
+        />
+        <StatCard
+          label="Upcoming"
+          value={alertCounts ? alertCounts.upcoming : "—"}
+          icon={Clock3}
+          iconColor="text-status-warning"
+          iconBg="bg-amber-50"
+        />
+      </div>
+
       <FilterBar
         filters={
           <>
