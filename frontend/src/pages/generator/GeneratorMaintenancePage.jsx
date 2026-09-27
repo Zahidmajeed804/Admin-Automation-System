@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
-import { Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2 } from "lucide-react";
 import FilterBar from "../../components/common/FilterBar";
 import Select from "../../components/common/Select";
 import Badge from "../../components/common/Badge";
 import Button from "../../components/common/Button";
 import ConfirmDialog from "../../components/modals/ConfirmDialog";
 import Table from "../../components/tables/Table";
+import GeneratorMaintenanceForm from "./GeneratorMaintenanceForm";
 import { extractErrorMessage } from "./GeneratorForm";
 import { useAuth } from "../../context/AuthContext";
 import { generatorService } from "../../services/generatorService";
@@ -20,9 +21,12 @@ const STATUS_OPTIONS = [
   { value: "cancelled", label: "Cancelled" },
 ];
 
-// `onDelete` is left undefined for a user without generator.delete, and then
-// that button is not drawn at all — the same pattern GeneratorPage uses.
-function buildColumns({ onDelete }) {
+// `onEdit` / `onDelete` are left undefined for a user without the matching
+// permission, and then that button is not drawn at all — the same pattern
+// GeneratorPage uses. Editing only makes sense for a job still "scheduled" —
+// completed/cancelled jobs are history, and the backend refuses the edit
+// anyway — so onEdit is also skipped for those rows.
+function buildColumns({ onEdit, onDelete }) {
   return [
     { key: "generator", header: "Generator", render: (row) => <span className="font-medium text-ink">{row.generator?.tag ?? "—"}</span> },
     { key: "description", header: "Description" },
@@ -38,6 +42,9 @@ function buildColumns({ onDelete }) {
       header: "",
       render: (row) => (
         <div className="flex items-center justify-end gap-1">
+          {onEdit && row.status === "scheduled" && (
+            <Button variant="ghost" size="sm" icon={Pencil} aria-label={`Edit ${row.description}`} onClick={() => onEdit(row)} />
+          )}
           {onDelete && <Button variant="ghost" size="sm" icon={Trash2} aria-label={`Delete ${row.description}`} onClick={() => onDelete(row)} />}
         </div>
       ),
@@ -49,6 +56,8 @@ export default function GeneratorMaintenancePage() {
   // Maintenance has no permissions of its own yet — it still rides on the
   // same generator.* permissions the backend checks on these routes.
   const { hasPermission } = useAuth();
+  const canCreate = hasPermission("generator.create");
+  const canUpdate = hasPermission("generator.update");
   const canDelete = hasPermission("generator.delete");
 
   const [generatorOptions, setGeneratorOptions] = useState([]);
@@ -61,6 +70,9 @@ export default function GeneratorMaintenancePage() {
   const [generatorId, setGeneratorId] = useState("");
   const [status, setStatus] = useState("");
   const [page, setPage] = useState(1);
+
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingJob, setEditingJob] = useState(null);
 
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleteError, setDeleteError] = useState(null);
@@ -113,6 +125,20 @@ export default function GeneratorMaintenancePage() {
     setPage(1);
   };
 
+  const openScheduleForm = () => {
+    setEditingJob(null);
+    setFormOpen(true);
+  };
+  const openEditForm = (job) => {
+    setEditingJob(job);
+    setFormOpen(true);
+  };
+  const handleSaved = () => {
+    setFormOpen(false);
+    setEditingJob(null);
+    load();
+  };
+
   const closeDeleteDialog = () => {
     setDeleteTarget(null);
     setDeleteError(null);
@@ -135,6 +161,7 @@ export default function GeneratorMaintenancePage() {
   };
 
   const columns = buildColumns({
+    onEdit: canUpdate ? openEditForm : undefined,
     onDelete: canDelete ? (row) => setDeleteTarget(row) : undefined,
   });
 
@@ -148,6 +175,13 @@ export default function GeneratorMaintenancePage() {
           </>
         }
         onReset={generatorId || status ? handleReset : undefined}
+        actions={
+          canCreate ? (
+            <Button icon={Plus} onClick={openScheduleForm}>
+              Schedule Maintenance
+            </Button>
+          ) : undefined
+        }
       />
 
       <Table
@@ -166,6 +200,15 @@ export default function GeneratorMaintenancePage() {
           pageSize: meta.pageSize,
           onPageChange: setPage,
         }}
+      />
+
+      <GeneratorMaintenanceForm
+        open={formOpen}
+        job={editingJob}
+        onClose={() => setFormOpen(false)}
+        onSaved={handleSaved}
+        generatorOptions={generatorOptions}
+        defaultGeneratorId={generatorId}
       />
 
       <ConfirmDialog
