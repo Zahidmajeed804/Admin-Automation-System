@@ -1,0 +1,12 @@
+import { query } from "express-validator";
+import { runValidation } from "../middleware/runValidation.js";
+
+// Shared by every report that accepts an optional generatorId to scope to
+// one generator instead of the whole fleet.
+const generatorIdFilter = query("generatorId").optional().isMongoId().withMessage("generatorId must be a valid id");
+
+export const runningHoursReportValidator = [
+  generatorIdFilter,
+  query("month").optional().matches(/^\d{4}-\d{2}$/).withMessage("month must be in YYYY-MM format"),
+  runValidation,
+];

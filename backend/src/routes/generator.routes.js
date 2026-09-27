@@ -2,6 +2,7 @@ import { Router } from "express";
 import { generatorController } from "../controllers/generatorController.js";
 import { generatorLogController } from "../controllers/generatorLogController.js";
 import { generatorMaintenanceController } from "../controllers/generatorMaintenanceController.js";
+import { reportController } from "../controllers/reportController.js";
 import { authenticate } from "../middleware/authenticate.js";
 import { uploadInvoice } from "../middleware/uploadInvoice.js";
 import { requirePermission } from "../authorization/requirePermission.js";
@@ -14,6 +15,7 @@ import {
   updateMaintenanceValidator,
   maintenanceAlertsValidator,
 } from "../validators/generatorValidators.js";
+import { runningHoursReportValidator } from "../validators/reportValidators.js";
 
 const router = Router();
 
@@ -40,6 +42,12 @@ router.delete("/maintenance/:id", requirePermission("generator.delete"), generat
 router.post("/maintenance/:id/invoice", requirePermission("generator.update"), uploadInvoice, generatorMaintenanceController.uploadInvoice);
 router.get("/maintenance/:id/invoice", requirePermission("generator.read"), generatorMaintenanceController.downloadInvoice);
 router.delete("/maintenance/:id/invoice", requirePermission("generator.update"), generatorMaintenanceController.removeInvoice);
+
+// Reports — gated on the dedicated reports.read permission (admin + manager
+// by default, not staff), not generator.read, since a report is a different
+// kind of access than day-to-day operation. Must be declared before "/:id"
+// like the other fixed sub-paths above.
+router.get("/reports/running-hours", requirePermission("reports.read"), runningHoursReportValidator, reportController.runningHours);
 
 router.get("/", requirePermission("generator.read"), generatorController.list);
 router.post("/", requirePermission("generator.create"), createGeneratorValidator, generatorController.create);
