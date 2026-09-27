@@ -264,11 +264,18 @@ export const generatorService = {
    * keeps lastServiceDate and recurrence right).
    */
   async scheduleMaintenance({ generatorId, createdBy, ...fields }) {
-    await findActiveGenerator(generatorId);
+    const generator = await findActiveGenerator(generatorId);
 
     const allowed = withoutUndefined(fields);
     delete allowed.status; // a new job is always "scheduled"…
     delete allowed.completedDate; // …and cannot arrive already completed
+
+    // hoursAtScheduling only means something alongside intervalHours; when
+    // that's given without an explicit starting point, count from the
+    // generator's current running hours.
+    if (allowed.intervalHours !== undefined && allowed.hoursAtScheduling === undefined) {
+      allowed.hoursAtScheduling = generator.runningHoursTotal;
+    }
 
     return generatorMaintenanceRepository.create({ ...allowed, generator: generatorId, createdBy });
   },
@@ -292,9 +299,15 @@ export const generatorService = {
    * Marks a scheduled maintenance record completed, moves the generator's
    * lastServiceDate forward, and — if the record recurs (intervalDays) —
    * schedules the next one intervalDays after the day it was actually done.
+   * A job that only tracks running hours (intervalHours, no intervalDays)
+   * does NOT get an automatic next occurrence: scheduledDate is required on
+   * every job, and there is no calendar date to derive from hours alone, so
+   * a follow-up would have to be scheduled by hand.
    *
    * hoursAtService defaults to the generator's current runningHoursTotal when
-   * not given; a client-supplied value (including 0) always wins.
+   * not given; a client-supplied value (including 0) always wins. When the
+   * job recurs and also tracks hours, the next occurrence's hour-based clock
+   * (hoursAtScheduling) starts from this job's own resolved hoursAtService.
    *
    * The status flip is an atomic "only if still scheduled", so a repeated or
    * racing request gets a 409 instead of a duplicate next occurrence. The
@@ -327,6 +340,11 @@ export const generatorService = {
           scheduledDate: new Date(when.getTime() + original.intervalDays * MS_PER_DAY),
           intervalDays: original.intervalDays,
           alertThresholdDays: original.alertThresholdDays,
+          intervalHours: original.intervalHours,
+          alertThresholdHours: original.alertThresholdHours,
+          // Its hour-based clock starts from this job's own resolved
+          // hoursAtService, only when this line of recurrence tracks hours.
+          hoursAtScheduling: original.intervalHours ? hoursAtService : undefined,
           vendor: original.vendor, // the same vendor usually does the recurring job again
           createdBy: original.createdBy,
         });

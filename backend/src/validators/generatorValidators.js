@@ -91,6 +91,10 @@ const MAINTENANCE_TYPES = ["scheduled", "unscheduled", "inspection"];
 const maintenanceOptionalFields = [
   body("type").optional().isIn(MAINTENANCE_TYPES).withMessage(`type must be one of: ${MAINTENANCE_TYPES.join(", ")}`),
   body("alertThresholdDays").optional().isInt({ min: 0 }).withMessage("alertThresholdDays must be a whole number of days, 0 or more"),
+  // Running hours are already tracked as decimals elsewhere (meter readings,
+  // runningHoursTotal), so unlike the day-based fields these accept fractions.
+  body("alertThresholdHours").optional().isFloat({ min: 0 }).withMessage("alertThresholdHours must be a non-negative number of hours"),
+  body("hoursAtScheduling").optional().isFloat({ min: 0 }).withMessage("hoursAtScheduling must be a non-negative number"),
   body("performedBy").optional().trim(),
   body("vendor").optional().trim(),
   body("cost").optional().isFloat({ min: 0 }).withMessage("cost must be a non-negative number"),
@@ -103,6 +107,7 @@ export const createMaintenanceValidator = [
   body("description").trim().notEmpty().withMessage("description is required"),
   body("scheduledDate").isISO8601().withMessage("scheduledDate is required and must be a valid date"),
   body("intervalDays").optional().isInt({ min: 1 }).withMessage("intervalDays must be a whole number of days, 1 or more"),
+  body("intervalHours").optional().isFloat({ min: 1 }).withMessage("intervalHours must be a positive number of hours"),
   ...maintenanceOptionalFields,
   runValidation,
 ];
@@ -110,7 +115,7 @@ export const createMaintenanceValidator = [
 // PATCH does one of three things: edit a job, cancel it (status "cancelled"),
 // or complete it (status "completed"). Completing goes through its own
 // service operation, so it must not be mixed with schedule edits.
-const EDIT_ONLY_FIELDS = ["description", "type", "scheduledDate", "intervalDays", "alertThresholdDays"];
+const EDIT_ONLY_FIELDS = ["description", "type", "scheduledDate", "intervalDays", "alertThresholdDays", "intervalHours", "alertThresholdHours", "hoursAtScheduling"];
 
 export const updateMaintenanceValidator = [
   body("status")
@@ -147,6 +152,7 @@ export const updateMaintenanceValidator = [
   body("description").optional().trim().notEmpty().withMessage("description cannot be empty"),
   body("scheduledDate").optional().isISO8601().withMessage("scheduledDate must be a valid date"),
   body("intervalDays").optional({ nullable: true }).isInt({ min: 1 }).withMessage("intervalDays must be a whole number of days, 1 or more (or null to stop repeating)"),
+  body("intervalHours").optional({ nullable: true }).isFloat({ min: 1 }).withMessage("intervalHours must be a positive number of hours (or null to stop tracking hours)"),
   ...maintenanceOptionalFields,
   runValidation,
 ];

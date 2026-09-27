@@ -26,7 +26,10 @@ export const generatorMaintenanceController = {
   }),
 
   create: asyncHandler(async (req, res) => {
-    const { generatorId, type, description, scheduledDate, intervalDays, alertThresholdDays, performedBy, vendor, cost, partsReplaced, notes } = req.body;
+    const {
+      generatorId, type, description, scheduledDate, intervalDays, alertThresholdDays,
+      intervalHours, alertThresholdHours, hoursAtScheduling, performedBy, vendor, cost, partsReplaced, notes,
+    } = req.body;
     const maintenance = await generatorService.scheduleMaintenance({
       generatorId,
       createdBy: req.userId,
@@ -35,6 +38,9 @@ export const generatorMaintenanceController = {
       scheduledDate,
       intervalDays,
       alertThresholdDays,
+      intervalHours,
+      alertThresholdHours,
+      hoursAtScheduling,
       performedBy,
       vendor,
       cost,
@@ -47,7 +53,10 @@ export const generatorMaintenanceController = {
   // One endpoint, three intents: complete (status "completed"), cancel
   // (status "cancelled"), or edit. The validator keeps them from being mixed.
   update: asyncHandler(async (req, res) => {
-    const { status, completedDate, type, description, scheduledDate, intervalDays, alertThresholdDays, performedBy, vendor, cost, partsReplaced, notes, hoursAtService } = req.body;
+    const {
+      status, completedDate, type, description, scheduledDate, intervalDays, alertThresholdDays,
+      intervalHours, alertThresholdHours, hoursAtScheduling, performedBy, vendor, cost, partsReplaced, notes, hoursAtService,
+    } = req.body;
 
     if (status === "completed") {
       const result = await generatorService.completeMaintenance(req.params.id, { completedDate, performedBy, vendor, cost, partsReplaced, notes, hoursAtService });
@@ -61,6 +70,9 @@ export const generatorMaintenanceController = {
       scheduledDate,
       intervalDays,
       alertThresholdDays,
+      intervalHours,
+      alertThresholdHours,
+      hoursAtScheduling,
       performedBy,
       vendor,
       cost,
