@@ -50,4 +50,17 @@ export const generatorService = {
     return { blob: res.data, filename: match ? match[1] : "invoice" };
   },
   deleteInvoice: (id) => apiClient.delete(`/generator/maintenance/${id}/invoice`).then(one),
+
+  // Reports (S2.11's read-only endpoints) — every one of these resolves the
+  // report object itself (server-computed totals/rows), never { items }, so
+  // they use `one` even where the payload is a list of per-generator rows.
+  // Service-history is the one exception: it's paginated the same way as the
+  // other list endpoints, so it uses `list` instead.
+  getRunningHoursReport: (params) => apiClient.get("/generator/reports/running-hours", { params }).then(one),
+  getDieselConsumptionReport: (params) => apiClient.get("/generator/reports/diesel-consumption", { params }).then(one),
+  getFuelCostReport: (params) => apiClient.get("/generator/reports/fuel-cost", { params }).then(one),
+  getMaintenanceCostReport: (params) => apiClient.get("/generator/reports/maintenance-cost", { params }).then(one),
+  getOperatingCostReport: (params) => apiClient.get("/generator/reports/operating-cost", { params }).then(one),
+  getServiceHistoryReport: (params) => apiClient.get("/generator/reports/service-history", { params }).then(list),
+  getCostSummaryReport: (params) => apiClient.get("/generator/reports/cost-summary", { params }).then(one),
 };
