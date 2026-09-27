@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
 import { Plus, Pencil, Trash2, CheckCircle2, Ban, Paperclip, AlertTriangle, Clock3, Eye } from "lucide-react";
-import clsx from "clsx";
 import StatCard from "../../components/common/StatCard";
 import FilterBar from "../../components/common/FilterBar";
 import Select from "../../components/common/Select";
@@ -12,6 +11,7 @@ import GeneratorMaintenanceForm from "./GeneratorMaintenanceForm";
 import GeneratorMaintenanceCompleteForm from "./GeneratorMaintenanceCompleteForm";
 import GeneratorMaintenanceInvoice from "./GeneratorMaintenanceInvoice";
 import GeneratorMaintenanceDetails from "./GeneratorMaintenanceDetails";
+import { DueInfo } from "./DueInfo";
 import { extractErrorMessage } from "./GeneratorForm";
 import { useAuth } from "../../context/AuthContext";
 import { generatorService } from "../../services/generatorService";
@@ -25,30 +25,6 @@ const STATUS_OPTIONS = [
   { value: "completed", label: "Completed" },
   { value: "cancelled", label: "Cancelled" },
 ];
-
-// A job can be due by date, by running hours, both, or neither (see the
-// backend's computeAlertStatus) — this shows whichever of the two the job
-// actually tracks. Overdue reads as "by" (how far past), everything else as
-// "in" (how far ahead), matching how a person would say either out loud.
-// Exported for reuse by GeneratorMaintenanceDetails, which shows the same
-// due-in line in its own layout.
-export function dueInLine(value, unit) {
-  if (value === undefined || value === null) return null;
-  return value < 0 ? `Overdue by ${formatNumber(-value)}${unit}` : `Due in ${formatNumber(value)}${unit}`;
-}
-
-export function DueInfo({ row }) {
-  if (row.status !== "scheduled") return null;
-  const days = dueInLine(row.daysUntilDue, "d");
-  const hours = dueInLine(row.hoursUntilDue, "h");
-  if (!days && !hours) return null;
-  const overdue = row.alertStatus === "overdue";
-  return (
-    <p className={clsx("text-helper mt-0.5", overdue ? "text-status-error font-medium" : "text-ink-muted")}>
-      {[days, hours].filter(Boolean).join(" · ")}
-    </p>
-  );
-}
 
 // `onEdit` / `onComplete` / `onCancel` / `onDelete` are left undefined for a
 // user without the matching permission, and then that button is not drawn at

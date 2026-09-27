@@ -3,11 +3,12 @@ import PageHeader from "../../components/common/PageHeader";
 import Tabs from "../../components/common/Tabs";
 
 // One entry per Generator page; each tab is a real URL, so it can be
-// bookmarked and the browser's back button works. Maintenance and Reports
-// get added here when those pages are built.
+// bookmarked and the browser's back button works. Reports gets added here
+// when that page is built.
 const GENERATOR_TABS = [
   { id: "registry", path: "/generator", label: "Registry" },
   { id: "logs", path: "/generator/logs", label: "Fuel & Usage Logs" },
+  { id: "maintenance", path: "/generator/maintenance", label: "Maintenance" },
 ];
 
 /**

@@ -4,7 +4,7 @@ import Badge from "../../components/common/Badge";
 import Button from "../../components/common/Button";
 import { formatDate } from "../../utils/formatDate";
 import { formatNumber } from "../../utils/formatNumber";
-import { DueInfo } from "./GeneratorMaintenancePage";
+import { DueInfo } from "./DueInfo";
 
 function recurrenceText(job) {
   const parts = [];
