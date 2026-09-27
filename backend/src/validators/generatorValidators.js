@@ -92,6 +92,7 @@ const maintenanceOptionalFields = [
   body("type").optional().isIn(MAINTENANCE_TYPES).withMessage(`type must be one of: ${MAINTENANCE_TYPES.join(", ")}`),
   body("alertThresholdDays").optional().isInt({ min: 0 }).withMessage("alertThresholdDays must be a whole number of days, 0 or more"),
   body("performedBy").optional().trim(),
+  body("vendor").optional().trim(),
   body("cost").optional().isFloat({ min: 0 }).withMessage("cost must be a non-negative number"),
   body("partsReplaced").optional().trim(),
   body("notes").optional().trim(),
@@ -130,6 +131,17 @@ export const updateMaintenanceValidator = [
     .bail()
     .custom((_, { req }) => {
       if (req.body.status !== "completed") throw new Error('completedDate can only be sent together with status "completed"');
+      return true;
+    }),
+  // Defaults to the generator's current running hours when a job is completed
+  // without one; sending it only makes sense alongside status: "completed".
+  body("hoursAtService")
+    .optional()
+    .isFloat({ min: 0 })
+    .withMessage("hoursAtService must be a non-negative number")
+    .bail()
+    .custom((_, { req }) => {
+      if (req.body.status !== "completed") throw new Error('hoursAtService can only be sent together with status "completed"');
       return true;
     }),
   body("description").optional().trim().notEmpty().withMessage("description cannot be empty"),

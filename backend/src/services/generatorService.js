@@ -275,17 +275,26 @@ export const generatorService = {
    * lastServiceDate forward, and — if the record recurs (intervalDays) —
    * schedules the next one intervalDays after the day it was actually done.
    *
+   * hoursAtService defaults to the generator's current runningHoursTotal when
+   * not given; a client-supplied value (including 0) always wins.
+   *
    * The status flip is an atomic "only if still scheduled", so a repeated or
    * racing request gets a 409 instead of a duplicate next occurrence. The
    * remaining writes are not a transaction; if one fails, the earlier ones
    * are undone so nothing is left half-completed.
    */
-  async completeMaintenance(maintenanceId, { completedDate, performedBy, cost, partsReplaced, notes } = {}) {
+  async completeMaintenance(maintenanceId, { completedDate, performedBy, vendor, cost, partsReplaced, notes, hoursAtService } = {}) {
     const original = await generatorMaintenanceRepository.findById(maintenanceId);
     if (!original) throw new NotFoundError("Maintenance record not found");
 
     const when = completedDate ? new Date(completedDate) : new Date();
-    const changes = withoutUndefined({ status: "completed", completedDate: when, performedBy, cost, partsReplaced, notes });
+    // hoursAtService defaults to the generator's current running-hours total,
+    // but an explicit value (e.g. the service actually happened earlier) wins.
+    if (hoursAtService === undefined) {
+      const generator = await generatorRepository.findById(original.generator);
+      hoursAtService = generator?.runningHoursTotal;
+    }
+    const changes = withoutUndefined({ status: "completed", completedDate: when, performedBy, vendor, cost, partsReplaced, notes, hoursAtService });
 
     const maintenance = await generatorMaintenanceRepository.updateIfScheduled(maintenanceId, changes);
     if (!maintenance) throw new ConflictError("Only scheduled maintenance can be completed");
@@ -300,6 +309,7 @@ export const generatorService = {
           scheduledDate: new Date(when.getTime() + original.intervalDays * MS_PER_DAY),
           intervalDays: original.intervalDays,
           alertThresholdDays: original.alertThresholdDays,
+          vendor: original.vendor, // the same vendor usually does the recurring job again
           createdBy: original.createdBy,
         });
       }
