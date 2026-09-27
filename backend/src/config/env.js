@@ -14,6 +14,9 @@ export const env = {
   clientOrigin: process.env.CLIENT_ORIGIN || "http://localhost:5173",
   // Worked minutes per day above which the excess becomes overtime (SRS: 10 hours).
   overtimeThresholdMinutes: Number(process.env.OVERTIME_THRESHOLD_MINUTES) || 600,
+  // Maintenance invoices: where uploaded files live on disk, and the size cap in MB.
+  invoiceUploadDir: process.env.INVOICE_UPLOAD_DIR || "uploads/invoices",
+  invoiceMaxSizeMb: Number(process.env.INVOICE_MAX_SIZE_MB) || 5,
 };
 
 export const isProduction = env.nodeEnv === "production";

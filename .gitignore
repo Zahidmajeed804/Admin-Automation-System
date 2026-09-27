@@ -25,6 +25,9 @@ coverage/
 *.seed
 *.pid.lock
 
+# Uploaded files (maintenance invoices, etc.) — user data, not source
+backend/uploads/
+
 # Editor and OS files
 .vscode/*
 !.vscode/settings.json
