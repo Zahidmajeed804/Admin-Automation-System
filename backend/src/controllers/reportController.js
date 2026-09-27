@@ -13,4 +13,9 @@ export const reportController = {
     const report = await reportService.getDieselConsumptionReport({ generatorId, from, to });
     sendSuccess(res, { data: report });
   }),
+
+  fuelCost: asyncHandler(async (req, res) => {
+    const report = await reportService.getFuelCostReport({ generatorId: req.query.generatorId, month: req.query.month });
+    sendSuccess(res, { data: report });
+  }),
 };

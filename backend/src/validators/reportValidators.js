@@ -19,3 +19,9 @@ const dateRangeFilter = [
 ];
 
 export const dieselConsumptionReportValidator = [generatorIdFilter, ...dateRangeFilter, runValidation];
+
+export const fuelCostReportValidator = [
+  generatorIdFilter,
+  query("month").optional().matches(/^\d{4}-\d{2}$/).withMessage("month must be in YYYY-MM format"),
+  runValidation,
+];

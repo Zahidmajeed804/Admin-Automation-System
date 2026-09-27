@@ -96,6 +96,51 @@ export const reportService = {
   },
 
   /**
+   * Monthly fuel-cost report (spec 4.2: "fuel cost"). One row per active
+   * generator (or just the one requested), summed from its usage logs for
+   * the month, plus an average cost per litre bought (0 when nothing was
+   * bought, rather than a division-by-zero NaN).
+   */
+  async getFuelCostReport({ generatorId, month } = {}) {
+    const { from, to, year, month: monthNumber } = resolveMonthRange(month);
+    const generators = await generatorsFor(generatorId);
+    if (!generators.length) {
+      return { year, month: monthNumber, from, to, totalFuelCost: 0, averageCostPerLiter: 0, generators: [] };
+    }
+
+    const rows = seedRows(generators, { fuelCostTotal: 0, fuelAddedLiters: 0, logCount: 0 });
+    const aggregated = await reportRepository.fuelCostByGenerator(
+      generators.map((g) => g._id),
+      from,
+      to
+    );
+    for (const row of aggregated) {
+      const entry = rows.get(String(row._id));
+      if (entry) {
+        entry.fuelCostTotal = round2(row.fuelCostTotal);
+        entry.fuelAddedLiters = round2(row.fuelAddedLiters);
+        entry.logCount = row.logCount;
+      }
+    }
+
+    const result = [...rows.values()].map((row) => ({
+      ...row,
+      averageCostPerLiter: row.fuelAddedLiters > 0 ? round2(row.fuelCostTotal / row.fuelAddedLiters) : 0,
+    }));
+    const totalFuelCost = round2(result.reduce((sum, r) => sum + r.fuelCostTotal, 0));
+    const totalFuelAddedLiters = round2(result.reduce((sum, r) => sum + r.fuelAddedLiters, 0));
+    return {
+      year,
+      month: monthNumber,
+      from,
+      to,
+      totalFuelCost,
+      averageCostPerLiter: totalFuelAddedLiters > 0 ? round2(totalFuelCost / totalFuelAddedLiters) : 0,
+      generators: result,
+    };
+  },
+
+  /**
    * Diesel-consumption report (spec 4.2: "diesel consumption — additions,
    * opening/closing fuel, consumption"). One row per active generator (or
    * just the one requested), summed from its usage logs over an arbitrary
