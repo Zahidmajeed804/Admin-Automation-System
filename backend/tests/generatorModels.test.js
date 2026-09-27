@@ -147,4 +147,34 @@ describe("GeneratorMaintenance model", () => {
     expect(await hasIndex(GeneratorMaintenance, { generator: 1, scheduledDate: 1 })).toBe(true);
     expect(await hasIndex(GeneratorMaintenance, { status: 1, scheduledDate: 1 })).toBe(true);
   });
+
+  it("has no invoice at all by default, not an empty object", async () => {
+    const bare = await GeneratorMaintenance.create(base());
+    expect(bare.invoice).toBeUndefined();
+    expect("invoice" in bare.toObject()).toBe(false);
+  });
+
+  it("stores an invoice subdocument with no _id of its own, and survives a round trip", async () => {
+    const uploadedBy = oid();
+    const uploadedAt = new Date("2026-11-01T10:00:00Z");
+    const job = await GeneratorMaintenance.create({
+      ...base(),
+      invoice: { fileName: "receipt.pdf", storedName: "abc-123.pdf", mimeType: "application/pdf", size: 2048, uploadedAt, uploadedBy },
+    });
+
+    expect(job.invoice).toMatchObject({ fileName: "receipt.pdf", storedName: "abc-123.pdf", mimeType: "application/pdf", size: 2048 });
+    expect(job.invoice.uploadedBy.toString()).toBe(uploadedBy.toString());
+    expect(job.invoice._id).toBeUndefined();
+
+    const reread = await GeneratorMaintenance.findById(job._id);
+    expect(reread.invoice.fileName).toBe("receipt.pdf");
+  });
+
+  it("$unset clears the invoice back to entirely absent", async () => {
+    const job = await GeneratorMaintenance.create({ ...base(), invoice: { fileName: "x.pdf", storedName: "y.pdf" } });
+
+    const cleared = await GeneratorMaintenance.findByIdAndUpdate(job._id, { $unset: { invoice: 1 } }, { returnDocument: "after" });
+
+    expect(cleared.invoice).toBeUndefined();
+  });
 });

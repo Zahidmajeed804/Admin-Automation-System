@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import mongoose from "mongoose";
 import { jest } from "@jest/globals";
 import { Generator, GeneratorLog, GeneratorMaintenance } from "../src/models/index.js";
@@ -5,6 +7,7 @@ import { generatorRepository } from "../src/repositories/generatorRepository.js"
 import { generatorLogRepository } from "../src/repositories/generatorLogRepository.js";
 import { generatorMaintenanceRepository } from "../src/repositories/generatorMaintenanceRepository.js";
 import { generatorService, computeAlertStatus, computeFuelFigures, daysUntilDue, withAlertInfo } from "../src/services/generatorService.js";
+import { invoiceUploadDir } from "../src/middleware/uploadInvoice.js";
 import { NotFoundError, ConflictError } from "../src/errors/AppError.js";
 import { createGenerator, UNKNOWN_ID } from "./helpers/generatorTestUtils.js";
 
@@ -460,5 +463,80 @@ describe("scheduleMaintenance", () => {
 
     await expect(generatorService.scheduleMaintenance({ ...base, generatorId: UNKNOWN_ID })).rejects.toBeInstanceOf(NotFoundError);
     await expect(generatorService.scheduleMaintenance({ ...base, generatorId: deleted._id })).rejects.toBeInstanceOf(NotFoundError);
+  });
+});
+
+describe("attachInvoice / getInvoiceFile / removeInvoice", () => {
+  // These exercise the real filesystem (the same disk uploadInvoice.js writes
+  // to), not just the database — a "file" here is a real file on disk, the
+  // way multer would have left one after a real upload.
+  const insertJob = (gen, extra = {}) =>
+    GeneratorMaintenance.create({ generator: gen._id, description: "Oil change", scheduledDate: new Date("2026-10-01"), ...extra });
+  const dummyFile = (storedName) => {
+    fs.mkdirSync(invoiceUploadDir, { recursive: true });
+    fs.writeFileSync(path.join(invoiceUploadDir, storedName), "dummy content");
+  };
+  const fileExists = (storedName) => fs.existsSync(path.join(invoiceUploadDir, storedName));
+  const upload = (storedName, originalname = "receipt.pdf") => {
+    dummyFile(storedName);
+    return { filename: storedName, originalname, mimetype: "application/pdf", size: 13 };
+  };
+
+  it("attaches an invoice, and getInvoiceFile returns where it lives and its original name and type", async () => {
+    const job = await insertJob(await createGenerator());
+
+    const updated = await generatorService.attachInvoice(job._id, { file: upload("stored-1.pdf"), uploadedBy: userId() });
+
+    expect(updated.invoice).toMatchObject({ fileName: "receipt.pdf", storedName: "stored-1.pdf", mimeType: "application/pdf", size: 13 });
+    const info = await generatorService.getInvoiceFile(job._id);
+    expect(info).toMatchObject({ fileName: "receipt.pdf", mimeType: "application/pdf" });
+    expect(info.filePath).toBe(path.join(invoiceUploadDir, "stored-1.pdf"));
+  });
+
+  it("rejects an unknown job and deletes the file that had already been saved to disk", async () => {
+    const file = upload("orphan.pdf");
+
+    await expect(generatorService.attachInvoice(UNKNOWN_ID, { file, uploadedBy: userId() })).rejects.toBeInstanceOf(NotFoundError);
+
+    expect(fileExists("orphan.pdf")).toBe(false);
+  });
+
+  it("uploading again replaces the invoice: the old file is deleted, the new one is kept", async () => {
+    const job = await insertJob(await createGenerator());
+    await generatorService.attachInvoice(job._id, { file: upload("first.pdf", "a.pdf"), uploadedBy: userId() });
+
+    const updated = await generatorService.attachInvoice(job._id, { file: upload("second.pdf", "b.pdf"), uploadedBy: userId() });
+
+    expect(updated.invoice.fileName).toBe("b.pdf");
+    expect(fileExists("first.pdf")).toBe(false);
+    expect(fileExists("second.pdf")).toBe(true);
+  });
+
+  it("getInvoiceFile is NotFound for an unknown job and for a job with no invoice", async () => {
+    const job = await insertJob(await createGenerator());
+
+    await expect(generatorService.getInvoiceFile(UNKNOWN_ID)).rejects.toBeInstanceOf(NotFoundError);
+    await expect(generatorService.getInvoiceFile(job._id)).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  it("removeInvoice unsets the metadata and deletes the file", async () => {
+    const job = await insertJob(await createGenerator());
+    await generatorService.attachInvoice(job._id, { file: upload("to-remove.pdf"), uploadedBy: userId() });
+
+    const updated = await generatorService.removeInvoice(job._id);
+
+    expect(updated.invoice).toBeUndefined();
+    expect(fileExists("to-remove.pdf")).toBe(false);
+  });
+
+  it("removeInvoice is NotFound for an unknown job and for a job with no invoice — and changes nothing on disk or in the database", async () => {
+    const job = await insertJob(await createGenerator());
+
+    await expect(generatorService.removeInvoice(UNKNOWN_ID)).rejects.toBeInstanceOf(NotFoundError);
+    await expect(generatorService.removeInvoice(job._id)).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  it("deleteInvoiceFile treats an already-missing file as success, not an error", async () => {
+    await expect(generatorService.deleteInvoiceFile("does-not-exist.pdf")).resolves.toBeUndefined();
   });
 });

@@ -1,5 +1,7 @@
+import fs from "node:fs";
 import { as, anonymous, makeUsers, createGenerator, inDays, UNKNOWN_ID } from "./helpers/generatorTestUtils.js";
 import { Generator, GeneratorMaintenance } from "../src/models/index.js";
+import { invoiceUploadDir } from "../src/middleware/uploadInvoice.js";
 
 // Direct insert (bypasses the API) so a test can set any state it needs.
 const insertJob = (generator, overrides = {}) =>
@@ -13,6 +15,9 @@ describe("Generator maintenance API — /api/v1/generator/maintenance", () => {
       expect((await anonymous.post("/maintenance", {})).status).toBe(401);
       expect((await anonymous.patch(`/maintenance/${UNKNOWN_ID}`, {})).status).toBe(401);
       expect((await anonymous.delete(`/maintenance/${UNKNOWN_ID}`)).status).toBe(401);
+      expect((await anonymous.postFile(`/maintenance/${UNKNOWN_ID}/invoice`)).status).toBe(401);
+      expect((await anonymous.get(`/maintenance/${UNKNOWN_ID}/invoice`)).status).toBe(401);
+      expect((await anonymous.delete(`/maintenance/${UNKNOWN_ID}/invoice`)).status).toBe(401);
     });
 
     it("staff can read (list and alerts) but not schedule, change or delete", async () => {
@@ -488,6 +493,119 @@ describe("Generator maintenance API — /api/v1/generator/maintenance", () => {
       const res = await as(staff).get("/maintenance/alerts");
 
       expect(res.body.data.counts).toBeDefined();
+    });
+  });
+
+  describe("invoice attachment (POST/GET/DELETE /maintenance/:id/invoice)", () => {
+    const attach = (req, filename = "invoice.pdf", contentType = "application/pdf", contents = "%PDF fake") =>
+      req.attach("invoice", Buffer.from(contents), { filename, contentType });
+
+    // Clears what a test wrote, but keeps the folder itself — uploadInvoice.js
+    // only creates it once, at import time, so deleting the folder itself
+    // would break every upload after the first test in this block.
+    afterEach(() => {
+      if (!fs.existsSync(invoiceUploadDir)) return;
+      for (const name of fs.readdirSync(invoiceUploadDir)) fs.rmSync(`${invoiceUploadDir}/${name}`, { force: true });
+    });
+
+    it("a manager can upload one, and staff can only download it", async () => {
+      const { manager, staff } = await makeUsers();
+      const job = await insertJob(await createGenerator());
+
+      const uploaded = await attach(as(manager).postFile(`/maintenance/${job._id}/invoice`), "receipt.pdf");
+      expect(uploaded.status).toBe(200);
+      expect(uploaded.body.data.invoice).toMatchObject({ fileName: "receipt.pdf", mimeType: "application/pdf" });
+      expect(uploaded.body.data.invoice.storedName).not.toBe("receipt.pdf"); // never the client-supplied name
+
+      expect((await attach(as(staff).postFile(`/maintenance/${job._id}/invoice`))).status).toBe(403);
+
+      const downloaded = await as(staff).get(`/maintenance/${job._id}/invoice`);
+      expect(downloaded.status).toBe(200);
+      expect(downloaded.headers["content-disposition"]).toContain("receipt.pdf"); // the ORIGINAL name, not the stored one
+      expect(downloaded.headers["content-type"]).toBe("application/pdf");
+
+      expect((await as(staff).delete(`/maintenance/${job._id}/invoice`)).status).toBe(403);
+    });
+
+    it("rejects a file that isn't a PDF/JPG/PNG, and one over the size limit", async () => {
+      const { manager } = await makeUsers();
+      const job = await insertJob(await createGenerator());
+
+      const wrongType = await attach(as(manager).postFile(`/maintenance/${job._id}/invoice`), "notes.txt", "text/plain");
+      expect(wrongType.status).toBe(400);
+
+      const tooBig = await as(manager)
+        .postFile(`/maintenance/${job._id}/invoice`)
+        .attach("invoice", Buffer.alloc(6 * 1024 * 1024, 1), { filename: "big.pdf", contentType: "application/pdf" });
+      expect(tooBig.status).toBe(400);
+
+      const noFile = await as(manager).postFile(`/maintenance/${job._id}/invoice`);
+      expect(noFile.status).toBe(400);
+
+      expect((await GeneratorMaintenance.findById(job._id)).invoice).toBeUndefined();
+    });
+
+    it("uploading to an unknown job is 404, and the file it had already written to disk does not linger", async () => {
+      const { manager } = await makeUsers();
+
+      const res = await attach(as(manager).postFile(`/maintenance/${UNKNOWN_ID}/invoice`));
+
+      expect(res.status).toBe(404);
+      expect(fs.existsSync(invoiceUploadDir) ? fs.readdirSync(invoiceUploadDir) : []).toHaveLength(0);
+    });
+
+    it("uploading again replaces the invoice — the old file is removed, the new one takes over", async () => {
+      const { manager } = await makeUsers();
+      const job = await insertJob(await createGenerator());
+      await attach(as(manager).postFile(`/maintenance/${job._id}/invoice`), "first.pdf");
+      const firstStoredName = (await GeneratorMaintenance.findById(job._id)).invoice.storedName;
+
+      const replaced = await attach(as(manager).postFile(`/maintenance/${job._id}/invoice`), "second.pdf");
+
+      expect(replaced.body.data.invoice.fileName).toBe("second.pdf");
+      expect(fs.existsSync(`${invoiceUploadDir}/${firstStoredName}`)).toBe(false);
+      expect(fs.readdirSync(invoiceUploadDir)).toHaveLength(1);
+    });
+
+    it("downloading is 404 for an unknown job and for a job with no invoice", async () => {
+      const { manager } = await makeUsers();
+      const job = await insertJob(await createGenerator());
+
+      expect((await as(manager).get(`/maintenance/${UNKNOWN_ID}/invoice`)).status).toBe(404);
+      expect((await as(manager).get(`/maintenance/${job._id}/invoice`)).status).toBe(404);
+    });
+
+    it("a manager can delete the invoice, leaving the maintenance job itself untouched", async () => {
+      const { manager } = await makeUsers();
+      const job = await insertJob(await createGenerator(), { notes: "keep me" });
+      await attach(as(manager).postFile(`/maintenance/${job._id}/invoice`));
+      const storedName = (await GeneratorMaintenance.findById(job._id)).invoice.storedName;
+
+      const res = await as(manager).delete(`/maintenance/${job._id}/invoice`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.invoice).toBeUndefined();
+      expect(res.body.data.notes).toBe("keep me");
+      expect(fs.existsSync(`${invoiceUploadDir}/${storedName}`)).toBe(false);
+    });
+
+    it("deleting is 404 for an unknown job and for a job with no invoice, and changes nothing", async () => {
+      const { manager } = await makeUsers();
+      const job = await insertJob(await createGenerator());
+
+      expect((await as(manager).delete(`/maintenance/${UNKNOWN_ID}/invoice`)).status).toBe(404);
+      expect((await as(manager).delete(`/maintenance/${job._id}/invoice`)).status).toBe(404);
+    });
+
+    it("deleting the whole maintenance job also removes its invoice file", async () => {
+      const { admin, manager } = await makeUsers();
+      const job = await insertJob(await createGenerator());
+      await attach(as(manager).postFile(`/maintenance/${job._id}/invoice`));
+      const storedName = (await GeneratorMaintenance.findById(job._id)).invoice.storedName;
+
+      expect((await as(admin).delete(`/maintenance/${job._id}`)).status).toBe(200);
+
+      expect(fs.existsSync(`${invoiceUploadDir}/${storedName}`)).toBe(false);
     });
   });
 });
