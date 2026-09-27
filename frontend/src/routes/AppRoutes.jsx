@@ -13,6 +13,7 @@ import GeneratorLayout from "../pages/generator/GeneratorLayout";
 import GeneratorPage from "../pages/generator/GeneratorPage";
 import GeneratorLogsPage from "../pages/generator/GeneratorLogsPage";
 import GeneratorMaintenancePage from "../pages/generator/GeneratorMaintenancePage";
+import GeneratorReportsPage from "../pages/generator/GeneratorReportsPage";
 import AttendancePage from "../pages/attendance/AttendancePage";
 import OvertimePage from "../pages/overtime/OvertimePage";
 import LeavePage from "../pages/leave/LeavePage";
@@ -48,6 +49,9 @@ export default function AppRoutes() {
             <Route index element={<GeneratorPage />} />
             <Route path="logs" element={<GeneratorLogsPage />} />
             <Route path="maintenance" element={<GeneratorMaintenancePage />} />
+            <Route element={<ProtectedRoute permission="reports.read" />}>
+              <Route path="reports" element={<GeneratorReportsPage />} />
+            </Route>
           </Route>
           <Route element={<ProtectedRoute permission="attendance.read" />}>
             <Route path="/attendance" element={<AttendancePage />} />
