@@ -7,12 +7,13 @@ import GeneratorReportFuelCost from "./GeneratorReportFuelCost";
 import GeneratorReportMaintenanceCost from "./GeneratorReportMaintenanceCost";
 import GeneratorReportOperatingCost from "./GeneratorReportOperatingCost";
 import GeneratorReportServiceHistory from "./GeneratorReportServiceHistory";
+import GeneratorReportCostAnalysis from "./GeneratorReportCostAnalysis";
 
-// The six spec 4.2 reports this page covers, in the order they read most
-// naturally (usage first, then cost, then the yearly/history rollups).
-// Cost-analysis (fleet cost-summary with % share) is deliberately NOT one of
-// these tabs — it's the data behind S2.13's dashboard, a later story, even
-// though its endpoint already exists from S2.11.
+// All seven spec 4.2 reports this page covers, in the order they read most
+// naturally (usage first, then cost, then the yearly/history rollups, then
+// the cost-analysis dashboard last since it's a summary built on top of the
+// others). Cost-analysis is the fleet cost-summary + operating-cost data
+// charted, S2.13 (its endpoint shipped back in S2.11).
 const REPORT_TABS = [
   { id: "running-hours", label: "Running Hours" },
   { id: "diesel-consumption", label: "Diesel Consumption" },
@@ -20,6 +21,7 @@ const REPORT_TABS = [
   { id: "maintenance-cost", label: "Maintenance Cost" },
   { id: "operating-cost", label: "Operating Cost" },
   { id: "service-history", label: "Service History" },
+  { id: "cost-analysis", label: "Cost Analysis" },
 ];
 
 // One component per REPORT_TABS entry.
@@ -30,6 +32,7 @@ const REPORT_VIEWS = {
   "maintenance-cost": GeneratorReportMaintenanceCost,
   "operating-cost": GeneratorReportOperatingCost,
   "service-history": GeneratorReportServiceHistory,
+  "cost-analysis": GeneratorReportCostAnalysis,
 };
 
 /**
