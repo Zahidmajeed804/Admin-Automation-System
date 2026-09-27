@@ -28,6 +28,20 @@ const generatorMaintenanceSchema = new mongoose.Schema(
     cost: { type: Number, min: 0 },
     partsReplaced: { type: String, trim: true },
     notes: { type: String, trim: true },
+    // At most one invoice per job — a re-upload replaces it. Absent entirely
+    // (not an empty object) when nothing has been uploaded.
+    invoice: {
+      type: {
+        fileName: { type: String, trim: true }, // the name the person uploaded it as
+        storedName: { type: String, trim: true }, // the random name it lives under on disk
+        mimeType: { type: String, trim: true },
+        size: { type: Number, min: 0 }, // bytes
+        uploadedAt: { type: Date },
+        uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      },
+      _id: false,
+      default: undefined,
+    },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   },
   { timestamps: true }
