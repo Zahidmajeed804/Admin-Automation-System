@@ -35,8 +35,11 @@ router.get("/maintenance", requirePermission("generator.read"), generatorMainten
 router.post("/maintenance", requirePermission("generator.create"), createMaintenanceValidator, generatorMaintenanceController.create);
 router.patch("/maintenance/:id", requirePermission("generator.update"), updateMaintenanceValidator, generatorMaintenanceController.update);
 router.delete("/maintenance/:id", requirePermission("generator.delete"), generatorMaintenanceController.remove);
-// Uploading an invoice is treated as editing the job, the same permission as PATCH.
+// Uploading, replacing or removing an invoice is treated as editing the job
+// (same permission as PATCH); downloading it only needs read access.
 router.post("/maintenance/:id/invoice", requirePermission("generator.update"), uploadInvoice, generatorMaintenanceController.uploadInvoice);
+router.get("/maintenance/:id/invoice", requirePermission("generator.read"), generatorMaintenanceController.downloadInvoice);
+router.delete("/maintenance/:id/invoice", requirePermission("generator.update"), generatorMaintenanceController.removeInvoice);
 
 router.get("/", requirePermission("generator.read"), generatorController.list);
 router.post("/", requirePermission("generator.create"), createGeneratorValidator, generatorController.create);

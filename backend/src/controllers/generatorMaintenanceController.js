@@ -72,10 +72,14 @@ export const generatorMaintenanceController = {
 
   // Permanently removes a record (a mistaken entry). To keep a job as history
   // without doing it, cancel it instead. Deleting a completed job does not
-  // roll back the generator's lastServiceDate.
+  // roll back the generator's lastServiceDate. Its invoice file, if any, is
+  // deleted too — there is nothing left for it to belong to.
   remove: asyncHandler(async (req, res) => {
     const removed = await generatorMaintenanceRepository.deleteById(req.params.id);
     if (!removed) throw new NotFoundError("Maintenance record not found");
+    if (removed.invoice?.storedName) {
+      await generatorService.deleteInvoiceFile(removed.invoice.storedName).catch(() => {});
+    }
     sendSuccess(res, { message: "Maintenance record deleted", data: removed });
   }),
 
@@ -84,5 +88,16 @@ export const generatorMaintenanceController = {
   uploadInvoice: asyncHandler(async (req, res) => {
     const maintenance = await generatorService.attachInvoice(req.params.id, { file: req.file, uploadedBy: req.userId });
     sendSuccess(res, { message: "Invoice uploaded", data: maintenance });
+  }),
+
+  downloadInvoice: asyncHandler(async (req, res) => {
+    const { filePath, fileName, mimeType } = await generatorService.getInvoiceFile(req.params.id);
+    res.type(mimeType);
+    res.download(filePath, fileName);
+  }),
+
+  removeInvoice: asyncHandler(async (req, res) => {
+    const maintenance = await generatorService.removeInvoice(req.params.id);
+    sendSuccess(res, { message: "Invoice removed", data: maintenance });
   }),
 };

@@ -31,8 +31,10 @@ function restoreUpdate(original, keys) {
 const invoiceFilePath = (storedName) => path.join(invoiceUploadDir, storedName);
 
 // Best-effort delete: a file that is already gone (ENOENT) counts as success,
-// since the end state — no file — is what was wanted either way.
-async function deleteInvoiceFile(storedName) {
+// since the end state — no file — is what was wanted either way. Exported so
+// that deleting a maintenance job outright (which bypasses removeInvoice) can
+// still clean up any invoice it had, without a second copy of this logic.
+export async function deleteInvoiceFile(storedName) {
   try {
     await fs.unlink(invoiceFilePath(storedName));
   } catch (err) {
@@ -109,6 +111,7 @@ export function computeFuelFigures({ openingFuelLiters, closingFuelLiters, fuelA
 export const generatorService = {
   computeAlertStatus,
   computeFuelFigures,
+  deleteInvoiceFile,
 
   /**
    * Records a usage/fuel log and adds its hoursRun to the generator's
@@ -409,6 +412,34 @@ export const generatorService = {
       );
     }
 
+    return updated;
+  },
+
+  /** What a controller needs to stream the file back: where it is on disk, and its original name and type. */
+  async getInvoiceFile(maintenanceId) {
+    const record = await generatorMaintenanceRepository.findById(maintenanceId);
+    if (!record) throw new NotFoundError("Maintenance record not found");
+    if (!record.invoice?.storedName) throw new NotFoundError("This maintenance record has no invoice attached");
+
+    return { filePath: invoiceFilePath(record.invoice.storedName), fileName: record.invoice.fileName, mimeType: record.invoice.mimeType };
+  },
+
+  /**
+   * Detaches the invoice — the maintenance job itself is untouched. The
+   * database is updated first (it is the source of truth for whether an
+   * invoice exists); the file is only deleted once that has succeeded, so a
+   * failed deletion just leaves a harmless orphaned file, never a record
+   * pointing at a file that is already gone.
+   */
+  async removeInvoice(maintenanceId) {
+    const record = await generatorMaintenanceRepository.findById(maintenanceId);
+    if (!record) throw new NotFoundError("Maintenance record not found");
+    if (!record.invoice?.storedName) throw new NotFoundError("This maintenance record has no invoice attached");
+
+    const updated = await generatorMaintenanceRepository.updateById(maintenanceId, { $unset: { invoice: 1 } });
+    await deleteInvoiceFile(record.invoice.storedName).catch((err) =>
+      logger.warn(`Could not remove invoice file ${record.invoice.storedName}: ${err.message}`)
+    );
     return updated;
   },
 };
