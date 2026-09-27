@@ -22,6 +22,13 @@ const generatorMaintenanceSchema = new mongoose.Schema(
     completedDate: { type: Date },
     intervalDays: { type: Number, min: 1 }, // recurrence: on completion, the next one is scheduled this many days later
     alertThresholdDays: { type: Number, default: 7, min: 0 }, // start flagging as "upcoming" this many days before due
+    // Running-hours reminders (spec: "alerts after predefined running hours"),
+    // alongside the calendar-based fields above — a job can use either, both,
+    // or neither. Whichever comes due first is what flags the job as an alert
+    // (see generatorService.computeAlertStatus).
+    intervalHours: { type: Number, min: 1 }, // recurrence: due again this many running hours after hoursAtScheduling
+    alertThresholdHours: { type: Number, default: 25, min: 0 }, // start flagging as "upcoming" this many running hours before due
+    hoursAtScheduling: { type: Number, min: 0 }, // the generator's running hours when this job's hour-based clock started counting
     performedBy: { type: String, trim: true }, // technician
     vendor: { type: String, trim: true }, // company the service was bought from
     hoursAtService: { type: Number, min: 0 }, // generator's running hours when the job was completed
