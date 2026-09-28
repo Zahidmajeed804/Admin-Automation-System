@@ -55,7 +55,7 @@ function resolveDay(entry, isWeekend) {
 function DayCell({ dateObj, dateStr, resolved, isToday }) {
   if (!dateObj) {
     // Leading/trailing day from another month: an empty shaded box, no date number.
-    return <div className="rounded-md bg-surface-subtle/60 min-h-[76px] sm:min-h-[88px]" aria-hidden="true" />;
+    return <div className="rounded-md bg-surface-subtle/60 min-h-[72px] sm:min-h-[88px]" aria-hidden="true" />;
   }
 
   const dateBadge = (
@@ -118,7 +118,8 @@ function DayCell({ dateObj, dateStr, resolved, isToday }) {
     <div
       data-date={dateStr}
       className={clsx(
-        "flex flex-col gap-1 rounded-md border p-2 min-h-[76px] sm:min-h-[88px] transition-shadow duration-150 hover:shadow-elevated",
+        "flex flex-col gap-1 rounded-md border p-1.5 sm:p-2 min-h-[72px] sm:min-h-[88px] transition-all duration-150",
+        "hover:shadow-elevated hover:-translate-y-0.5",
         cardClass,
         isToday && "ring-2 ring-primary ring-offset-1"
       )}
