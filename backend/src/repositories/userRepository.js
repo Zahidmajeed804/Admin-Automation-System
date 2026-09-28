@@ -11,6 +11,7 @@ export const userRepository = {
   create: (data) => User.create(data),
   updateById: (id, data) => User.findByIdAndUpdate(id, data, { returnDocument: "after" }),
   touchLastLogin: (id) => User.findByIdAndUpdate(id, { lastLoginAt: new Date() }),
+  updateManyLeaveAllocation: (filter, allocation) => User.updateMany(filter, { $set: allocation }),
 
   // Paginated, searchable staff directory for the admin's Staff page.
   // `isActive` left undefined returns both active and deactivated accounts.

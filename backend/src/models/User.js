@@ -26,6 +26,13 @@ const userSchema = new mongoose.Schema(
     department: { type: String, trim: true },
     isActive: { type: Boolean, default: true },
     lastLoginAt: { type: Date },
+    // Calendar days per year, set by an admin (individually or via "assign to all").
+    // Only the types that are actually limited; unpaid leave has no allocation and no cap.
+    leaveAllocation: {
+      casual: { type: Number, default: 0, min: 0 },
+      sick: { type: Number, default: 0, min: 0 },
+      annual: { type: Number, default: 0, min: 0 },
+    },
   },
   { timestamps: true }
 );

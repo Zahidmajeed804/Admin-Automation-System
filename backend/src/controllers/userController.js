@@ -23,8 +23,8 @@ export const userController = {
   }),
 
   create: asyncHandler(async (req, res) => {
-    const { name, email, employeeId, password, phone, department } = req.body;
-    const user = await userService.create({ name, email, employeeId, password, phone, department });
+    const { name, email, employeeId, password, phone, department, leaveAllocation } = req.body;
+    const user = await userService.create({ name, email, employeeId, password, phone, department, leaveAllocation });
     sendSuccess(res, {
       statusCode: 201,
       message: "Staff member created",
@@ -33,8 +33,15 @@ export const userController = {
   }),
 
   update: asyncHandler(async (req, res) => {
-    const { name, email, employeeId, phone, department } = req.body;
-    const user = await userService.update(req.params.id, { name, email, employeeId, phone, department });
+    const { name, email, employeeId, phone, department, leaveAllocation } = req.body;
+    const user = await userService.update(req.params.id, {
+      name,
+      email,
+      employeeId,
+      phone,
+      department,
+      leaveAllocation,
+    });
     sendSuccess(res, {
       message: "Staff member updated",
       data: { user },

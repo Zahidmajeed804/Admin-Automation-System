@@ -6,6 +6,25 @@ import { runValidation } from "../middleware/runValidation.js";
 const EMPLOYEE_ID_PATTERN = /^[A-Za-z0-9-]{2,20}$/;
 const employeeIdMessage = "Employee ID must be 2-20 letters, numbers or hyphens";
 
+// Yearly day counts for the types that are actually limited (unpaid leave has no
+// allocation). Shared by create and update — both accept the whole object or leave
+// it out entirely, in which case the schema default (0) applies.
+const leaveAllocationFields = [
+  body("leaveAllocation").optional().isObject().withMessage("leaveAllocation must be an object"),
+  body("leaveAllocation.casual")
+    .optional()
+    .isInt({ min: 0 })
+    .withMessage("leaveAllocation.casual must be a non-negative integer"),
+  body("leaveAllocation.sick")
+    .optional()
+    .isInt({ min: 0 })
+    .withMessage("leaveAllocation.sick must be a non-negative integer"),
+  body("leaveAllocation.annual")
+    .optional()
+    .isInt({ min: 0 })
+    .withMessage("leaveAllocation.annual must be a non-negative integer"),
+];
+
 export const createUserValidator = [
   body("name").trim().notEmpty().withMessage("Name is required"),
   body("email").trim().isEmail().withMessage("A valid email is required").normalizeEmail(),
@@ -23,6 +42,7 @@ export const createUserValidator = [
     .withMessage("Password must contain at least one number"),
   body("phone").optional().trim(),
   body("department").optional().trim(),
+  ...leaveAllocationFields,
   runValidation,
 ];
 
@@ -40,6 +60,7 @@ export const updateUserValidator = [
     .withMessage(employeeIdMessage),
   body("phone").optional().trim(),
   body("department").optional().trim(),
+  ...leaveAllocationFields,
   runValidation,
 ];
 

@@ -34,7 +34,7 @@ export const userService = {
   // Creates a staff login and assigns the default "staff" role, the same way
   // self-registration does (authService.register). The admin can change roles
   // afterwards via the roles API.
-  async create({ name, email, employeeId, password, phone, department }) {
+  async create({ name, email, employeeId, password, phone, department, leaveAllocation }) {
     const [existingEmail, existingEmployeeId] = await Promise.all([
       userRepository.findByEmail(email),
       userRepository.findByEmployeeId(employeeId),
@@ -47,7 +47,15 @@ export const userService = {
     }
 
     const passwordHash = await hashPassword(password);
-    const user = await userRepository.create({ name, email, employeeId, passwordHash, phone, department });
+    const user = await userRepository.create({
+      name,
+      email,
+      employeeId,
+      passwordHash,
+      phone,
+      department,
+      leaveAllocation,
+    });
 
     const staffRole = await rbacRepository.findRoleByName("staff");
     if (staffRole) {
@@ -57,7 +65,7 @@ export const userService = {
     return user;
   },
 
-  async update(id, { name, email, employeeId, phone, department }) {
+  async update(id, { name, email, employeeId, phone, department, leaveAllocation }) {
     const existing = await userRepository.findById(id);
     if (!existing) {
       throw new NotFoundError("Staff member not found");
@@ -78,6 +86,11 @@ export const userService = {
     if (employeeId !== undefined) changes.employeeId = employeeId;
     if (phone !== undefined) changes.phone = phone;
     if (department !== undefined) changes.department = department;
+    // Dot-path keys so an update to one leave type merges instead of replacing
+    // the whole subdocument (and resetting the other two types to 0).
+    if (leaveAllocation?.casual !== undefined) changes["leaveAllocation.casual"] = leaveAllocation.casual;
+    if (leaveAllocation?.sick !== undefined) changes["leaveAllocation.sick"] = leaveAllocation.sick;
+    if (leaveAllocation?.annual !== undefined) changes["leaveAllocation.annual"] = leaveAllocation.annual;
 
     const updated = await userRepository.updateById(id, changes);
     if (!updated) {
