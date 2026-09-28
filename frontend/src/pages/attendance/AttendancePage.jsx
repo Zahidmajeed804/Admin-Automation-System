@@ -8,6 +8,8 @@ import Tabs from "../../components/common/Tabs";
 import ClockWidget from "../../components/attendance/ClockWidget";
 import AttendanceHistoryTable from "../../components/attendance/AttendanceHistoryTable";
 import TeamAttendanceTable from "../../components/attendance/TeamAttendanceTable";
+import AttendanceCalendarContainer from "../../components/attendance/AttendanceCalendarContainer";
+import AttendanceViewToggle from "../../components/attendance/AttendanceViewToggle";
 
 const tabs = [
   { id: "mine", label: "My attendance" },
@@ -20,6 +22,7 @@ export default function AttendancePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   // Bumped after every clock-in/out so the history table re-fetches.
   const [refreshKey, setRefreshKey] = useState(0);
+  const [mineView, setMineView] = useState("list");
 
   // Team view is for users who can edit attendance; everyone else only sees
   // their own records (the API enforces the same rule independently).
@@ -55,8 +58,15 @@ export default function AttendancePage() {
           <>
             <ClockWidget onChange={() => setRefreshKey((k) => k + 1)} />
             <section className="flex flex-col gap-3">
-              <h2 className="text-section-heading text-ink">My attendance history</h2>
-              <AttendanceHistoryTable refreshKey={refreshKey} />
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-section-heading text-ink">My attendance history</h2>
+                <AttendanceViewToggle value={mineView} onChange={setMineView} />
+              </div>
+              {mineView === "calendar" ? (
+                <AttendanceCalendarContainer />
+              ) : (
+                <AttendanceHistoryTable refreshKey={refreshKey} />
+              )}
             </section>
           </>
         )}

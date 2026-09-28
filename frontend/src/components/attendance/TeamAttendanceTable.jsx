@@ -8,6 +8,8 @@ import Button from "../common/Button";
 import Table from "../tables/Table";
 import { attendanceColumns } from "./attendanceColumns";
 import EditAttendanceModal from "./EditAttendanceModal";
+import AttendanceCalendarContainer from "./AttendanceCalendarContainer";
+import AttendanceViewToggle from "./AttendanceViewToggle";
 import { formatDate } from "../../utils/attendanceFormat";
 
 const PAGE_SIZE = 10;
@@ -45,6 +47,10 @@ export default function TeamAttendanceTable() {
   // Bumped after an edit to re-fetch in place, without the loading skeleton.
   const [refreshKey, setRefreshKey] = useState(0);
   const [editing, setEditing] = useState(null);
+  // Calendar only makes sense for one person, so it's only offered once an employee is picked;
+  // clearing that filter silently falls back to the list rather than showing an empty calendar.
+  const [view, setView] = useState("list");
+  const effectiveView = filters.userId ? view : "list";
   const [employees, setEmployees] = useState([]);
   const [employeesFailed, setEmployeesFailed] = useState(false);
   // `key` identifies the request the data belongs to; loading = it hasn't arrived yet.
@@ -129,6 +135,7 @@ export default function TeamAttendanceTable() {
     <div className="flex flex-col gap-4">
       <FilterBar
         onReset={hasFilters ? reset : undefined}
+        actions={filters.userId ? <AttendanceViewToggle value={effectiveView} onChange={setView} /> : undefined}
         filters={
           <>
             <Select
@@ -171,28 +178,32 @@ export default function TeamAttendanceTable() {
           </>
         }
       />
-      <Table
-        columns={columns}
-        data={result.items}
-        keyField="_id"
-        loading={loading}
-        error={!loading && result.failed}
-        onRetry={() => setAttempt((a) => a + 1)}
-        emptyTitle={hasFilters ? "No matching records" : "No attendance records yet"}
-        emptyDescription={
-          hasFilters ? "Try changing or resetting the filters." : "Records appear here once employees clock in."
-        }
-        emptyAction={hasFilters ? { label: "Reset filters", onClick: reset } : undefined}
-        pagination={
-          pagination && {
-            page: pagination.page,
-            totalPages: pagination.totalPages,
-            totalItems: pagination.totalItems,
-            pageSize: pagination.pageSize,
-            onPageChange: setPage,
+      {effectiveView === "calendar" ? (
+        <AttendanceCalendarContainer userId={filters.userId} />
+      ) : (
+        <Table
+          columns={columns}
+          data={result.items}
+          keyField="_id"
+          loading={loading}
+          error={!loading && result.failed}
+          onRetry={() => setAttempt((a) => a + 1)}
+          emptyTitle={hasFilters ? "No matching records" : "No attendance records yet"}
+          emptyDescription={
+            hasFilters ? "Try changing or resetting the filters." : "Records appear here once employees clock in."
           }
-        }
-      />
+          emptyAction={hasFilters ? { label: "Reset filters", onClick: reset } : undefined}
+          pagination={
+            pagination && {
+              page: pagination.page,
+              totalPages: pagination.totalPages,
+              totalItems: pagination.totalItems,
+              pageSize: pagination.pageSize,
+              onPageChange: setPage,
+            }
+          }
+        />
+      )}
       <EditAttendanceModal
         record={editing}
         onClose={() => setEditing(null)}
