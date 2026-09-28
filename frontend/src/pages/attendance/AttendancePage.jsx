@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { useSelfServiceVisible } from "../../config/featureVisibility";
 import PageHeader from "../../components/common/PageHeader";
 import AttendanceSectionNav from "../../components/attendance/AttendanceSectionNav";
 import Tabs from "../../components/common/Tabs";
@@ -15,6 +16,7 @@ const tabs = [
 
 export default function AttendancePage() {
   const { hasPermission } = useAuth();
+  const selfServiceVisible = useSelfServiceVisible();
   const [searchParams, setSearchParams] = useSearchParams();
   // Bumped after every clock-in/out so the history table re-fetches.
   const [refreshKey, setRefreshKey] = useState(0);
@@ -22,10 +24,15 @@ export default function AttendancePage() {
   // Team view is for users who can edit attendance; everyone else only sees
   // their own records (the API enforces the same rule independently).
   const canViewTeam = hasPermission("attendance.update");
-  const activeTab = canViewTeam && searchParams.get("tab") === "team" ? "team" : "mine";
+  // Admin doesn't clock in, so "My attendance" is hidden for them and Team is the
+  // only view — no tabs needed. If they somehow can't view Team either (misconfigured
+  // roles), fall back to the normal self-service view rather than showing nothing.
+  const showMine = selfServiceVisible || !canViewTeam;
+  const showTabs = canViewTeam && showMine;
+  const activeTab = showMine ? (canViewTeam && searchParams.get("tab") === "team" ? "team" : "mine") : "team";
   const selectTab = (id) => setSearchParams(id === "team" ? { tab: "team" } : {}, { replace: true });
 
-  const panelProps = canViewTeam
+  const panelProps = showTabs
     ? { role: "tabpanel", id: `panel-${activeTab}`, "aria-labelledby": `tab-${activeTab}` }
     : {};
 
@@ -33,10 +40,14 @@ export default function AttendancePage() {
     <>
       <PageHeader
         title="Attendance"
-        description="Clock in and out, and review your attendance history."
+        description={
+          showMine
+            ? "Clock in and out, and review your attendance history."
+            : "Review everyone's attendance and correct records."
+        }
       />
       <AttendanceSectionNav />
-      {canViewTeam && <Tabs tabs={tabs} value={activeTab} onChange={selectTab} label="Attendance views" />}
+      {showTabs && <Tabs tabs={tabs} value={activeTab} onChange={selectTab} label="Attendance views" />}
       <div className="flex flex-col gap-6" {...panelProps}>
         {activeTab === "team" ? (
           <TeamAttendanceTable />

@@ -1,4 +1,5 @@
 import { useAuth } from "../../context/AuthContext";
+import { useSelfServiceVisible } from "../../config/featureVisibility";
 import PageHeader from "../../components/common/PageHeader";
 import AttendanceSectionNav from "../../components/attendance/AttendanceSectionNav";
 import OvertimeHistoryTable from "../../components/overtime/OvertimeHistoryTable";
@@ -6,8 +7,12 @@ import PendingOvertimeTable from "../../components/overtime/PendingOvertimeTable
 
 export default function OvertimePage() {
   const { hasPermission } = useAuth();
+  const selfServiceVisible = useSelfServiceVisible();
   // Reviewing is for users who can approve overtime; the API enforces the same rule independently.
   const canReview = hasPermission("overtime.approve");
+  // Admin doesn't clock in, so they have no overtime of their own. If they somehow can't
+  // review either (misconfigured roles), fall back to showing it rather than nothing.
+  const showMine = selfServiceVisible || !canReview;
 
   return (
     <>
@@ -23,10 +28,12 @@ export default function OvertimePage() {
             <PendingOvertimeTable />
           </section>
         )}
-        <section className="flex flex-col gap-3">
-          <h2 className="text-section-heading text-ink">My overtime</h2>
-          <OvertimeHistoryTable />
-        </section>
+        {showMine && (
+          <section className="flex flex-col gap-3">
+            <h2 className="text-section-heading text-ink">My overtime</h2>
+            <OvertimeHistoryTable />
+          </section>
+        )}
       </div>
     </>
   );

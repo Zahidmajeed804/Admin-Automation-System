@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { CalendarPlus } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
+import { useSelfServiceVisible } from "../../config/featureVisibility";
 import PageHeader from "../../components/common/PageHeader";
 import AttendanceSectionNav from "../../components/attendance/AttendanceSectionNav";
 import Button from "../../components/common/Button";
@@ -11,6 +12,7 @@ import { formatLeaveDate } from "../../utils/leaveFormat";
 
 export default function LeavePage() {
   const { hasPermission } = useAuth();
+  const selfServiceVisible = useSelfServiceVisible();
   const [requesting, setRequesting] = useState(false);
   const [submitted, setSubmitted] = useState(null);
   // Bumped after every new request so the history table re-fetches.
@@ -21,13 +23,18 @@ export default function LeavePage() {
   // Approve and reject are separate permissions; the pending list is for anyone who holds either.
   const canApprove = hasPermission("leave.approve");
   const canReject = hasPermission("leave.reject");
+  // Admin doesn't request leave, so "My leave requests" and the request button are hidden
+  // for them. If they somehow can't approve/reject either (misconfigured roles), fall back
+  // to showing it rather than nothing.
+  const showMine = selfServiceVisible || !(canApprove || canReject);
 
   return (
     <>
       <PageHeader
         title="Leave"
-        description="Request time off and follow its approval."
+        description={showMine ? "Request time off and follow its approval." : "Review and decide leave requests."}
         action={
+          showMine &&
           canRequest && (
             <Button
               icon={CalendarPlus}
@@ -42,7 +49,7 @@ export default function LeavePage() {
         }
       />
       <AttendanceSectionNav />
-      {submitted && (
+      {showMine && submitted && (
         <div
           role="status"
           className="bg-status-successBg border border-green-200 text-status-success text-body rounded-md px-3 py-2"
@@ -58,19 +65,23 @@ export default function LeavePage() {
           <PendingLeaveTable canApprove={canApprove} canReject={canReject} refreshKey={refreshKey} />
         </section>
       )}
-      <section className="flex flex-col gap-3">
-        <h2 className="text-section-heading text-ink">My leave requests</h2>
-        <LeaveHistoryTable refreshKey={refreshKey} />
-      </section>
-      <RequestLeaveModal
-        open={requesting}
-        onClose={() => setRequesting(false)}
-        onSubmitted={(leave) => {
-          setRequesting(false);
-          setSubmitted(leave);
-          setRefreshKey((k) => k + 1);
-        }}
-      />
+      {showMine && (
+        <section className="flex flex-col gap-3">
+          <h2 className="text-section-heading text-ink">My leave requests</h2>
+          <LeaveHistoryTable refreshKey={refreshKey} />
+        </section>
+      )}
+      {showMine && (
+        <RequestLeaveModal
+          open={requesting}
+          onClose={() => setRequesting(false)}
+          onSubmitted={(leave) => {
+            setRequesting(false);
+            setSubmitted(leave);
+            setRefreshKey((k) => k + 1);
+          }}
+        />
+      )}
     </>
   );
 }
