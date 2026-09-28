@@ -94,7 +94,14 @@ Rules the API enforces:
 
 **Frontend:**
 - `/attendance` — clock widget, own history, and (for `attendance.update`) a Team
-  tab with filters and a manager edit dialog.
+  tab with filters and a manager edit dialog. Both "My attendance" and Team (once
+  filtered to one employee) have a **List/Calendar** toggle: the calendar shows a
+  month at a time — present days in green with In/Out times (red if the check-in
+  was after `LATE_CHECK_IN_AFTER` or the check-out before `EARLY_CHECK_OUT_BEFORE`,
+  `frontend/src/config/attendanceCalendar.js`), weekends default to a pink Holiday
+  card, approved leave shows as a coloured CL/SL/AL/UL abbreviation, plus a summary
+  (present/late/leave/holiday counts) and colour legend above the grid. In dev,
+  `?calendarDemo=1` previews every state with sample data.
 - `/attendance/overtime` — own overtime history, plus for `overtime.approve` a
   **Pending approvals** / **Team** tab switcher: Pending is the decision queue,
   Team is everyone's requests filterable by employee/status/date, with inline
@@ -137,6 +144,7 @@ data removed afterwards. Each guide can be repeated by hand:
 - [`docs/verification/AAS-394-398-team-overtime-leave.md`](docs/verification/AAS-394-398-team-overtime-leave.md) — Team Overtime and Team Leave tabs, filters, and review from the Team view
 - [`docs/verification/AAS-400-406-leave-quotas.md`](docs/verification/AAS-400-406-leave-quotas.md) — leave balances, quota enforcement, assign-to-all, full staff→approve→balance loop
 - [`docs/verification/AAS-408-412-date-time-picker.md`](docs/verification/AAS-408-412-date-time-picker.md) — the custom date/date-time picker: mouse, keyboard, ARIA, and mobile
+- [`docs/verification/AAS-414-420-attendance-calendar.md`](docs/verification/AAS-414-420-attendance-calendar.md) — the monthly attendance calendar: grid, real data, summary/legend, sample preview, mobile, and the List/Calendar toggle
 
 **After pulling this module, run `npm run seed` in `backend`.** It adds
 `overtime.read` to the staff role so staff can see their own overtime. It only adds
@@ -146,8 +154,10 @@ when they open the Overtime page.
 **Not built yet** (in the requirements, outside the planned scope):
 - Late-arrival tracking. Skipped on purpose: the shift starts at clock-in, so there is no
   fixed start time to be late against.
-- Attendance statuses for Leave, Holiday and Weekend, and a holiday calendar.
-  Approved leave does not yet create attendance records.
+- Attendance records themselves still have no Leave/Holiday/Weekend status — approved leave
+  doesn't create an attendance record, and there's no configurable public-holiday list. The new
+  monthly calendar (above) shows leave and weekends visually by merging leave requests and
+  the calendar grid at display time, without changing what's stored.
 - Setting an individual's leave allocation from the **Add/edit staff** form. The backend
   fully supports it (`PATCH /users/:id` with a `leaveAllocation` object); only **Assign
   leaves to all** is wired into the UI, not a per-person field on that form.
