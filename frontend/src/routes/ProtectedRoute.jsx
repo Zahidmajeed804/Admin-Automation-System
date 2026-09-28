@@ -1,6 +1,6 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { LoadingSpinner } from "../components/common/Loading";
+import PageLoader from "../components/common/PageLoader";
 
 /**
  * Wraps a set of routes so they require authentication. Pass `permission`
@@ -12,11 +12,7 @@ export default function ProtectedRoute({ permission }) {
   const location = useLocation();
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-surface-subtle">
-        <LoadingSpinner label="Loading your session..." />
-      </div>
-    );
+    return <PageLoader label="Loading your session…" />;
   }
 
   if (!isAuthenticated) {
