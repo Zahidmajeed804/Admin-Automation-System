@@ -15,6 +15,7 @@ import GeneratorLogsPage from "../pages/generator/GeneratorLogsPage";
 import AttendancePage from "../pages/attendance/AttendancePage";
 import OvertimePage from "../pages/overtime/OvertimePage";
 import LeavePage from "../pages/leave/LeavePage";
+import StaffPage from "../pages/attendance/StaffPage";
 import ReportsPage from "../pages/reports/ReportsPage";
 import NotificationsPage from "../pages/notifications/NotificationsPage";
 import ProfilePage from "../pages/profile/ProfilePage";
@@ -56,6 +57,9 @@ export default function AppRoutes() {
           </Route>
           <Route element={<ProtectedRoute permission="leave.read" />}>
             <Route path="/attendance/leave" element={<LeavePage />} />
+          </Route>
+          <Route element={<ProtectedRoute permission="users.manage" />}>
+            <Route path="/attendance/staff" element={<StaffPage />} />
           </Route>
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
