@@ -13,6 +13,17 @@ const LEAVE_STYLES = {
   unpaid: "bg-rose-50 border-rose-200 text-rose-700",
 };
 
+const LEGEND = [
+  { label: "Present", swatch: "bg-status-successBg border-green-200" },
+  { label: "Late in / early out", swatch: "bg-status-successBg border-status-error" },
+  { label: "Absent", swatch: "bg-status-errorBg border-red-200" },
+  { label: "Holiday", swatch: "bg-pink-50 border-pink-200" },
+  { label: "Casual leave (CL)", swatch: LEAVE_STYLES.casual },
+  { label: "Sick leave (SL)", swatch: LEAVE_STYLES.sick },
+  { label: "Annual leave (AL)", swatch: LEAVE_STYLES.annual },
+  { label: "Unpaid leave (UL)", swatch: LEAVE_STYLES.unpaid },
+];
+
 const parseHHMM = (s) => {
   const [h, m] = s.split(":").map(Number);
   return h * 60 + m;
@@ -26,14 +37,26 @@ const minutesOfDay = (iso) => {
 const isLateIn = (checkIn) => Boolean(checkIn) && minutesOfDay(checkIn) > parseHHMM(LATE_CHECK_IN_AFTER);
 const isEarlyOut = (checkOut) => Boolean(checkOut) && minutesOfDay(checkOut) < parseHHMM(EARLY_CHECK_OUT_BEFORE);
 
-function DayCell({ day, isToday, isWeekend }) {
-  if (!day) {
+// Single source of truth for what a day "is", shared by the cell renderer and the summary count
+// so the two can never disagree. Leave takes priority (most specific/actionable), then a real
+// attendance record, then an explicit "absent" correction, then weekends default to Holiday,
+// then it's just an empty day (a future date, or a weekday nobody has clocked in for yet).
+function resolveDay(entry, isWeekend) {
+  const leaveType = entry?.leaveType || null;
+  const checkIn = entry?.checkIn || null;
+  const checkOut = entry?.checkOut || null;
+  if (leaveType) return { kind: "leave", leaveType };
+  if (checkIn) return { kind: "present", checkIn, checkOut, lateIn: isLateIn(checkIn), earlyOut: isEarlyOut(checkOut) };
+  if (entry?.status === "absent") return { kind: "absent" };
+  if (isWeekend) return { kind: "holiday" };
+  return { kind: "empty" };
+}
+
+function DayCell({ dateObj, dateStr, resolved, isToday }) {
+  if (!dateObj) {
     // Leading/trailing day from another month: an empty shaded box, no date number.
     return <div className="rounded-md bg-surface-subtle/60 min-h-[76px] sm:min-h-[88px]" aria-hidden="true" />;
   }
-
-  const { dateObj, dateStr, status, checkIn, checkOut, leaveType } = day;
-  const dayNum = dateObj.getDate();
 
   const dateBadge = (
     <span
@@ -42,44 +65,44 @@ function DayCell({ day, isToday, isWeekend }) {
         isToday ? "inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary text-white" : "text-ink-muted"
       )}
     >
-      {dayNum}
+      {dateObj.getDate()}
     </span>
   );
 
-  // Leave takes priority (most specific/actionable), then a real attendance record, then an
-  // explicit "absent" correction, then weekends default to Holiday, then it's just an empty day
-  // (a future date, or a weekday nobody has clocked in for yet).
   let body;
   let cardClass;
-  if (leaveType) {
-    cardClass = LEAVE_STYLES[leaveType] || LEAVE_STYLES.casual;
+  if (resolved.kind === "leave") {
+    cardClass = LEAVE_STYLES[resolved.leaveType] || LEAVE_STYLES.casual;
     body = (
       <div className="flex flex-1 items-center justify-center">
-        <span className="text-card-heading font-semibold">{LEAVE_ABBR[leaveType] || "L"}</span>
+        <span className="text-card-heading font-semibold">{LEAVE_ABBR[resolved.leaveType] || "L"}</span>
       </div>
     );
-  } else if (checkIn) {
+  } else if (resolved.kind === "present") {
     cardClass = "bg-status-successBg border-green-200 text-status-success";
-    const lateIn = isLateIn(checkIn);
-    const earlyOut = isEarlyOut(checkOut);
     body = (
       <div className="flex flex-col gap-0.5 text-helper">
-        <span className={clsx("font-medium", lateIn ? "text-status-error" : "text-status-success")}>
-          In {formatTime(checkIn)}
+        <span className={clsx("font-medium", resolved.lateIn ? "text-status-error" : "text-status-success")}>
+          In {formatTime(resolved.checkIn)}
         </span>
-        <span className={clsx("font-medium", checkOut ? (earlyOut ? "text-status-error" : "text-status-success") : "text-ink-muted")}>
-          {checkOut ? `Out ${formatTime(checkOut)}` : "----"}
+        <span
+          className={clsx(
+            "font-medium",
+            resolved.checkOut ? (resolved.earlyOut ? "text-status-error" : "text-status-success") : "text-ink-muted"
+          )}
+        >
+          {resolved.checkOut ? `Out ${formatTime(resolved.checkOut)}` : "----"}
         </span>
       </div>
     );
-  } else if (status === "absent") {
+  } else if (resolved.kind === "absent") {
     cardClass = "bg-status-errorBg border-red-200 text-status-error";
     body = (
       <div className="flex flex-1 items-center justify-center">
         <span className="text-helper font-medium">Absent</span>
       </div>
     );
-  } else if (isWeekend) {
+  } else if (resolved.kind === "holiday") {
     cardClass = "bg-pink-50 border-pink-200 text-pink-700";
     body = (
       <div className="flex flex-1 items-center justify-center">
@@ -106,17 +129,67 @@ function DayCell({ day, isToday, isWeekend }) {
   );
 }
 
+function Legend() {
+  return (
+    <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+      {LEGEND.map((item) => (
+        <span key={item.label} className="inline-flex items-center gap-1.5 text-helper text-ink-muted">
+          <span className={clsx("h-3 w-3 rounded-sm border", item.swatch)} aria-hidden="true" />
+          {item.label}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function Summary({ counts }) {
+  const items = [
+    { label: "Present", value: counts.present },
+    { label: "Late", value: counts.late },
+    { label: "Leave", value: counts.leave },
+    { label: "Holidays", value: counts.holiday },
+  ];
+  return (
+    <div className="flex flex-wrap gap-x-5 gap-y-1">
+      {items.map((item) => (
+        <span key={item.label} className="text-body text-ink-secondary">
+          <span className="font-semibold text-ink">{item.value}</span> {item.label}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 /**
  * Pure monthly calendar grid (no data fetching of its own - AttendanceCalendarContainer does
  * that). `days` is [{ date: "YYYY-MM-DD", status, checkIn: iso|null, checkOut: iso|null,
  * leaveType?: "casual"|"sick"|"annual"|"unpaid" }] for the visible month; a day with no matching
  * entry renders as an empty cell. `year`/`month` (0-indexed) pick which month is shown;
  * `onPrevMonth`/`onNextMonth` are called with no arguments to ask the caller to move a month.
+ * Shows a running summary (present/late/leave/holiday counts) and a colour legend above the grid.
  */
 export default function AttendanceCalendar({ year, month, days, onPrevMonth, onNextMonth }) {
   const grid = buildMonthGrid(year, month);
   const byDate = Object.fromEntries((days || []).map((d) => [d.date, d]));
   const todayStr = toDateStr(new Date());
+
+  const resolvedByDate = {};
+  const counts = { present: 0, late: 0, leave: 0, holiday: 0 };
+  for (const dateObj of grid) {
+    if (!dateObj) continue;
+    const dateStr = toDateStr(dateObj);
+    const weekday = dateObj.getDay();
+    const resolved = resolveDay(byDate[dateStr], weekday === 0 || weekday === 6);
+    resolvedByDate[dateStr] = resolved;
+    if (resolved.kind === "present") {
+      counts.present += 1;
+      if (resolved.lateIn || resolved.earlyOut) counts.late += 1;
+    } else if (resolved.kind === "leave") {
+      counts.leave += 1;
+    } else if (resolved.kind === "holiday") {
+      counts.holiday += 1;
+    }
+  }
 
   return (
     <div className="flex flex-col gap-3">
@@ -139,6 +212,10 @@ export default function AttendanceCalendar({ year, month, days, onPrevMonth, onN
           <ChevronRight className="h-4 w-4" />
         </button>
       </div>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <Summary counts={counts} />
+        <Legend />
+      </div>
       <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
         {WEEKDAYS.map((w) => (
           <span key={w} className="text-helper text-ink-muted font-medium text-center py-1">
@@ -146,24 +223,10 @@ export default function AttendanceCalendar({ year, month, days, onPrevMonth, onN
           </span>
         ))}
         {grid.map((dateObj, i) => {
-          if (!dateObj) return <DayCell key={i} day={null} />;
+          if (!dateObj) return <DayCell key={i} dateObj={null} />;
           const dateStr = toDateStr(dateObj);
-          const entry = byDate[dateStr];
-          const weekday = dateObj.getDay();
           return (
-            <DayCell
-              key={dateStr}
-              isToday={dateStr === todayStr}
-              isWeekend={weekday === 0 || weekday === 6}
-              day={{
-                dateObj,
-                dateStr,
-                status: entry?.status,
-                checkIn: entry?.checkIn || null,
-                checkOut: entry?.checkOut || null,
-                leaveType: entry?.leaveType || null,
-              }}
-            />
+            <DayCell key={dateStr} dateObj={dateObj} dateStr={dateStr} resolved={resolvedByDate[dateStr]} isToday={dateStr === todayStr} />
           );
         })}
       </div>
