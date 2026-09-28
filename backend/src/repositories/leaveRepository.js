@@ -15,6 +15,22 @@ export const leaveRepository = {
       endDate: { $gte: startDate },
     }),
 
+  // Requests of this type that still claim days (pending or approved) and overlap the
+  // given calendar year — used to compute the leave balance for that year. Fetched as
+  // whole documents (not summed in the query) because a request can straddle two years
+  // and the caller needs to clip each one to the year itself.
+  findActiveByTypeAndYear: (userId, leaveType, year) => {
+    const yearStart = startOfDay(new Date(Date.UTC(year, 0, 1)));
+    const yearEnd = startOfDay(new Date(Date.UTC(year, 11, 31)));
+    return LeaveRequest.find({
+      user: userId,
+      leaveType,
+      status: { $in: ["pending", "approved"] },
+      startDate: { $lte: yearEnd },
+      endDate: { $gte: yearStart },
+    });
+  },
+
   // Filtering on status "pending" inside the update makes the transition atomic:
   // of two concurrent reviews only one matches; the other gets null.
   reviewIfPending: (id, { status, reviewedBy, reviewNote }) =>

@@ -1,4 +1,5 @@
 import { leaveRepository } from "../repositories/leaveRepository.js";
+import { userRepository } from "../repositories/userRepository.js";
 import { LEAVE_TYPES, REVIEW_DECISIONS } from "../constants/attendance.js";
 import { startOfDay } from "../utils/dates.js";
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from "../errors/AppError.js";
@@ -6,6 +7,29 @@ import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from ".
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+// Leave types that draw down a yearly allocation. Unpaid leave has none — no
+// balance to check and no limit on how much of it someone can request.
+const QUOTA_LEAVE_TYPES = ["casual", "sick", "annual"];
+
+// Inclusive days of [start, end] that fall within `year` — 0 if the range misses
+// the year entirely. Used so a request or an existing request that straddles a
+// year boundary (e.g. 28 Dec to 3 Jan) is only counted against each year for the
+// days it actually occupies in that year, not its whole length.
+const daysInYear = (start, end, year) => {
+  const yearStart = new Date(Date.UTC(year, 0, 1));
+  const yearEnd = new Date(Date.UTC(year, 11, 31));
+  const clampedStart = start > yearStart ? start : yearStart;
+  const clampedEnd = end < yearEnd ? end : yearEnd;
+  if (clampedEnd < clampedStart) return 0;
+  return Math.round((clampedEnd - clampedStart) / MS_PER_DAY) + 1;
+};
+
+// Every calendar year a [start, end] range touches, in order.
+const yearsTouched = (start, end) => {
+  const years = [];
+  for (let y = start.getUTCFullYear(); y <= end.getUTCFullYear(); y++) years.push(y);
+  return years;
+};
 
 export const leaveService = {
   // Reviewers (canViewAll, i.e. leave.approve) may see everyone or filter by userId;
@@ -58,6 +82,10 @@ export const leaveService = {
       throw new ConflictError(`You already have ${article} ${clash.status} leave request overlapping these dates`);
     }
 
+    if (QUOTA_LEAVE_TYPES.includes(leaveType)) {
+      await leaveService.assertWithinBalance(userId, leaveType, start, end);
+    }
+
     return leaveRepository.create({
       user: userId,
       leaveType,
@@ -66,6 +94,41 @@ export const leaveService = {
       totalDays: Math.round((end - start) / MS_PER_DAY) + 1,
       reason,
     });
+  },
+
+  // Throws if requesting [start, end] of `leaveType` would exceed the user's yearly
+  // allocation, checking each calendar year the range touches independently — a
+  // request spanning New Year's only draws against each year for the days it
+  // actually falls on. Unpaid leave never reaches this (see QUOTA_LEAVE_TYPES).
+  async assertWithinBalance(userId, leaveType, start, end) {
+    const user = await userRepository.findById(userId);
+    const allocated = user?.leaveAllocation?.[leaveType] || 0;
+
+    for (const year of yearsTouched(start, end)) {
+      const requestedInYear = daysInYear(start, end, year);
+      if (requestedInYear === 0) continue;
+
+      const { remaining } = await leaveService.getBalanceForYear(userId, leaveType, year, allocated);
+      if (requestedInYear > remaining) {
+        throw new BadRequestError(`Only ${remaining} ${leaveType} day${remaining === 1 ? "" : "s"} left for ${year}`);
+      }
+    }
+  },
+
+  // Existing pending/approved days of `leaveType` in `year`, split into used
+  // (approved) and pending, clipped per request the same way assertWithinBalance
+  // clips the incoming one. Shared by the quota check above and the balance
+  // endpoint (leaveController.balance), so both agree on the same numbers.
+  async getBalanceForYear(userId, leaveType, year, allocated) {
+    const existing = await leaveRepository.findActiveByTypeAndYear(userId, leaveType, year);
+    let used = 0;
+    let pending = 0;
+    for (const request of existing) {
+      const days = daysInYear(request.startDate, request.endDate, year);
+      if (request.status === "approved") used += days;
+      else pending += days;
+    }
+    return { allocated, used, pending, remaining: Math.max(0, allocated - used - pending) };
   },
 
   // Approve or reject a pending request. A request is decided once; nobody reviews their own.
