@@ -10,6 +10,7 @@ import Button from "../../components/common/Button";
 import Badge from "../../components/common/Badge";
 import Table from "../../components/tables/Table";
 import ConfirmDialog from "../../components/modals/ConfirmDialog";
+import StaffFormModal from "../../components/staff/StaffFormModal";
 
 const PAGE_SIZE = 10;
 
@@ -34,6 +35,8 @@ export default function StaffPage() {
   const [statusTarget, setStatusTarget] = useState(null); // the row being activated/deactivated
   const [statusSaving, setStatusSaving] = useState(false);
   const [statusError, setStatusError] = useState("");
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingStaff, setEditingStaff] = useState(null); // null = creating a new staff member
   const [result, setResult] = useState({ key: null, items: [], pagination: null, failed: false });
 
   const requestKey = JSON.stringify([filters, page, attempt]);
@@ -63,6 +66,16 @@ export default function StaffPage() {
   const reset = () => {
     setFilters(noFilters);
     setPage(1);
+  };
+
+  const openCreate = () => {
+    setEditingStaff(null);
+    setFormOpen(true);
+  };
+
+  const openEdit = (row) => {
+    setEditingStaff(row);
+    setFormOpen(true);
   };
 
   const confirmStatusChange = async () => {
@@ -107,7 +120,13 @@ export default function StaffPage() {
       header: "",
       render: (row) => (
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="sm" icon={Pencil} aria-label={`Edit ${row.name}`}>
+          <Button
+            variant="ghost"
+            size="sm"
+            icon={Pencil}
+            aria-label={`Edit ${row.name}`}
+            onClick={() => openEdit(row)}
+          >
             Edit
           </Button>
           <Button
@@ -135,7 +154,7 @@ export default function StaffPage() {
         title="Staff"
         description="Add staff logins, assign Employee IDs, and activate or deactivate accounts."
         action={
-          <Button icon={UserPlus} onClick={() => {}}>
+          <Button icon={UserPlus} onClick={openCreate}>
             Add staff
           </Button>
         }
@@ -196,6 +215,15 @@ export default function StaffPage() {
         variant={statusTarget?.isActive ? "danger" : "primary"}
         loading={statusSaving}
         error={statusError}
+      />
+      <StaffFormModal
+        open={formOpen}
+        staff={editingStaff}
+        onClose={() => setFormOpen(false)}
+        onSaved={() => {
+          setFormOpen(false);
+          setRefreshKey((k) => k + 1);
+        }}
       />
     </>
   );
