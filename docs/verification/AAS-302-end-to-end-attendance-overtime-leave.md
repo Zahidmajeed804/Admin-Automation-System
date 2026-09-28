@@ -16,7 +16,7 @@ part in this pass beyond being the page you land on after signing in.
 ```
 STAFF                                           MANAGER
 1  Register, land on the Dashboard
-2  Sidebar shows Attendance, Overtime, Leave
+2  Sidebar has Attendance; Overtime and Leave are tabs on its pages
 3  Attendance: Clock in
 4  Leave: request casual (3 days) and sick (1 day)
 5  ...work ~3 minutes, then Clock out
@@ -40,7 +40,7 @@ threshold, so about 3 minutes of work produced 2 minutes of overtime.
 | Step | Checked | Result |
 |---|---|---|
 | 1 | Register page signs the new user in | lands on `/dashboard` (the Coming Soon placeholder) |
-| 2 | Sidebar | Attendance, Overtime and Leave are listed |
+| 2 | Sidebar | lists Attendance only. Overtime and Leave are reached from the switcher at the top of the Attendance pages |
 | 3 | Attendance page | not clocked in, no Team tab. **Clock in** works, status becomes Clocked in |
 | 4 | Leave page | casual 10 to 12 Apr 2035 (3 days) and sick 5 May 2035 (1 day) submitted. Banner shows "(3 days)". Table lists both as Pending |
 | 5 | Clock out after about 2.5 minutes | status Clocked out. History row: worked **3m** |
@@ -127,13 +127,13 @@ the Dashboard, which is a "Coming Soon" page for now.
 
 | # | Do this | You should see |
 |---|---|---|
-| 1 | Look at the sidebar | Attendance, Overtime and Leave are listed |
+| 1 | Look at the sidebar | Attendance is listed. Overtime and Leave are the other two links in the row at the top of the Attendance pages |
 | 2 | Click **Attendance**, then **Clock in** | status becomes "Clocked in at HH:MM", the button changes to Clock out. **Note the time** |
-| 3 | Click **Leave**, then **Request leave**. Type **Casual leave**, From **10/04/2035**, To **12/04/2035**, Reason "Family event". **Submit request** | green banner "...(3 days). It is pending approval." |
+| 3 | Click **Leave** in the row at the top, then **Request leave**. Type **Casual leave**, From **10/04/2035**, To **12/04/2035**, Reason "Family event". **Submit request** | green banner "...(3 days). It is pending approval." |
 | 4 | Request again: **Sick leave**, From and To **05/05/2035**, no reason | the table lists both requests as **Pending** |
 | 5 | **Wait until about 3 minutes have passed since clock in** | |
 | 6 | Click **Attendance**, then **Clock out** | "Clocked out", "Done for today". History row shows worked **3m** (2 to 4m is fine) |
-| 7 | Click **Overtime** | one request, Pending, for **worked minutes minus 1** (2m for a 3m day). No "Pending approvals" section |
+| 7 | Click **Overtime** in the row at the top | one request, Pending, for **worked minutes minus 1** (2m for a 3m day). No "Pending approvals" section |
 
 ## 2. As the manager
 
@@ -141,9 +141,9 @@ the Dashboard, which is a "Coming Soon" page for now.
 
 | # | Do this | You should see |
 |---|---|---|
-| 8 | Click **Overtime** in the sidebar | **Pending approvals**: E2E Staff, today, 2m (real people's requests may be listed too) |
+| 8 | Click **Attendance** in the sidebar, then **Overtime** in the row at the top | **Pending approvals**: E2E Staff, today, 2m (real people's requests may be listed too) |
 | 9 | Click **Approve** on that row, type the note "Thanks for staying late", confirm | the dialog closes and the row disappears |
-| 10 | Click **Leave** in the sidebar | **Pending approvals** lists both requests, with type, dates, days and reason |
+| 10 | Click **Leave** in the row at the top | **Pending approvals** lists both requests, with type, dates, days and reason |
 | 11 | **Approve** the casual leave with the note "Enjoy the time off" | row disappears |
 | 12 | **Reject** the sick leave with the note "Short-staffed that day" | row disappears |
 | 13 | **Attendance**, then the **Team** tab. Pick **E2E Staff** in the Employee filter | one row: clock in, clock out, **3m**, **Half Day** |

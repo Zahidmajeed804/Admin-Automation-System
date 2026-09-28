@@ -3,6 +3,7 @@ import { leaveController } from "../controllers/leaveController.js";
 import {
   createLeaveValidator,
   listLeaveValidator,
+  leaveBalanceValidator,
   reviewLeaveValidator,
 } from "../validators/leaveValidators.js";
 import { authenticate } from "../middleware/authenticate.js";
@@ -26,6 +27,7 @@ const requireDecisionPermission = (req, res, next) => {
 };
 
 router.get("/", requirePermission("leave.read"), listLeaveValidator, leaveController.list);
+router.get("/balance", requirePermission("leave.read"), leaveBalanceValidator, leaveController.balance);
 router.post("/", requirePermission("leave.create"), createLeaveValidator, leaveController.create);
 router.patch(
   "/:id/review",

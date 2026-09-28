@@ -16,6 +16,10 @@ const minutesBetween = (from, to) => Math.max(0, Math.round((to - from) / 60000)
 const statusForWorkedMinutes = (minutes) =>
   minutes < HALF_DAY_THRESHOLD_MINUTES ? "half-day" : "present";
 
+// The shift starts at clock-in and lasts as long as the overtime threshold, so overtime
+// starts exactly where the shift ends. Leaving before that is an early departure.
+const earlyDepartureFor = (minutes) => Math.max(0, env.overtimeThresholdMinutes - minutes);
+
 export const attendanceService = {
   async getToday(userId) {
     return attendanceRepository.findTodayForUser(userId);
@@ -85,7 +89,12 @@ export const attendanceService = {
     const workedMinutes = minutesBetween(record.clockIn, now);
     const status = statusForWorkedMinutes(workedMinutes);
 
-    const updated = await attendanceRepository.updateById(record._id, { clockOut: now, workedMinutes, status });
+    const updated = await attendanceRepository.updateById(record._id, {
+      clockOut: now,
+      workedMinutes,
+      status,
+      earlyDepartureMinutes: earlyDepartureFor(workedMinutes),
+    });
 
     const overtimeMinutes = workedMinutes - env.overtimeThresholdMinutes;
     if (overtimeMinutes > 0) {
@@ -129,6 +138,7 @@ export const attendanceService = {
     if (newClockIn && newClockOut && (clockIn || clockOut)) {
       changes.workedMinutes = minutesBetween(newClockIn, newClockOut);
       changes.status = statusForWorkedMinutes(changes.workedMinutes);
+      changes.earlyDepartureMinutes = earlyDepartureFor(changes.workedMinutes);
     }
     if (status) changes.status = status;
 

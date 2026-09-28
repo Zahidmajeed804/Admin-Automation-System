@@ -51,6 +51,11 @@ the Module 1 layering.
 | | `PATCH /overtime/:id/review` (approve or reject) | `overtime.approve` |
 | Leave | `POST /leave`, `GET /leave` (filters, paging) | `leave.create`, `leave.read`; approvers see everyone |
 | | `PATCH /leave/:id/review` | `leave.approve` to approve, `leave.reject` to reject |
+| Staff | `GET /users` (search, status filter, paging), `POST /users` (create a login) | `users.manage` |
+| | `PATCH /users/:id` (edit), `PATCH /users/:id/status` (activate/deactivate) | `users.manage` |
+| | `GET /users/options` (lightweight employee list for the Team Overtime/Leave filters) | `overtime.approve` or `leave.approve` |
+| | `PUT /users/leave-allocation/all` (bulk-set casual/sick/annual days on every active account) | `users.manage` |
+| Leave balance | `GET /leave/balance` (own balance by default; `?userId=` for reviewers, `?year=`) | `leave.read` |
 
 Data model: `Attendance` (one record per user per day, enforced by a unique
 index), `OvertimeRequest` (one per attendance record) and `LeaveRequest`
@@ -58,6 +63,10 @@ index), `OvertimeRequest` (one per attendance record) and `LeaveRequest`
 
 Rules the API enforces:
 - Worked time is computed on clock-out; under 4 hours is a **half-day**.
+- The shift starts at clock-in and lasts as long as the overtime threshold (10 hours).
+  Clocking out before that records an **early departure** (`earlyDepartureMinutes`, 0 for
+  a full shift). It is recalculated when a manager corrects the times. Records from before
+  this was added have no value and show "—".
 - When worked time passes the daily threshold, a **pending overtime request** for the
   excess is created automatically. The threshold defaults to 10 hours and is set
   with `OVERTIME_THRESHOLD_MINUTES` (600 by default).
@@ -66,24 +75,76 @@ Rules the API enforces:
 - Leave cannot overlap the same person's pending or approved leave. A rejected
   request frees its days again.
 - Approving and rejecting leave are separate permissions.
+- An admin (`users.manage`) creates a staff login with a name, email, a unique
+  **Employee ID** they type themselves, and a temporary password; the account gets the
+  `staff` role by default. Employee ID is case-insensitive (`emp-001` and `EMP-001`
+  collide) and duplicate emails/IDs return 409.
+- **Deactivating** a staff member blocks new logins immediately, and any token they
+  already hold stops working on its very next request — there is no separate
+  revocation list; `authenticate` re-checks `isActive` on every call. Their attendance,
+  overtime and leave history is kept, and the account can be re-activated. An admin
+  cannot deactivate their own account.
+- Each user has a **yearly leave allocation** per type (`casual`, `sick`, `annual` —
+  unpaid has none and is unlimited), set individually via `PATCH /users/:id` or for
+  every active account at once via `PUT /users/leave-allocation/all`. Requesting leave
+  checks the pending-plus-approved days already used against the allocation for **each**
+  calendar year the request touches independently, so a request spanning New Year's is
+  checked against both years on their own terms, and refuses with a 400 naming the
+  year and days left if it would go over.
 
 **Frontend:**
 - `/attendance` — clock widget, own history, and (for `attendance.update`) a Team
-  tab with filters and a manager edit dialog.
-- `/attendance/overtime` — own overtime history, plus Pending approvals with
-  Approve/Reject for `overtime.approve`.
-- `/attendance/leave` — Request leave form, own leave history, plus Pending
-  approvals for users who can approve or reject leave.
-- Sidebar entries and a page switcher for the three pages, shown only to users who
-  hold each page's permission.
+  tab with filters and a manager edit dialog. Both "My attendance" and Team (once
+  filtered to one employee) have a **List/Calendar** toggle: the calendar shows a
+  month at a time — present days in green with In/Out times (red if the check-in
+  was after `LATE_CHECK_IN_AFTER` or the check-out before `EARLY_CHECK_OUT_BEFORE`,
+  `frontend/src/config/attendanceCalendar.js`), weekends default to a pink Holiday
+  card, approved leave shows as a coloured CL/SL/AL/UL abbreviation, plus a summary
+  (present/late/leave/holiday counts) and colour legend above the grid. In dev,
+  `?calendarDemo=1` previews every state with sample data.
+- `/attendance/overtime` — own overtime history, plus for `overtime.approve` a
+  **Pending approvals** / **Team** tab switcher: Pending is the decision queue,
+  Team is everyone's requests filterable by employee/status/date, with inline
+  Approve/Reject either way.
+- `/attendance/leave` — three balance cards (Casual/Sick/Annual: allocated, used,
+  pending, remaining), Request leave form (shows the chosen type's remaining days
+  and disables submit over the balance — the server still enforces it authoritatively),
+  own leave history, plus the same Pending approvals / Team tab switcher for anyone
+  who can approve or reject leave (Team adds a leave-type filter).
+- `/attendance/staff` — admin-only staff directory: search, filter by status, add a
+  staff login (Employee ID + temporary password), edit details, activate/deactivate,
+  and **Assign leaves to all**: set casual/sick/annual days for every active account
+  at once, either filling only accounts with no allocation yet or overwriting everyone.
+- A single Attendance entry in the sidebar, and a page switcher at the top of the
+  four pages (Attendance, Overtime, Leave, Staff), each link shown only to users who
+  hold that page's permission.
+- **Admin doesn't see its own self-service sections**: "My attendance", "My overtime",
+  "My leave requests" and the Request leave button are hidden for the `admin` role
+  (`frontend/src/config/featureVisibility.js`). This is a frontend-only presentation
+  switch — the backend permissions are unchanged — and is meant to move into the
+  database once the Settings module lets an admin toggle feature visibility per role.
+- Every date and date-time field (Request leave, the Team filters, Edit attendance's
+  Clock in/out) is a custom popover calendar (`components/common/DatePicker.jsx`,
+  `DateTimePicker.jsx`) instead of the native browser picker: click opens it, a day
+  only stages until **OK** commits it, Cancel/Escape/clicking outside discard it.
+  Full keyboard support (arrow keys, Home/End, PageUp/PageDown, Shift for year, Enter
+  to commit), a trapped Tab order, and ARIA grid semantics; tested down to a 375px
+  mobile width.
 
 **Verified** over real HTTP and in real Chrome against a live MongoDB, with test
 data removed afterwards. Each guide can be repeated by hand:
 - [`docs/verification/AAS-91-clock-in-out.md`](docs/verification/AAS-91-clock-in-out.md)
 - [`docs/verification/AAS-96-attendance-list-and-edit.md`](docs/verification/AAS-96-attendance-list-and-edit.md)
+- [`docs/verification/early-departure.md`](docs/verification/early-departure.md)
 - [`docs/verification/AAS-280-overtime-auto-trigger-and-approval.md`](docs/verification/AAS-280-overtime-auto-trigger-and-approval.md)
 - [`docs/verification/AAS-290-leave-request-and-approval.md`](docs/verification/AAS-290-leave-request-and-approval.md)
 - [`docs/verification/AAS-302-end-to-end-attendance-overtime-leave.md`](docs/verification/AAS-302-end-to-end-attendance-overtime-leave.md) — full staff and manager walkthrough
+- [`docs/verification/AAS-383-388-staff-management.md`](docs/verification/AAS-383-388-staff-management.md) — Employee ID, staff create/edit/search/filter, deactivation
+- [`docs/verification/AAS-390-392-hide-self-service-for-admin.md`](docs/verification/AAS-390-392-hide-self-service-for-admin.md) — self-service sections hidden for admin, unchanged for manager/staff
+- [`docs/verification/AAS-394-398-team-overtime-leave.md`](docs/verification/AAS-394-398-team-overtime-leave.md) — Team Overtime and Team Leave tabs, filters, and review from the Team view
+- [`docs/verification/AAS-400-406-leave-quotas.md`](docs/verification/AAS-400-406-leave-quotas.md) — leave balances, quota enforcement, assign-to-all, full staff→approve→balance loop
+- [`docs/verification/AAS-408-412-date-time-picker.md`](docs/verification/AAS-408-412-date-time-picker.md) — the custom date/date-time picker: mouse, keyboard, ARIA, and mobile
+- [`docs/verification/AAS-414-420-attendance-calendar.md`](docs/verification/AAS-414-420-attendance-calendar.md) — the monthly attendance calendar: grid, real data, summary/legend, sample preview, mobile, and the List/Calendar toggle
 
 **After pulling this module, run `npm run seed` in `backend`.** It adds
 `overtime.read` to the staff role so staff can see their own overtime. It only adds
@@ -91,11 +152,15 @@ permissions and is safe to repeat. Until then, staff are sent to "Unauthorized"
 when they open the Overtime page.
 
 **Not built yet** (in the requirements, outside the planned scope):
-- Late-arrival and early-departure tracking (needs shift start and end times).
-- Attendance statuses for Leave, Holiday and Weekend, and a holiday calendar.
-  Approved leave does not yet create attendance records.
-- An Employee ID field on users.
-- Leave balances per leave type.
+- Late-arrival tracking. Skipped on purpose: the shift starts at clock-in, so there is no
+  fixed start time to be late against.
+- Attendance records themselves still have no Leave/Holiday/Weekend status — approved leave
+  doesn't create an attendance record, and there's no configurable public-holiday list. The new
+  monthly calendar (above) shows leave and weekends visually by merging leave requests and
+  the calendar grid at display time, without changing what's stored.
+- Setting an individual's leave allocation from the **Add/edit staff** form. The backend
+  fully supports it (`PATCH /users/:id` with a `leaveAllocation` object); only **Assign
+  leaves to all** is wired into the UI, not a per-person field on that form.
 - Reports (daily and monthly attendance, monthly overtime, leave, individual
   employee, attendance percentage) and the overtime sheet export.
 

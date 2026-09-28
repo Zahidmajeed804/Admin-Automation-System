@@ -9,6 +9,9 @@ const attendanceSchema = new mongoose.Schema(
     clockIn: { type: Date },
     clockOut: { type: Date },
     workedMinutes: { type: Number, default: 0 },
+    // Minutes short of a full shift, set on clock-out (0 = full shift). No default:
+    // an open day or a record from before this field has no value.
+    earlyDepartureMinutes: { type: Number, min: 0 },
     status: {
       type: String,
       enum: ATTENDANCE_STATUSES,

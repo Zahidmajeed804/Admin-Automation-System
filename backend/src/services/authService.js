@@ -48,8 +48,11 @@ export const authService = {
 
   async getCurrentUser(userId) {
     const user = await userRepository.findById(userId);
-    if (!user || !user.isActive) {
-      throw new UnauthorizedError("User not found or inactive");
+    if (!user) {
+      throw new UnauthorizedError("User not found");
+    }
+    if (!user.isActive) {
+      throw new UnauthorizedError("Your account has been deactivated. Contact an administrator.");
     }
     const { roleNames, permissionNames } = await rbacRepository.resolvePermissionNamesForUser(user._id);
     return { user, roles: roleNames, permissions: permissionNames };
