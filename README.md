@@ -94,6 +94,11 @@ Rules the API enforces:
 - A single Attendance entry in the sidebar, and a page switcher at the top of the
   four pages (Attendance, Overtime, Leave, Staff), each link shown only to users who
   hold that page's permission.
+- **Admin doesn't see its own self-service sections**: "My attendance", "My overtime",
+  "My leave requests" and the Request leave button are hidden for the `admin` role
+  (`frontend/src/config/featureVisibility.js`). This is a frontend-only presentation
+  switch — the backend permissions are unchanged — and is meant to move into the
+  database once the Settings module lets an admin toggle feature visibility per role.
 
 **Verified** over real HTTP and in real Chrome against a live MongoDB, with test
 data removed afterwards. Each guide can be repeated by hand:
@@ -104,6 +109,7 @@ data removed afterwards. Each guide can be repeated by hand:
 - [`docs/verification/AAS-290-leave-request-and-approval.md`](docs/verification/AAS-290-leave-request-and-approval.md)
 - [`docs/verification/AAS-302-end-to-end-attendance-overtime-leave.md`](docs/verification/AAS-302-end-to-end-attendance-overtime-leave.md) — full staff and manager walkthrough
 - [`docs/verification/AAS-383-388-staff-management.md`](docs/verification/AAS-383-388-staff-management.md) — Employee ID, staff create/edit/search/filter, deactivation
+- [`docs/verification/AAS-390-392-hide-self-service-for-admin.md`](docs/verification/AAS-390-392-hide-self-service-for-admin.md) — self-service sections hidden for admin, unchanged for manager/staff
 
 **After pulling this module, run `npm run seed` in `backend`.** It adds
 `overtime.read` to the staff role so staff can see their own overtime. It only adds
