@@ -51,6 +51,8 @@ the Module 1 layering.
 | | `PATCH /overtime/:id/review` (approve or reject) | `overtime.approve` |
 | Leave | `POST /leave`, `GET /leave` (filters, paging) | `leave.create`, `leave.read`; approvers see everyone |
 | | `PATCH /leave/:id/review` | `leave.approve` to approve, `leave.reject` to reject |
+| Staff | `GET /users` (search, status filter, paging), `POST /users` (create a login) | `users.manage` |
+| | `PATCH /users/:id` (edit), `PATCH /users/:id/status` (activate/deactivate) | `users.manage` |
 
 Data model: `Attendance` (one record per user per day, enforced by a unique
 index), `OvertimeRequest` (one per attendance record) and `LeaveRequest`
@@ -70,6 +72,15 @@ Rules the API enforces:
 - Leave cannot overlap the same person's pending or approved leave. A rejected
   request frees its days again.
 - Approving and rejecting leave are separate permissions.
+- An admin (`users.manage`) creates a staff login with a name, email, a unique
+  **Employee ID** they type themselves, and a temporary password; the account gets the
+  `staff` role by default. Employee ID is case-insensitive (`emp-001` and `EMP-001`
+  collide) and duplicate emails/IDs return 409.
+- **Deactivating** a staff member blocks new logins immediately, and any token they
+  already hold stops working on its very next request — there is no separate
+  revocation list; `authenticate` re-checks `isActive` on every call. Their attendance,
+  overtime and leave history is kept, and the account can be re-activated. An admin
+  cannot deactivate their own account.
 
 **Frontend:**
 - `/attendance` — clock widget, own history, and (for `attendance.update`) a Team
@@ -78,9 +89,11 @@ Rules the API enforces:
   Approve/Reject for `overtime.approve`.
 - `/attendance/leave` — Request leave form, own leave history, plus Pending
   approvals for users who can approve or reject leave.
+- `/attendance/staff` — admin-only staff directory: search, filter by status, add a
+  staff login (Employee ID + temporary password), edit details, and activate/deactivate.
 - A single Attendance entry in the sidebar, and a page switcher at the top of the
-  three pages (Attendance, Overtime, Leave), each link shown only to users who hold
-  that page's permission.
+  four pages (Attendance, Overtime, Leave, Staff), each link shown only to users who
+  hold that page's permission.
 
 **Verified** over real HTTP and in real Chrome against a live MongoDB, with test
 data removed afterwards. Each guide can be repeated by hand:
@@ -90,6 +103,7 @@ data removed afterwards. Each guide can be repeated by hand:
 - [`docs/verification/AAS-280-overtime-auto-trigger-and-approval.md`](docs/verification/AAS-280-overtime-auto-trigger-and-approval.md)
 - [`docs/verification/AAS-290-leave-request-and-approval.md`](docs/verification/AAS-290-leave-request-and-approval.md)
 - [`docs/verification/AAS-302-end-to-end-attendance-overtime-leave.md`](docs/verification/AAS-302-end-to-end-attendance-overtime-leave.md) — full staff and manager walkthrough
+- [`docs/verification/AAS-383-388-staff-management.md`](docs/verification/AAS-383-388-staff-management.md) — Employee ID, staff create/edit/search/filter, deactivation
 
 **After pulling this module, run `npm run seed` in `backend`.** It adds
 `overtime.read` to the staff role so staff can see their own overtime. It only adds
@@ -101,7 +115,6 @@ when they open the Overtime page.
   fixed start time to be late against.
 - Attendance statuses for Leave, Holiday and Weekend, and a holiday calendar.
   Approved leave does not yet create attendance records.
-- An Employee ID field on users.
 - Leave balances per leave type.
 - Reports (daily and monthly attendance, monthly overtime, leave, individual
   employee, attendance percentage) and the overtime sheet export.
