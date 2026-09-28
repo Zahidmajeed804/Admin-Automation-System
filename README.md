@@ -116,6 +116,13 @@ Rules the API enforces:
   (`frontend/src/config/featureVisibility.js`). This is a frontend-only presentation
   switch — the backend permissions are unchanged — and is meant to move into the
   database once the Settings module lets an admin toggle feature visibility per role.
+- Every date and date-time field (Request leave, the Team filters, Edit attendance's
+  Clock in/out) is a custom popover calendar (`components/common/DatePicker.jsx`,
+  `DateTimePicker.jsx`) instead of the native browser picker: click opens it, a day
+  only stages until **OK** commits it, Cancel/Escape/clicking outside discard it.
+  Full keyboard support (arrow keys, Home/End, PageUp/PageDown, Shift for year, Enter
+  to commit), a trapped Tab order, and ARIA grid semantics; tested down to a 375px
+  mobile width.
 
 **Verified** over real HTTP and in real Chrome against a live MongoDB, with test
 data removed afterwards. Each guide can be repeated by hand:
@@ -129,6 +136,7 @@ data removed afterwards. Each guide can be repeated by hand:
 - [`docs/verification/AAS-390-392-hide-self-service-for-admin.md`](docs/verification/AAS-390-392-hide-self-service-for-admin.md) — self-service sections hidden for admin, unchanged for manager/staff
 - [`docs/verification/AAS-394-398-team-overtime-leave.md`](docs/verification/AAS-394-398-team-overtime-leave.md) — Team Overtime and Team Leave tabs, filters, and review from the Team view
 - [`docs/verification/AAS-400-406-leave-quotas.md`](docs/verification/AAS-400-406-leave-quotas.md) — leave balances, quota enforcement, assign-to-all, full staff→approve→balance loop
+- [`docs/verification/AAS-408-412-date-time-picker.md`](docs/verification/AAS-408-412-date-time-picker.md) — the custom date/date-time picker: mouse, keyboard, ARIA, and mobile
 
 **After pulling this module, run `npm run seed` in `backend`.** It adds
 `overtime.read` to the staff role so staff can see their own overtime. It only adds
