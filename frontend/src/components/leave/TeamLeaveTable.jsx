@@ -42,12 +42,13 @@ const employeeColumn = {
  * Reject are separate permissions and only appear on pending rows the
  * signed-in reviewer didn't request themselves.
  */
-export default function TeamLeaveTable({ canApprove, canReject }) {
+export default function TeamLeaveTable({ canApprove, canReject, refreshKey: externalRefreshKey = 0 }) {
   const { user } = useAuth();
   const [filters, setFilters] = useState(noFilters);
   const [page, setPage] = useState(1);
   const [attempt, setAttempt] = useState(0);
-  // Bumped after a decision to re-fetch in place, without the loading skeleton.
+  // Bumped after a decision (or by the caller, e.g. after the reviewer files their
+  // own request) to re-fetch in place, without the loading skeleton.
   const [refreshKey, setRefreshKey] = useState(0);
   const [review, setReview] = useState(null); // { request, decision }
   const [employees, setEmployees] = useState([]);
@@ -79,7 +80,7 @@ export default function TeamLeaveTable({ canApprove, canReject }) {
     return () => {
       cancelled = true;
     };
-  }, [filters, page, requestKey, refreshKey]);
+  }, [filters, page, requestKey, refreshKey, externalRefreshKey]);
 
   const setFilter = (name, value) => {
     setFilters((f) => {

@@ -1,32 +1,46 @@
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { CalendarPlus } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useSelfServiceVisible } from "../../config/featureVisibility";
 import PageHeader from "../../components/common/PageHeader";
 import AttendanceSectionNav from "../../components/attendance/AttendanceSectionNav";
+import Tabs from "../../components/common/Tabs";
 import Button from "../../components/common/Button";
 import RequestLeaveModal from "../../components/leave/RequestLeaveModal";
 import LeaveHistoryTable from "../../components/leave/LeaveHistoryTable";
 import PendingLeaveTable from "../../components/leave/PendingLeaveTable";
+import TeamLeaveTable from "../../components/leave/TeamLeaveTable";
 import { formatLeaveDate } from "../../utils/leaveFormat";
+
+const reviewTabs = [
+  { id: "pending", label: "Pending approvals" },
+  { id: "team", label: "Team" },
+];
 
 export default function LeavePage() {
   const { hasPermission } = useAuth();
   const selfServiceVisible = useSelfServiceVisible();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [requesting, setRequesting] = useState(false);
   const [submitted, setSubmitted] = useState(null);
-  // Bumped after every new request so the history table re-fetches.
+  // Bumped after every new request so the history table (and pending/team reviewer
+  // tables, since a reviewer can also file their own request) re-fetch.
   const [refreshKey, setRefreshKey] = useState(0);
 
   // Requesting is for users who can submit leave; the API enforces the same rule independently.
   const canRequest = hasPermission("leave.create");
-  // Approve and reject are separate permissions; the pending list is for anyone who holds either.
+  // Approve and reject are separate permissions; the review tabs are for anyone who holds either.
   const canApprove = hasPermission("leave.approve");
   const canReject = hasPermission("leave.reject");
+  const canReview = canApprove || canReject;
   // Admin doesn't request leave, so "My leave requests" and the request button are hidden
   // for them. If they somehow can't approve/reject either (misconfigured roles), fall back
   // to showing it rather than nothing.
-  const showMine = selfServiceVisible || !(canApprove || canReject);
+  const showMine = selfServiceVisible || !canReview;
+
+  const activeReviewTab = canReview && searchParams.get("view") === "team" ? "team" : "pending";
+  const selectReviewTab = (id) => setSearchParams(id === "team" ? { view: "team" } : {}, { replace: true });
 
   return (
     <>
@@ -59,10 +73,19 @@ export default function LeavePage() {
           {submitted.totalDays === 1 ? "day" : "days"}). It is pending approval.
         </div>
       )}
-      {(canApprove || canReject) && (
-        <section className="flex flex-col gap-3">
-          <h2 className="text-section-heading text-ink">Pending approvals</h2>
-          <PendingLeaveTable canApprove={canApprove} canReject={canReject} refreshKey={refreshKey} />
+      {canReview && (
+        <section
+          className="flex flex-col gap-3"
+          role="tabpanel"
+          id={`panel-${activeReviewTab}`}
+          aria-labelledby={`tab-${activeReviewTab}`}
+        >
+          <Tabs tabs={reviewTabs} value={activeReviewTab} onChange={selectReviewTab} label="Leave review views" />
+          {activeReviewTab === "team" ? (
+            <TeamLeaveTable canApprove={canApprove} canReject={canReject} refreshKey={refreshKey} />
+          ) : (
+            <PendingLeaveTable canApprove={canApprove} canReject={canReject} refreshKey={refreshKey} />
+          )}
         </section>
       )}
       {showMine && (
