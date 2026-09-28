@@ -53,6 +53,7 @@ the Module 1 layering.
 | | `PATCH /leave/:id/review` | `leave.approve` to approve, `leave.reject` to reject |
 | Staff | `GET /users` (search, status filter, paging), `POST /users` (create a login) | `users.manage` |
 | | `PATCH /users/:id` (edit), `PATCH /users/:id/status` (activate/deactivate) | `users.manage` |
+| | `GET /users/options` (lightweight employee list for the Team Overtime/Leave filters) | `overtime.approve` or `leave.approve` |
 
 Data model: `Attendance` (one record per user per day, enforced by a unique
 index), `OvertimeRequest` (one per attendance record) and `LeaveRequest`
@@ -85,10 +86,13 @@ Rules the API enforces:
 **Frontend:**
 - `/attendance` — clock widget, own history, and (for `attendance.update`) a Team
   tab with filters and a manager edit dialog.
-- `/attendance/overtime` — own overtime history, plus Pending approvals with
-  Approve/Reject for `overtime.approve`.
-- `/attendance/leave` — Request leave form, own leave history, plus Pending
-  approvals for users who can approve or reject leave.
+- `/attendance/overtime` — own overtime history, plus for `overtime.approve` a
+  **Pending approvals** / **Team** tab switcher: Pending is the decision queue,
+  Team is everyone's requests filterable by employee/status/date, with inline
+  Approve/Reject either way.
+- `/attendance/leave` — Request leave form, own leave history, plus the same
+  Pending approvals / Team tab switcher for anyone who can approve or reject
+  leave (Team adds a leave-type filter).
 - `/attendance/staff` — admin-only staff directory: search, filter by status, add a
   staff login (Employee ID + temporary password), edit details, and activate/deactivate.
 - A single Attendance entry in the sidebar, and a page switcher at the top of the
@@ -110,6 +114,7 @@ data removed afterwards. Each guide can be repeated by hand:
 - [`docs/verification/AAS-302-end-to-end-attendance-overtime-leave.md`](docs/verification/AAS-302-end-to-end-attendance-overtime-leave.md) — full staff and manager walkthrough
 - [`docs/verification/AAS-383-388-staff-management.md`](docs/verification/AAS-383-388-staff-management.md) — Employee ID, staff create/edit/search/filter, deactivation
 - [`docs/verification/AAS-390-392-hide-self-service-for-admin.md`](docs/verification/AAS-390-392-hide-self-service-for-admin.md) — self-service sections hidden for admin, unchanged for manager/staff
+- [`docs/verification/AAS-394-398-team-overtime-leave.md`](docs/verification/AAS-394-398-team-overtime-leave.md) — Team Overtime and Team Leave tabs, filters, and review from the Team view
 
 **After pulling this module, run `npm run seed` in `backend`.** It adds
 `overtime.read` to the staff role so staff can see their own overtime. It only adds
