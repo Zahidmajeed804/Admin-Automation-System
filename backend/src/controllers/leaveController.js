@@ -24,6 +24,21 @@ export const leaveController = {
     });
   }),
 
+  // Own balance by default; reviewers (leave.approve) may pass ?userId= for
+  // someone else's. Defaults to the current calendar year.
+  balance: asyncHandler(async (req, res) => {
+    const { userId, year } = req.query;
+    const canViewAll = req.permissions.includes("leave.approve");
+    const targetUserId = canViewAll && userId ? userId : req.userId;
+    const targetYear = year ? parseInt(year, 10) : new Date().getUTCFullYear();
+
+    const balances = await leaveService.getBalance(targetUserId, targetYear);
+    sendSuccess(res, {
+      message: "Leave balance",
+      data: { userId: targetUserId, year: targetYear, balances },
+    });
+  }),
+
   create: asyncHandler(async (req, res) => {
     // Whitelist: status, user, totalDays and review fields are never taken from the client.
     const { leaveType, startDate, endDate, reason } = req.body;

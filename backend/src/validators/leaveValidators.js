@@ -56,6 +56,12 @@ export const listLeaveValidator = [
   runValidation,
 ];
 
+export const leaveBalanceValidator = [
+  query("userId").optional().isMongoId().withMessage("userId must be a valid id"),
+  query("year").optional().isInt({ min: 2000, max: 2100 }).withMessage("year must be a valid year"),
+  runValidation,
+];
+
 export const reviewLeaveValidator = [
   param("id").isMongoId().withMessage("id must be a valid leave request id"),
   body("decision")

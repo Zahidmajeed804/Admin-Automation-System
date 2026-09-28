@@ -131,6 +131,22 @@ export const leaveService = {
     return { allocated, used, pending, remaining: Math.max(0, allocated - used - pending) };
   },
 
+  // Allocated/used/pending/remaining for every quota-limited leave type, for one
+  // person in one year. Unpaid leave is left out — it has no allocation to report.
+  async getBalance(userId, year) {
+    const user = await userRepository.findById(userId);
+    if (!user) {
+      throw new NotFoundError("User not found");
+    }
+
+    const balances = {};
+    for (const leaveType of QUOTA_LEAVE_TYPES) {
+      const allocated = user.leaveAllocation?.[leaveType] || 0;
+      balances[leaveType] = await leaveService.getBalanceForYear(userId, leaveType, year, allocated);
+    }
+    return balances;
+  },
+
   // Approve or reject a pending request. A request is decided once; nobody reviews their own.
   async review(id, { reviewerId, decision, note }) {
     if (!REVIEW_DECISIONS.includes(decision)) {
