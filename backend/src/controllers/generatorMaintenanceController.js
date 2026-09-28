@@ -16,7 +16,7 @@ export const generatorMaintenanceController = {
       pageSize: pageSize ? Number(pageSize) : undefined,
     });
     const now = new Date();
-    sendSuccess(res, { data: items.map((item) => withAlertInfo(item, now)), meta });
+    sendSuccess(res, { data: items.map((item) => withAlertInfo(item, now, item.generator?.runningHoursTotal)), meta });
   }),
 
   alerts: asyncHandler(async (req, res) => {
@@ -26,7 +26,10 @@ export const generatorMaintenanceController = {
   }),
 
   create: asyncHandler(async (req, res) => {
-    const { generatorId, type, description, scheduledDate, intervalDays, alertThresholdDays, performedBy, cost, partsReplaced, notes } = req.body;
+    const {
+      generatorId, type, description, scheduledDate, intervalDays, alertThresholdDays,
+      intervalHours, alertThresholdHours, hoursAtScheduling, performedBy, vendor, cost, partsReplaced, notes,
+    } = req.body;
     const maintenance = await generatorService.scheduleMaintenance({
       generatorId,
       createdBy: req.userId,
@@ -35,7 +38,11 @@ export const generatorMaintenanceController = {
       scheduledDate,
       intervalDays,
       alertThresholdDays,
+      intervalHours,
+      alertThresholdHours,
+      hoursAtScheduling,
       performedBy,
+      vendor,
       cost,
       partsReplaced,
       notes,
@@ -46,10 +53,13 @@ export const generatorMaintenanceController = {
   // One endpoint, three intents: complete (status "completed"), cancel
   // (status "cancelled"), or edit. The validator keeps them from being mixed.
   update: asyncHandler(async (req, res) => {
-    const { status, completedDate, type, description, scheduledDate, intervalDays, alertThresholdDays, performedBy, cost, partsReplaced, notes } = req.body;
+    const {
+      status, completedDate, type, description, scheduledDate, intervalDays, alertThresholdDays,
+      intervalHours, alertThresholdHours, hoursAtScheduling, performedBy, vendor, cost, partsReplaced, notes, hoursAtService,
+    } = req.body;
 
     if (status === "completed") {
-      const result = await generatorService.completeMaintenance(req.params.id, { completedDate, performedBy, cost, partsReplaced, notes });
+      const result = await generatorService.completeMaintenance(req.params.id, { completedDate, performedBy, vendor, cost, partsReplaced, notes, hoursAtService });
       return sendSuccess(res, { message: "Maintenance completed", data: result });
     }
 
@@ -60,7 +70,11 @@ export const generatorMaintenanceController = {
       scheduledDate,
       intervalDays,
       alertThresholdDays,
+      intervalHours,
+      alertThresholdHours,
+      hoursAtScheduling,
       performedBy,
+      vendor,
       cost,
       partsReplaced,
       notes,
@@ -70,10 +84,32 @@ export const generatorMaintenanceController = {
 
   // Permanently removes a record (a mistaken entry). To keep a job as history
   // without doing it, cancel it instead. Deleting a completed job does not
-  // roll back the generator's lastServiceDate.
+  // roll back the generator's lastServiceDate. Its invoice file, if any, is
+  // deleted too — there is nothing left for it to belong to.
   remove: asyncHandler(async (req, res) => {
     const removed = await generatorMaintenanceRepository.deleteById(req.params.id);
     if (!removed) throw new NotFoundError("Maintenance record not found");
+    if (removed.invoice?.storedName) {
+      await generatorService.deleteInvoiceFile(removed.invoice.storedName).catch(() => {});
+    }
     sendSuccess(res, { message: "Maintenance record deleted", data: removed });
+  }),
+
+  // req.file comes from the uploadInvoice middleware, already saved to disk.
+  // Uploading again (with or without an existing invoice) replaces it.
+  uploadInvoice: asyncHandler(async (req, res) => {
+    const maintenance = await generatorService.attachInvoice(req.params.id, { file: req.file, uploadedBy: req.userId });
+    sendSuccess(res, { message: "Invoice uploaded", data: maintenance });
+  }),
+
+  downloadInvoice: asyncHandler(async (req, res) => {
+    const { filePath, fileName, mimeType } = await generatorService.getInvoiceFile(req.params.id);
+    res.type(mimeType);
+    res.download(filePath, fileName);
+  }),
+
+  removeInvoice: asyncHandler(async (req, res) => {
+    const maintenance = await generatorService.removeInvoice(req.params.id);
+    sendSuccess(res, { message: "Invoice removed", data: maintenance });
   }),
 };

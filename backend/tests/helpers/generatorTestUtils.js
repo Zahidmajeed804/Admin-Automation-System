@@ -18,12 +18,16 @@ export const as = (user) => ({
   post: (path, body) => request(app).post(API + path).set("Authorization", `Bearer ${user.token}`).send(body),
   patch: (path, body) => request(app).patch(API + path).set("Authorization", `Bearer ${user.token}`).send(body),
   delete: (path) => request(app).delete(API + path).set("Authorization", `Bearer ${user.token}`),
+  // Multipart requests (file uploads) can't use .send(); returns the raw
+  // supertest request so the caller chains .attach(...) themselves.
+  postFile: (path) => request(app).post(API + path).set("Authorization", `Bearer ${user.token}`),
 });
 export const anonymous = {
   get: (path) => request(app).get(API + path),
   post: (path, body) => request(app).post(API + path).send(body),
   patch: (path, body) => request(app).patch(API + path).send(body),
   delete: (path) => request(app).delete(API + path),
+  postFile: (path) => request(app).post(API + path),
 };
 
 /** One user of each role: { admin, manager, staff }, each `{ user, token }`. */

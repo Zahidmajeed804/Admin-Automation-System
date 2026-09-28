@@ -1,0 +1,111 @@
+import { Generator, GeneratorLog, GeneratorMaintenance } from "../models/index.js";
+
+// Every report is scoped to generators that still exist (not soft-deleted) —
+// same convention as generatorRepository.list. With a generatorId, resolves
+// to that one generator (or an empty array if it doesn't exist or was
+// deleted, which callers turn into a 404); without one, every active
+// generator, for a fleet-wide report.
+async function resolveGenerators(generatorId) {
+  if (generatorId) {
+    const generator = await Generator.findOne({ _id: generatorId, isActive: true }).select("tag name");
+    return generator ? [generator] : [];
+  }
+  return Generator.find({ isActive: true }).select("tag name").sort({ tag: 1 });
+}
+
+export const reportRepository = {
+  resolveGenerators,
+
+  // Total hours run per generator within [from, to), from the usage logs.
+  runningHoursByGenerator: (generatorIds, from, to) =>
+    GeneratorLog.aggregate([
+      { $match: { generator: { $in: generatorIds }, date: { $gte: from, $lt: to } } },
+      { $group: { _id: "$generator", hoursRun: { $sum: "$hoursRun" }, logCount: { $sum: 1 } } },
+    ]),
+
+  // Fuel cost and litres bought per generator within [from, to), used to work
+  // out an average cost per litre.
+  fuelCostByGenerator: (generatorIds, from, to) =>
+    GeneratorLog.aggregate([
+      { $match: { generator: { $in: generatorIds }, date: { $gte: from, $lt: to } } },
+      {
+        $group: {
+          _id: "$generator",
+          fuelCostTotal: { $sum: "$fuelCostTotal" },
+          fuelAddedLiters: { $sum: "$fuelAddedLiters" },
+          logCount: { $sum: 1 },
+        },
+      },
+    ]),
+
+  // Fuel cost per generator within [from, to] (inclusive both ends) — the
+  // cost-summary's counterpart to fuelCostByGenerator, which is [from, to)
+  // exclusive because it's paired with resolveMonthRange instead.
+  fuelCostByGeneratorRange: (generatorIds, from, to) =>
+    GeneratorLog.aggregate([
+      { $match: { generator: { $in: generatorIds }, date: { $gte: from, $lte: to } } },
+      { $group: { _id: "$generator", fuelCostTotal: { $sum: "$fuelCostTotal" } } },
+    ]),
+
+  // Diesel added/consumed per generator within [from, to] (inclusive both
+  // ends — same convention as generatorLogRepository.list's from/to).
+  fuelByGenerator: (generatorIds, from, to) =>
+    GeneratorLog.aggregate([
+      { $match: { generator: { $in: generatorIds }, date: { $gte: from, $lte: to } } },
+      {
+        $group: {
+          _id: "$generator",
+          fuelConsumedLiters: { $sum: "$fuelConsumedLiters" },
+          fuelAddedLiters: { $sum: "$fuelAddedLiters" },
+          logCount: { $sum: 1 },
+        },
+      },
+    ]),
+
+  // Fuel cost per generator, per calendar month (1-12, UTC) within [from, to)
+  // — the building block for the yearly operating-cost report's monthly trend.
+  fuelByGeneratorMonth: (generatorIds, from, to) =>
+    GeneratorLog.aggregate([
+      { $match: { generator: { $in: generatorIds }, date: { $gte: from, $lt: to } } },
+      { $group: { _id: { generator: "$generator", month: { $month: "$date" } }, fuelCostTotal: { $sum: "$fuelCostTotal" } } },
+    ]),
+
+  // Only completed jobs count as an actual cost — a scheduled or cancelled
+  // job never happened. Ranged on completedDate (when the cost was actually
+  // incurred), not scheduledDate (when it was originally due), since a job
+  // can be completed well after — or, for backlog cleanup, before — that.
+  maintenanceCostByGenerator: (generatorIds, from, to) =>
+    GeneratorMaintenance.aggregate([
+      { $match: { generator: { $in: generatorIds }, status: "completed", completedDate: { $gte: from, $lte: to } } },
+      { $group: { _id: "$generator", cost: { $sum: "$cost" }, jobCount: { $sum: 1 } } },
+    ]),
+
+  // Same idea as fuelByGeneratorMonth, for maintenance cost.
+  maintenanceCostByGeneratorMonth: (generatorIds, from, to) =>
+    GeneratorMaintenance.aggregate([
+      { $match: { generator: { $in: generatorIds }, status: "completed", completedDate: { $gte: from, $lt: to } } },
+      { $group: { _id: { generator: "$generator", month: { $month: "$completedDate" } }, cost: { $sum: "$cost" } } },
+    ]),
+
+  // Service history: paginated, same page/pageSize/totalItems/totalPages
+  // shape as the other list() methods. `statuses` and the [from, to] range
+  // (inclusive, on scheduledDate) are decided by the caller (reportService),
+  // not here.
+  serviceHistory: async ({ generatorIds, statuses, from, to, page = 1, pageSize = 20 }) => {
+    const filter = {
+      generator: { $in: generatorIds },
+      status: { $in: statuses },
+      scheduledDate: { $gte: from, $lte: to },
+    };
+    const skip = (page - 1) * pageSize;
+    const [items, totalItems] = await Promise.all([
+      GeneratorMaintenance.find(filter)
+        .sort({ scheduledDate: -1, createdAt: -1 })
+        .skip(skip)
+        .limit(pageSize)
+        .populate("generator", "tag name"),
+      GeneratorMaintenance.countDocuments(filter),
+    ]);
+    return { items, page, pageSize, totalItems, totalPages: Math.ceil(totalItems / pageSize) || 0 };
+  },
+};

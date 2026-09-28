@@ -14,6 +14,7 @@ const FUEL_TYPE_OPTIONS = [
 const STATUS_OPTIONS = [
   { value: "operational", label: "Operational" },
   { value: "under_maintenance", label: "Under Maintenance" },
+  { value: "maintenance_due", label: "Maintenance Due" },
   { value: "faulty", label: "Faulty" },
   { value: "decommissioned", label: "Decommissioned" },
 ];
@@ -30,6 +31,7 @@ const BLANK = {
   fuelTankCapacityLiters: "",
   status: "operational",
   installationDate: "",
+  maintenanceIntervalHours: "",
   notes: "",
 };
 
@@ -52,6 +54,7 @@ export function toFormValues(generator) {
     status: generator.status ?? "operational",
     // <input type="date"> needs "YYYY-MM-DD"; the API gives back a full ISO string.
     installationDate: generator.installationDate ? generator.installationDate.slice(0, 10) : "",
+    maintenanceIntervalHours: generator.maintenanceIntervalHours != null ? String(generator.maintenanceIntervalHours) : "",
     notes: generator.notes ?? "",
   };
 }
@@ -67,6 +70,7 @@ export function toPayload(values) {
   }
   if (values.capacityKVA !== "") payload.capacityKVA = Number(values.capacityKVA);
   if (values.fuelTankCapacityLiters !== "") payload.fuelTankCapacityLiters = Number(values.fuelTankCapacityLiters);
+  if (values.maintenanceIntervalHours) payload.maintenanceIntervalHours = Number(values.maintenanceIntervalHours);
   if (values.fuelType) payload.fuelType = values.fuelType;
   if (values.status) payload.status = values.status;
   return payload;
@@ -184,6 +188,15 @@ export default function GeneratorForm({ open, onClose, onSaved, generator }) {
             onChange={setField("fuelTankCapacityLiters")}
           />
           <Input id="generator-capacityKVA" label="Capacity (kVA)" type="number" min="0" value={values.capacityKVA} onChange={setField("capacityKVA")} />
+          <Input
+            id="generator-maintenanceIntervalHours"
+            label="Maintenance Interval (hours)"
+            type="number"
+            min="1"
+            placeholder="e.g. 250"
+            value={values.maintenanceIntervalHours}
+            onChange={setField("maintenanceIntervalHours")}
+          />
         </div>
 
         <div className="flex flex-col gap-1.5">

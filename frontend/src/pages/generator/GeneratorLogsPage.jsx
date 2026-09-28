@@ -11,7 +11,7 @@ import GeneratorLogForm from "./GeneratorLogForm";
 import { extractErrorMessage } from "./GeneratorForm";
 import { useAuth } from "../../context/AuthContext";
 import { generatorService } from "../../services/generatorService";
-import { formatDate } from "../../utils/formatDate";
+import { formatDate, formatDateNumeric } from "../../utils/formatDate";
 import { formatNumber } from "../../utils/formatNumber";
 
 const PAGE_SIZE = 10;
@@ -47,7 +47,7 @@ const COLUMNS = [
     header: "Generator",
     render: (row) => <span className="font-medium text-ink">{row.generator?.tag ?? "—"}</span>,
   },
-  { key: "date", header: "Date", render: (row) => formatDate(row.date) },
+  { key: "date", header: "Date", render: (row) => formatDateNumeric(row.date) },
   { key: "hoursRun", header: "Hours Run", render: (row) => row.hoursRun },
   {
     key: "fuel",

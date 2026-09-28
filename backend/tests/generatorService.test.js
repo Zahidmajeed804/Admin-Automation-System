@@ -1,10 +1,13 @@
+import fs from "node:fs";
+import path from "node:path";
 import mongoose from "mongoose";
 import { jest } from "@jest/globals";
 import { Generator, GeneratorLog, GeneratorMaintenance } from "../src/models/index.js";
 import { generatorRepository } from "../src/repositories/generatorRepository.js";
 import { generatorLogRepository } from "../src/repositories/generatorLogRepository.js";
 import { generatorMaintenanceRepository } from "../src/repositories/generatorMaintenanceRepository.js";
-import { generatorService, computeAlertStatus, computeFuelFigures, daysUntilDue, withAlertInfo } from "../src/services/generatorService.js";
+import { generatorService, computeAlertStatus, computeFuelFigures, daysUntilDue, hoursUntilDue, withAlertInfo } from "../src/services/generatorService.js";
+import { invoiceUploadDir } from "../src/middleware/uploadInvoice.js";
 import { NotFoundError, ConflictError } from "../src/errors/AppError.js";
 import { createGenerator, UNKNOWN_ID } from "./helpers/generatorTestUtils.js";
 
@@ -64,6 +67,79 @@ describe("daysUntilDue and withAlertInfo (pure)", () => {
 
     expect(view).toMatchObject({ alertStatus: "upcoming", daysUntilDue: 3 });
     expect(original.alertStatus).toBeUndefined();
+  });
+
+  it("withAlertInfo's hoursUntilDue is undefined for a job that doesn't track hours", () => {
+    expect(withAlertInfo(job("2026-10-13"), NOW).hoursUntilDue).toBeUndefined();
+  });
+
+  it("withAlertInfo carries hoursUntilDue through when the job tracks hours and the generator's hours are known", () => {
+    const view = withAlertInfo(job("2027-01-01", { intervalHours: 250, hoursAtScheduling: 100 }), NOW, 300);
+    expect(view.hoursUntilDue).toBe(50);
+  });
+});
+
+describe("hoursUntilDue (pure)", () => {
+  // A far-off scheduledDate throughout, so the day-based side never interferes.
+  const hourJob = (extra = {}) => job("2030-01-01", extra);
+
+  it("is undefined when the job doesn't track hours at all", () => {
+    expect(hoursUntilDue(hourJob(), 100)).toBeUndefined();
+  });
+
+  it("is undefined without a starting point (hoursAtScheduling)", () => {
+    expect(hoursUntilDue(hourJob({ intervalHours: 250 }), 100)).toBeUndefined();
+  });
+
+  it("is undefined without the generator's current running hours", () => {
+    expect(hoursUntilDue(hourJob({ intervalHours: 250, hoursAtScheduling: 100 }))).toBeUndefined();
+  });
+
+  it("a hoursAtScheduling of exactly 0 is honoured, not treated as missing", () => {
+    expect(hoursUntilDue(hourJob({ intervalHours: 250, hoursAtScheduling: 0 }), 100)).toBe(150);
+  });
+
+  it.each([
+    ["well before due", 100, 250, 200, 150],
+    ["exactly due", 100, 250, 350, 0],
+    ["past due (negative)", 100, 250, 400, -50],
+  ])("%s: baseline %i, interval %i, now at %i -> %i hours left", (_label, baseline, intervalHours, current, expected) => {
+    expect(hoursUntilDue(hourJob({ intervalHours, hoursAtScheduling: baseline }), current)).toBe(expected);
+  });
+});
+
+describe("computeAlertStatus with running hours (pure)", () => {
+  // Far off by date in every case, so only the hours side can flag these.
+  const hourJob = (extra = {}) => job("2030-01-01", { intervalHours: 250, hoursAtScheduling: 100, ...extra });
+
+  it.each([
+    ["50 hours left, default 25h threshold", 300, "scheduled"],
+    ["exactly at the default 25h threshold", 325, "upcoming"],
+    ["past due", 360, "overdue"],
+  ])("%s -> %s", (_label, currentRunningHours, expected) => {
+    expect(computeAlertStatus(hourJob(), NOW, currentRunningHours)).toBe(expected);
+  });
+
+  it("a custom alertThresholdHours is honoured instead of the default", () => {
+    expect(computeAlertStatus(hourJob({ alertThresholdHours: 5 }), NOW, 340)).toBe("scheduled"); // 60h left, threshold 5
+    expect(computeAlertStatus(hourJob({ alertThresholdHours: 5 }), NOW, 346)).toBe("upcoming"); // 4h left, threshold 5
+  });
+
+  it("completed/cancelled jobs are returned as-is even when hours would otherwise flag them", () => {
+    expect(computeAlertStatus(hourJob({ status: "completed" }), NOW, 999)).toBe("completed");
+  });
+
+  it("whichever comes first: an overdue date wins even when the hours are fine", () => {
+    const job = { status: "scheduled", scheduledDate: new Date("2026-10-01"), intervalHours: 250, hoursAtScheduling: 100 };
+    expect(computeAlertStatus(job, NOW, 100)).toBe("overdue");
+  });
+
+  it("whichever comes first: overdue hours win even when the date is far off", () => {
+    expect(computeAlertStatus(hourJob(), NOW, 400)).toBe("overdue");
+  });
+
+  it("a job with no currentRunningHours given falls back to date-only behaviour, unaffected by intervalHours", () => {
+    expect(computeAlertStatus(hourJob(), NOW)).toBe("scheduled"); // far-off date, hours can't be checked
   });
 });
 
@@ -321,6 +397,78 @@ describe("completeMaintenance", () => {
     expect((await GeneratorMaintenance.findById(recurring._id)).status).toBe("scheduled");
     expect((await Generator.findById(gen._id)).lastServiceDate).toBeUndefined();
   });
+
+  it("defaults hoursAtService to the generator's current running hours when none is given", async () => {
+    const gen = await createGenerator({ runningHoursTotal: 500 });
+    const scheduled = await insertJob(gen);
+
+    const { maintenance } = await generatorService.completeMaintenance(scheduled._id, {});
+
+    expect(maintenance.hoursAtService).toBe(500);
+  });
+
+  it("an explicit hoursAtService (including 0) overrides the generator's current hours", async () => {
+    const gen = await createGenerator({ runningHoursTotal: 500 });
+
+    const overridden = await insertJob(gen);
+    expect((await generatorService.completeMaintenance(overridden._id, { hoursAtService: 42 })).maintenance.hoursAtService).toBe(42);
+
+    const zeroed = await insertJob(gen);
+    expect((await generatorService.completeMaintenance(zeroed._id, { hoursAtService: 0 })).maintenance.hoursAtService).toBe(0);
+  });
+
+  it("saves the vendor, and the next occurrence copies it but not hoursAtService", async () => {
+    const gen = await createGenerator();
+    const recurring = await insertJob(gen, { intervalDays: 30, vendor: "PSO Services" });
+
+    const { maintenance, next } = await generatorService.completeMaintenance(recurring._id, { hoursAtService: 10 });
+
+    expect(maintenance.vendor).toBe("PSO Services");
+    expect(next.vendor).toBe("PSO Services");
+    expect(next.hoursAtService).toBeUndefined();
+  });
+
+  it("rolls back vendor and hoursAtService along with the rest when completion fails", async () => {
+    const gen = await createGenerator({ runningHoursTotal: 500 });
+    const original = await insertJob(gen);
+    jest.spyOn(generatorRepository, "recordServiceDate").mockRejectedValue(new Error("boom"));
+
+    await expect(generatorService.completeMaintenance(original._id, { vendor: "New Vendor", hoursAtService: 99 })).rejects.toThrow("boom");
+
+    const after = await GeneratorMaintenance.findById(original._id);
+    expect(after.status).toBe("scheduled");
+    expect(after.vendor).toBeUndefined();
+    expect(after.hoursAtService).toBeUndefined();
+  });
+
+  it("carries intervalHours and alertThresholdHours to the next occurrence, and starts its hour clock from the resolved hoursAtService", async () => {
+    const gen = await createGenerator();
+    const recurring = await insertJob(gen, { intervalDays: 90, intervalHours: 250, alertThresholdHours: 15 });
+
+    const { next } = await generatorService.completeMaintenance(recurring._id, { hoursAtService: 550 });
+
+    expect(next.intervalHours).toBe(250);
+    expect(next.alertThresholdHours).toBe(15);
+    expect(next.hoursAtScheduling).toBe(550);
+  });
+
+  it("does not set hoursAtScheduling on the next occurrence when this line of recurrence doesn't track hours", async () => {
+    const gen = await createGenerator();
+    const recurring = await insertJob(gen, { intervalDays: 90 });
+
+    const { next } = await generatorService.completeMaintenance(recurring._id, { hoursAtService: 550 });
+
+    expect(next.hoursAtScheduling).toBeUndefined();
+  });
+
+  it("a job that only tracks hours (intervalHours, no intervalDays) gets no automatic next occurrence", async () => {
+    const gen = await createGenerator();
+    const hoursOnly = await insertJob(gen, { intervalHours: 100 });
+
+    const { next } = await generatorService.completeMaintenance(hoursOnly._id, {});
+
+    expect(next).toBeNull();
+  });
 });
 
 describe("updateMaintenance", () => {
@@ -391,6 +539,26 @@ describe("getMaintenanceAlerts", () => {
 
     expect(overdue.map((j) => j.description)).toEqual(["counts"]);
   });
+
+  it("flags a job overdue by running hours even though its scheduled date is far off", async () => {
+    const gen = await createGenerator({ runningHoursTotal: 520 });
+    await GeneratorMaintenance.create({ generator: gen._id, description: "by hours", scheduledDate: new Date("2030-01-01"), intervalHours: 500, hoursAtScheduling: 0 });
+
+    const { overdue, counts } = await generatorService.getMaintenanceAlerts({ now: NOW });
+
+    expect(overdue.map((j) => j.description)).toEqual(["by hours"]);
+    expect(overdue[0].hoursUntilDue).toBe(-20);
+    expect(counts.overdue).toBe(1);
+  });
+
+  it("withinDays does not affect a job's own hours-based threshold", async () => {
+    const gen = await createGenerator({ runningHoursTotal: 340 }); // 60h left of a 250h interval from 100 -> within the default 25h? no, upcoming needs custom
+    await GeneratorMaintenance.create({ generator: gen._id, description: "by hours", scheduledDate: new Date("2030-01-01"), intervalHours: 250, hoursAtScheduling: 100, alertThresholdHours: 70 });
+
+    const { upcoming } = await generatorService.getMaintenanceAlerts({ withinDays: 0, now: NOW });
+
+    expect(upcoming.map((j) => j.description)).toEqual(["by hours"]); // still upcoming by its own 70h hours-threshold
+  });
 });
 
 describe("scheduleMaintenance", () => {
@@ -417,5 +585,104 @@ describe("scheduleMaintenance", () => {
 
     await expect(generatorService.scheduleMaintenance({ ...base, generatorId: UNKNOWN_ID })).rejects.toBeInstanceOf(NotFoundError);
     await expect(generatorService.scheduleMaintenance({ ...base, generatorId: deleted._id })).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  it("defaults hoursAtScheduling to the generator's current running hours when intervalHours is given but hoursAtScheduling isn't", async () => {
+    const gen = await createGenerator({ runningHoursTotal: 300 });
+
+    const created = await generatorService.scheduleMaintenance({
+      generatorId: gen._id, createdBy: userId(), description: "x", scheduledDate: new Date("2026-11-01"), intervalHours: 250,
+    });
+
+    expect(created.hoursAtScheduling).toBe(300);
+  });
+
+  it("an explicit hoursAtScheduling overrides the default, and no default is applied without intervalHours", async () => {
+    const gen = await createGenerator({ runningHoursTotal: 300 });
+
+    const explicit = await generatorService.scheduleMaintenance({
+      generatorId: gen._id, createdBy: userId(), description: "x", scheduledDate: new Date("2026-11-01"), intervalHours: 250, hoursAtScheduling: 100,
+    });
+    expect(explicit.hoursAtScheduling).toBe(100);
+
+    const noHours = await generatorService.scheduleMaintenance({
+      generatorId: gen._id, createdBy: userId(), description: "x", scheduledDate: new Date("2026-11-01"),
+    });
+    expect(noHours.hoursAtScheduling).toBeUndefined();
+  });
+});
+
+describe("attachInvoice / getInvoiceFile / removeInvoice", () => {
+  // These exercise the real filesystem (the same disk uploadInvoice.js writes
+  // to), not just the database — a "file" here is a real file on disk, the
+  // way multer would have left one after a real upload.
+  const insertJob = (gen, extra = {}) =>
+    GeneratorMaintenance.create({ generator: gen._id, description: "Oil change", scheduledDate: new Date("2026-10-01"), ...extra });
+  const dummyFile = (storedName) => {
+    fs.mkdirSync(invoiceUploadDir, { recursive: true });
+    fs.writeFileSync(path.join(invoiceUploadDir, storedName), "dummy content");
+  };
+  const fileExists = (storedName) => fs.existsSync(path.join(invoiceUploadDir, storedName));
+  const upload = (storedName, originalname = "receipt.pdf") => {
+    dummyFile(storedName);
+    return { filename: storedName, originalname, mimetype: "application/pdf", size: 13 };
+  };
+
+  it("attaches an invoice, and getInvoiceFile returns where it lives and its original name and type", async () => {
+    const job = await insertJob(await createGenerator());
+
+    const updated = await generatorService.attachInvoice(job._id, { file: upload("stored-1.pdf"), uploadedBy: userId() });
+
+    expect(updated.invoice).toMatchObject({ fileName: "receipt.pdf", storedName: "stored-1.pdf", mimeType: "application/pdf", size: 13 });
+    const info = await generatorService.getInvoiceFile(job._id);
+    expect(info).toMatchObject({ fileName: "receipt.pdf", mimeType: "application/pdf" });
+    expect(info.filePath).toBe(path.join(invoiceUploadDir, "stored-1.pdf"));
+  });
+
+  it("rejects an unknown job and deletes the file that had already been saved to disk", async () => {
+    const file = upload("orphan.pdf");
+
+    await expect(generatorService.attachInvoice(UNKNOWN_ID, { file, uploadedBy: userId() })).rejects.toBeInstanceOf(NotFoundError);
+
+    expect(fileExists("orphan.pdf")).toBe(false);
+  });
+
+  it("uploading again replaces the invoice: the old file is deleted, the new one is kept", async () => {
+    const job = await insertJob(await createGenerator());
+    await generatorService.attachInvoice(job._id, { file: upload("first.pdf", "a.pdf"), uploadedBy: userId() });
+
+    const updated = await generatorService.attachInvoice(job._id, { file: upload("second.pdf", "b.pdf"), uploadedBy: userId() });
+
+    expect(updated.invoice.fileName).toBe("b.pdf");
+    expect(fileExists("first.pdf")).toBe(false);
+    expect(fileExists("second.pdf")).toBe(true);
+  });
+
+  it("getInvoiceFile is NotFound for an unknown job and for a job with no invoice", async () => {
+    const job = await insertJob(await createGenerator());
+
+    await expect(generatorService.getInvoiceFile(UNKNOWN_ID)).rejects.toBeInstanceOf(NotFoundError);
+    await expect(generatorService.getInvoiceFile(job._id)).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  it("removeInvoice unsets the metadata and deletes the file", async () => {
+    const job = await insertJob(await createGenerator());
+    await generatorService.attachInvoice(job._id, { file: upload("to-remove.pdf"), uploadedBy: userId() });
+
+    const updated = await generatorService.removeInvoice(job._id);
+
+    expect(updated.invoice).toBeUndefined();
+    expect(fileExists("to-remove.pdf")).toBe(false);
+  });
+
+  it("removeInvoice is NotFound for an unknown job and for a job with no invoice — and changes nothing on disk or in the database", async () => {
+    const job = await insertJob(await createGenerator());
+
+    await expect(generatorService.removeInvoice(UNKNOWN_ID)).rejects.toBeInstanceOf(NotFoundError);
+    await expect(generatorService.removeInvoice(job._id)).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  it("deleteInvoiceFile treats an already-missing file as success, not an error", async () => {
+    await expect(generatorService.deleteInvoiceFile("does-not-exist.pdf")).resolves.toBeUndefined();
   });
 });

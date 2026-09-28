@@ -1,11 +1,18 @@
+import fs from "node:fs/promises";
+import path from "node:path";
 import { generatorRepository } from "../repositories/generatorRepository.js";
 import { generatorLogRepository } from "../repositories/generatorLogRepository.js";
 import { generatorMaintenanceRepository } from "../repositories/generatorMaintenanceRepository.js";
+import { invoiceUploadDir } from "../middleware/uploadInvoice.js";
 import { NotFoundError, ConflictError, BadRequestError } from "../errors/AppError.js";
 import { logger } from "../utils/logger.js";
+import { mailer } from "../utils/mailer.js";
+import { getMaintenanceReminderRecipients } from "./notificationRecipients.js";
+import { buildMaintenanceIntervalDueEmail } from "../utils/emailTemplates/maintenanceIntervalDue.js";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const DEFAULT_ALERT_THRESHOLD_DAYS = 7;
+const DEFAULT_ALERT_THRESHOLD_HOURS = 25;
 
 // Whole UTC days since the epoch — lets us compare calendar days rather
 // than instants, so a job due "today" isn't called overdue at 10am.
@@ -25,10 +32,55 @@ function restoreUpdate(original, keys) {
   };
 }
 
+const invoiceFilePath = (storedName) => path.join(invoiceUploadDir, storedName);
+
+// Best-effort delete: a file that is already gone (ENOENT) counts as success,
+// since the end state — no file — is what was wanted either way. Exported so
+// that deleting a maintenance job outright (which bypasses removeInvoice) can
+// still clean up any invoice it had, without a second copy of this logic.
+export async function deleteInvoiceFile(storedName) {
+  try {
+    await fs.unlink(invoiceFilePath(storedName));
+  } catch (err) {
+    if (err.code !== "ENOENT") throw err;
+  }
+}
+
 async function findActiveGenerator(id) {
   const generator = await generatorRepository.findById(id);
   if (!generator || !generator.isActive) throw new NotFoundError("Generator not found");
   return generator;
+}
+
+/**
+ * Checks a just-updated generator against its own maintenanceIntervalHours
+ * (set at creation, independent of the per-job alert pipeline above) and, if
+ * hours since the last reset have reached it, flips status to
+ * "maintenance_due" and emails admins once. Best-effort and never throws —
+ * this runs after recordLog's own write has already succeeded, so a
+ * notification failure must not fail the log entry that triggered it. If the
+ * email fails, maintenanceDueNotifiedAt stays unset and the next log entry
+ * for this generator retries it.
+ */
+async function maybeFlagMaintenanceDue(generator) {
+  try {
+    if (!generator.maintenanceIntervalHours || generator.maintenanceDueNotifiedAt) return;
+
+    const hoursSinceReset = generator.runningHoursTotal - (generator.hoursAtLastMaintenanceReset || 0);
+    if (hoursSinceReset < generator.maintenanceIntervalHours) return;
+
+    if (generator.status !== "maintenance_due") {
+      await generatorRepository.updateById(generator._id, { status: "maintenance_due" });
+    }
+
+    const recipients = await getMaintenanceReminderRecipients();
+    if (recipients.length) {
+      await mailer.sendMail({ to: recipients, ...buildMaintenanceIntervalDueEmail(generator) });
+    }
+    await generatorRepository.updateById(generator._id, { maintenanceDueNotifiedAt: new Date() });
+  } catch (err) {
+    logger.error(`Could not process maintenance-due notification for generator ${generator._id}: ${err.message}`);
+  }
 }
 
 /** Whole days from `now` until the due date: 0 = today, negative = overdue. */
@@ -37,33 +89,62 @@ export function daysUntilDue(scheduledDate, now = new Date()) {
 }
 
 /**
+ * Running hours left until due (spec: "alerts after predefined running
+ * hours"), or undefined when it can't be worked out — the job doesn't track
+ * hours (no intervalHours), it has no starting point yet (no
+ * hoursAtScheduling), or the caller doesn't know the generator's current
+ * hours. Negative means overdue, mirroring daysUntilDue.
+ */
+export function hoursUntilDue(maintenance, currentRunningHours) {
+  if (!maintenance.intervalHours) return undefined;
+  if (maintenance.hoursAtScheduling === undefined || maintenance.hoursAtScheduling === null) return undefined;
+  if (typeof currentRunningHours !== "number") return undefined;
+
+  return maintenance.intervalHours - (currentRunningHours - maintenance.hoursAtScheduling);
+}
+
+/**
  * Pure function: what should we tell the user about this maintenance record
- * today? Nothing is stored — the answer depends on the date, so it is
- * computed on read.
+ * today? Nothing is stored — the answer depends on the date (and, when the
+ * job tracks them, the generator's running hours) — so it is computed on read.
  *
  *   completed / cancelled -> returned as-is (not an alert)
- *   overdue   -> due date is before today
- *   upcoming  -> due today, or within alertThresholdDays days from today
- *   scheduled -> further out than the threshold
+ *   overdue   -> the due date has passed, OR the running-hours threshold has
+ *   upcoming  -> due date or running hours are within their alert threshold
+ *   scheduled -> both are further out than their threshold (or hours can't be worked out)
+ *
+ * A job can be flagged by date, by hours, by both, or by neither — whichever
+ * comes first wins, since either one means the generator is due for service.
  */
-export function computeAlertStatus(maintenance, now = new Date()) {
+export function computeAlertStatus(maintenance, now = new Date(), currentRunningHours) {
   if (maintenance.status !== "scheduled") return maintenance.status;
 
-  const threshold = maintenance.alertThresholdDays ?? DEFAULT_ALERT_THRESHOLD_DAYS;
+  const dayThreshold = maintenance.alertThresholdDays ?? DEFAULT_ALERT_THRESHOLD_DAYS;
   const days = daysUntilDue(maintenance.scheduledDate, now);
+  const dayStatus = days < 0 ? "overdue" : days <= dayThreshold ? "upcoming" : "scheduled";
 
-  if (days < 0) return "overdue";
-  if (days <= threshold) return "upcoming";
+  const hours = hoursUntilDue(maintenance, currentRunningHours);
+  const hourThreshold = maintenance.alertThresholdHours ?? DEFAULT_ALERT_THRESHOLD_HOURS;
+  const hourStatus = hours === undefined ? "scheduled" : hours < 0 ? "overdue" : hours <= hourThreshold ? "upcoming" : "scheduled";
+
+  if (dayStatus === "overdue" || hourStatus === "overdue") return "overdue";
+  if (dayStatus === "upcoming" || hourStatus === "upcoming") return "upcoming";
   return "scheduled";
 }
 
-/** A plain-object copy of a maintenance record with its computed alert fields attached. */
-export function withAlertInfo(maintenance, now = new Date()) {
+/**
+ * A plain-object copy of a maintenance record with its computed alert fields
+ * attached. `currentRunningHours` is the owning generator's running-hours
+ * total; omit it (or pass a generator the job's hours can't be checked
+ * against) and the hours side of the alert simply has no effect.
+ */
+export function withAlertInfo(maintenance, now = new Date(), currentRunningHours) {
   const plain = typeof maintenance.toObject === "function" ? maintenance.toObject() : { ...maintenance };
   return {
     ...plain,
-    alertStatus: computeAlertStatus(plain, now),
+    alertStatus: computeAlertStatus(plain, now, currentRunningHours),
     daysUntilDue: daysUntilDue(plain.scheduledDate, now),
+    hoursUntilDue: hoursUntilDue(plain, currentRunningHours),
   };
 }
 
@@ -94,6 +175,7 @@ export function computeFuelFigures({ openingFuelLiters, closingFuelLiters, fuelA
 export const generatorService = {
   computeAlertStatus,
   computeFuelFigures,
+  deleteInvoiceFile,
 
   /**
    * Records a usage/fuel log and adds its hoursRun to the generator's
@@ -101,7 +183,8 @@ export const generatorService = {
    * writes are not a transaction, so if the increment fails the log is
    * removed again to keep the total and the log history consistent.
    * Fuel consumed and fuel cost are derived here (see computeFuelFigures)
-   * and override anything the client sent for them.
+   * and override anything the client sent for them. Afterwards, checks the
+   * generator's own maintenanceIntervalHours (see maybeFlagMaintenanceDue).
    */
   async recordLog({ generatorId, recordedBy, ...fields }) {
     await findActiveGenerator(generatorId);
@@ -120,6 +203,8 @@ export const generatorService = {
       await generatorLogRepository.deleteById(log._id);
       throw err;
     }
+
+    await maybeFlagMaintenanceDue(generator);
 
     return { log, generator };
   },
@@ -246,11 +331,18 @@ export const generatorService = {
    * keeps lastServiceDate and recurrence right).
    */
   async scheduleMaintenance({ generatorId, createdBy, ...fields }) {
-    await findActiveGenerator(generatorId);
+    const generator = await findActiveGenerator(generatorId);
 
     const allowed = withoutUndefined(fields);
     delete allowed.status; // a new job is always "scheduled"…
     delete allowed.completedDate; // …and cannot arrive already completed
+
+    // hoursAtScheduling only means something alongside intervalHours; when
+    // that's given without an explicit starting point, count from the
+    // generator's current running hours.
+    if (allowed.intervalHours !== undefined && allowed.hoursAtScheduling === undefined) {
+      allowed.hoursAtScheduling = generator.runningHoursTotal;
+    }
 
     return generatorMaintenanceRepository.create({ ...allowed, generator: generatorId, createdBy });
   },
@@ -274,18 +366,36 @@ export const generatorService = {
    * Marks a scheduled maintenance record completed, moves the generator's
    * lastServiceDate forward, and — if the record recurs (intervalDays) —
    * schedules the next one intervalDays after the day it was actually done.
+   * A job that only tracks running hours (intervalHours, no intervalDays)
+   * does NOT get an automatic next occurrence: scheduledDate is required on
+   * every job, and there is no calendar date to derive from hours alone, so
+   * a follow-up would have to be scheduled by hand.
+   *
+   * hoursAtService defaults to the generator's current runningHoursTotal when
+   * not given; a client-supplied value (including 0) always wins. When the
+   * job recurs and also tracks hours, the next occurrence's hour-based clock
+   * (hoursAtScheduling) starts from this job's own resolved hoursAtService.
    *
    * The status flip is an atomic "only if still scheduled", so a repeated or
    * racing request gets a 409 instead of a duplicate next occurrence. The
    * remaining writes are not a transaction; if one fails, the earlier ones
    * are undone so nothing is left half-completed.
+   *
+   * Also resets the generator's own hours-based maintenanceIntervalHours
+   * tracking (see maybeFlagMaintenanceDue), if it has one configured.
    */
-  async completeMaintenance(maintenanceId, { completedDate, performedBy, cost, partsReplaced, notes } = {}) {
+  async completeMaintenance(maintenanceId, { completedDate, performedBy, vendor, cost, partsReplaced, notes, hoursAtService } = {}) {
     const original = await generatorMaintenanceRepository.findById(maintenanceId);
     if (!original) throw new NotFoundError("Maintenance record not found");
 
     const when = completedDate ? new Date(completedDate) : new Date();
-    const changes = withoutUndefined({ status: "completed", completedDate: when, performedBy, cost, partsReplaced, notes });
+    // hoursAtService defaults to the generator's current running-hours total,
+    // but an explicit value (e.g. the service actually happened earlier) wins.
+    if (hoursAtService === undefined) {
+      const generator = await generatorRepository.findById(original.generator);
+      hoursAtService = generator?.runningHoursTotal;
+    }
+    const changes = withoutUndefined({ status: "completed", completedDate: when, performedBy, vendor, cost, partsReplaced, notes, hoursAtService });
 
     const maintenance = await generatorMaintenanceRepository.updateIfScheduled(maintenanceId, changes);
     if (!maintenance) throw new ConflictError("Only scheduled maintenance can be completed");
@@ -300,10 +410,26 @@ export const generatorService = {
           scheduledDate: new Date(when.getTime() + original.intervalDays * MS_PER_DAY),
           intervalDays: original.intervalDays,
           alertThresholdDays: original.alertThresholdDays,
+          intervalHours: original.intervalHours,
+          alertThresholdHours: original.alertThresholdHours,
+          // Its hour-based clock starts from this job's own resolved
+          // hoursAtService, only when this line of recurrence tracks hours.
+          hoursAtScheduling: original.intervalHours ? hoursAtService : undefined,
+          vendor: original.vendor, // the same vendor usually does the recurring job again
           createdBy: original.createdBy,
         });
       }
-      const generator = await generatorRepository.recordServiceDate(original.generator, when);
+      let generator = await generatorRepository.recordServiceDate(original.generator, when);
+      // A completed job on this generator means whatever it owed on its own
+      // hours-based interval has now been paid off: count from here again,
+      // let a future crossing email again, and drop "maintenance_due" if
+      // that's what it was flagged (a service just happened, so it can't
+      // still be due).
+      if (generator?.maintenanceIntervalHours) {
+        const resetUpdate = { $set: { hoursAtLastMaintenanceReset: hoursAtService }, $unset: { maintenanceDueNotifiedAt: 1 } };
+        if (generator.status === "maintenance_due") resetUpdate.$set.status = "operational";
+        generator = await generatorRepository.updateById(original.generator, resetUpdate);
+      }
       return { maintenance, next, generator };
     } catch (err) {
       try {
@@ -331,12 +457,88 @@ export const generatorService = {
     for (const record of open) {
       if (!record.generator || !record.generator.isActive) continue;
 
-      const view = withAlertInfo(record, now);
-      const status = withinDays === undefined ? view.alertStatus : computeAlertStatus({ ...view, alertThresholdDays: withinDays }, now);
+      const currentRunningHours = record.generator.runningHoursTotal;
+      const view = withAlertInfo(record, now, currentRunningHours);
+      const status = withinDays === undefined ? view.alertStatus : computeAlertStatus({ ...view, alertThresholdDays: withinDays }, now, currentRunningHours);
       if (status === "overdue") overdue.push({ ...view, alertStatus: status });
       else if (status === "upcoming") upcoming.push({ ...view, alertStatus: status });
     }
 
     return { counts: { overdue: overdue.length, upcoming: upcoming.length }, overdue, upcoming };
+  },
+
+  /**
+   * Attaches an invoice to a job, or replaces the one it already has. `file`
+   * is multer's req.file — already saved to disk under invoiceUploadDir by
+   * the time this runs. The database write is what actually decides whether
+   * the upload "took"; the old file (if any) is only removed once the new
+   * metadata is safely stored, and the new file is cleaned up if it isn't.
+   */
+  async attachInvoice(maintenanceId, { file, uploadedBy }) {
+    const existing = await generatorMaintenanceRepository.findById(maintenanceId);
+    if (!existing) {
+      await deleteInvoiceFile(file.filename);
+      throw new NotFoundError("Maintenance record not found");
+    }
+
+    const previousInvoice = existing.invoice;
+    let updated;
+    try {
+      updated = await generatorMaintenanceRepository.updateById(maintenanceId, {
+        invoice: {
+          fileName: file.originalname,
+          storedName: file.filename,
+          mimeType: file.mimetype,
+          size: file.size,
+          uploadedAt: new Date(),
+          uploadedBy,
+        },
+      });
+    } catch (err) {
+      await deleteInvoiceFile(file.filename).catch(() => {}); // the just-uploaded file is now orphaned
+      throw err;
+    }
+
+    if (!updated) {
+      // The record was removed between the two lookups above.
+      await deleteInvoiceFile(file.filename).catch(() => {});
+      throw new NotFoundError("Maintenance record not found");
+    }
+
+    if (previousInvoice?.storedName) {
+      await deleteInvoiceFile(previousInvoice.storedName).catch((err) =>
+        logger.warn(`Could not remove replaced invoice file ${previousInvoice.storedName}: ${err.message}`)
+      );
+    }
+
+    return updated;
+  },
+
+  /** What a controller needs to stream the file back: where it is on disk, and its original name and type. */
+  async getInvoiceFile(maintenanceId) {
+    const record = await generatorMaintenanceRepository.findById(maintenanceId);
+    if (!record) throw new NotFoundError("Maintenance record not found");
+    if (!record.invoice?.storedName) throw new NotFoundError("This maintenance record has no invoice attached");
+
+    return { filePath: invoiceFilePath(record.invoice.storedName), fileName: record.invoice.fileName, mimeType: record.invoice.mimeType };
+  },
+
+  /**
+   * Detaches the invoice — the maintenance job itself is untouched. The
+   * database is updated first (it is the source of truth for whether an
+   * invoice exists); the file is only deleted once that has succeeded, so a
+   * failed deletion just leaves a harmless orphaned file, never a record
+   * pointing at a file that is already gone.
+   */
+  async removeInvoice(maintenanceId) {
+    const record = await generatorMaintenanceRepository.findById(maintenanceId);
+    if (!record) throw new NotFoundError("Maintenance record not found");
+    if (!record.invoice?.storedName) throw new NotFoundError("This maintenance record has no invoice attached");
+
+    const updated = await generatorMaintenanceRepository.updateById(maintenanceId, { $unset: { invoice: 1 } });
+    await deleteInvoiceFile(record.invoice.storedName).catch((err) =>
+      logger.warn(`Could not remove invoice file ${record.invoice.storedName}: ${err.message}`)
+    );
+    return updated;
   },
 };

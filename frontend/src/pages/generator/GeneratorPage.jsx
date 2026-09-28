@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Zap, Wrench, AlertTriangle, Plus, Eye, Pencil, Trash2 } from "lucide-react";
 import StatCard from "../../components/common/StatCard";
+import { CardSkeleton } from "../../components/common/Loading";
 import FilterBar from "../../components/common/FilterBar";
 import Select from "../../components/common/Select";
 import Badge from "../../components/common/Badge";
@@ -17,6 +18,7 @@ const PAGE_SIZE = 10;
 const STATUS_OPTIONS = [
   { value: "operational", label: "Operational" },
   { value: "under_maintenance", label: "Under Maintenance" },
+  { value: "maintenance_due", label: "Maintenance Due" },
   { value: "faulty", label: "Faulty" },
   { value: "decommissioned", label: "Decommissioned" },
 ];
@@ -75,7 +77,9 @@ export default function GeneratorPage() {
 
   // The list endpoint only returns totals for the current filter, so the
   // three status counts are three cheap, parallel pageSize:1 requests read
-  // for their meta.totalItems — there's no dedicated stats endpoint.
+  // for their meta.totalItems — there's no dedicated stats endpoint. This is
+  // a one-time load (empty dependency array): it must not re-fire on every
+  // search/filter/page change the way depending on `items` used to.
   const [stats, setStats] = useState(null);
 
   const load = useCallback(async () => {
@@ -124,7 +128,7 @@ export default function GeneratorPage() {
     return () => {
       cancelled = true;
     };
-  }, [items]);
+  }, []);
 
   const handleSearchChange = (value) => {
     setSearch(value);
@@ -177,27 +181,37 @@ export default function GeneratorPage() {
   return (
     <div className="flex flex-col gap-5">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatCard
-          label="Operational"
-          value={stats ? stats.operational : "—"}
-          icon={Zap}
-          iconColor="text-status-success"
-          iconBg="bg-green-50"
-        />
-        <StatCard
-          label="Under Maintenance"
-          value={stats ? stats.underMaintenance : "—"}
-          icon={Wrench}
-          iconColor="text-status-warning"
-          iconBg="bg-amber-50"
-        />
-        <StatCard
-          label="Faulty"
-          value={stats ? stats.faulty : "—"}
-          icon={AlertTriangle}
-          iconColor="text-status-error"
-          iconBg="bg-red-50"
-        />
+        {stats ? (
+          <>
+            <StatCard
+              label="Operational"
+              value={stats.operational}
+              icon={Zap}
+              iconColor="text-status-success"
+              iconBg="bg-green-50"
+            />
+            <StatCard
+              label="Under Maintenance"
+              value={stats.underMaintenance}
+              icon={Wrench}
+              iconColor="text-status-warning"
+              iconBg="bg-amber-50"
+            />
+            <StatCard
+              label="Faulty"
+              value={stats.faulty}
+              icon={AlertTriangle}
+              iconColor="text-status-error"
+              iconBg="bg-red-50"
+            />
+          </>
+        ) : (
+          <>
+            <CardSkeleton />
+            <CardSkeleton />
+            <CardSkeleton />
+          </>
+        )}
       </div>
 
       <FilterBar

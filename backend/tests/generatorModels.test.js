@@ -128,8 +128,73 @@ describe("GeneratorMaintenance model", () => {
     await expect(GeneratorMaintenance.create({ ...base(), intervalDays: 90, alertThresholdDays: 0, cost: 250.5 })).resolves.toBeTruthy();
   });
 
+  it("stores vendor (trimmed) and hoursAtService, both left unset by default", async () => {
+    const bare = await GeneratorMaintenance.create(base());
+    expect(bare.vendor).toBeUndefined();
+    expect(bare.hoursAtService).toBeUndefined();
+
+    const job = await GeneratorMaintenance.create({ ...base(), vendor: "  PSO Services  ", hoursAtService: 1234.5 });
+    expect(job.vendor).toBe("PSO Services");
+    expect(job.hoursAtService).toBe(1234.5);
+
+    const zero = await GeneratorMaintenance.create({ ...base(), hoursAtService: 0 });
+    expect(zero.hoursAtService).toBe(0);
+
+    await expect(GeneratorMaintenance.create({ ...base(), hoursAtService: -1 })).rejects.toThrow();
+  });
+
+  it("stores intervalHours, hoursAtScheduling, and defaults alertThresholdHours to 25", async () => {
+    const bare = await GeneratorMaintenance.create(base());
+    expect(bare.intervalHours).toBeUndefined();
+    expect(bare.hoursAtScheduling).toBeUndefined();
+    expect(bare.alertThresholdHours).toBe(25);
+
+    const job = await GeneratorMaintenance.create({ ...base(), intervalHours: 250, alertThresholdHours: 10, hoursAtScheduling: 400 });
+    expect(job.intervalHours).toBe(250);
+    expect(job.alertThresholdHours).toBe(10);
+    expect(job.hoursAtScheduling).toBe(400);
+
+    const zero = await GeneratorMaintenance.create({ ...base(), alertThresholdHours: 0, hoursAtScheduling: 0 });
+    expect(zero.alertThresholdHours).toBe(0);
+    expect(zero.hoursAtScheduling).toBe(0);
+
+    await expect(GeneratorMaintenance.create({ ...base(), intervalHours: 0 })).rejects.toThrow();
+    await expect(GeneratorMaintenance.create({ ...base(), alertThresholdHours: -1 })).rejects.toThrow();
+    await expect(GeneratorMaintenance.create({ ...base(), hoursAtScheduling: -1 })).rejects.toThrow();
+  });
+
   it("is indexed for per-generator listing and for the alerts query", async () => {
     expect(await hasIndex(GeneratorMaintenance, { generator: 1, scheduledDate: 1 })).toBe(true);
     expect(await hasIndex(GeneratorMaintenance, { status: 1, scheduledDate: 1 })).toBe(true);
+  });
+
+  it("has no invoice at all by default, not an empty object", async () => {
+    const bare = await GeneratorMaintenance.create(base());
+    expect(bare.invoice).toBeUndefined();
+    expect("invoice" in bare.toObject()).toBe(false);
+  });
+
+  it("stores an invoice subdocument with no _id of its own, and survives a round trip", async () => {
+    const uploadedBy = oid();
+    const uploadedAt = new Date("2026-11-01T10:00:00Z");
+    const job = await GeneratorMaintenance.create({
+      ...base(),
+      invoice: { fileName: "receipt.pdf", storedName: "abc-123.pdf", mimeType: "application/pdf", size: 2048, uploadedAt, uploadedBy },
+    });
+
+    expect(job.invoice).toMatchObject({ fileName: "receipt.pdf", storedName: "abc-123.pdf", mimeType: "application/pdf", size: 2048 });
+    expect(job.invoice.uploadedBy.toString()).toBe(uploadedBy.toString());
+    expect(job.invoice._id).toBeUndefined();
+
+    const reread = await GeneratorMaintenance.findById(job._id);
+    expect(reread.invoice.fileName).toBe("receipt.pdf");
+  });
+
+  it("$unset clears the invoice back to entirely absent", async () => {
+    const job = await GeneratorMaintenance.create({ ...base(), invoice: { fileName: "x.pdf", storedName: "y.pdf" } });
+
+    const cleared = await GeneratorMaintenance.findByIdAndUpdate(job._id, { $unset: { invoice: 1 } }, { returnDocument: "after" });
+
+    expect(cleared.invoice).toBeUndefined();
   });
 });
