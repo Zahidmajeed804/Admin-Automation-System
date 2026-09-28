@@ -3,7 +3,7 @@ import { Pencil } from "lucide-react";
 import { attendanceService } from "../../services/attendanceService";
 import FilterBar from "../common/FilterBar";
 import Select from "../common/Select";
-import Input from "../common/Input";
+import DatePicker from "../common/DatePicker";
 import Button from "../common/Button";
 import Table from "../tables/Table";
 import { attendanceColumns } from "./attendanceColumns";
@@ -150,25 +150,23 @@ export default function TeamAttendanceTable() {
               onChange={(e) => setFilter("status", e.target.value)}
               options={statusOptions}
             />
-            <Input
+            <DatePicker
               label="From"
-              type="date"
-              name="startDate"
               id="team-filter-from"
               className="sm:w-40"
+              clearable
               value={filters.startDate}
               max={filters.endDate || undefined}
-              onChange={(e) => setFilter("startDate", e.target.value)}
+              onChange={(v) => setFilter("startDate", v)}
             />
-            <Input
+            <DatePicker
               label="To"
-              type="date"
-              name="endDate"
               id="team-filter-to"
               className="sm:w-40"
+              clearable
               value={filters.endDate}
               min={filters.startDate || undefined}
-              onChange={(e) => setFilter("endDate", e.target.value)}
+              onChange={(v) => setFilter("endDate", v)}
             />
           </>
         }

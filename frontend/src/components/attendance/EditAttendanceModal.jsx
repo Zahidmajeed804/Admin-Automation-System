@@ -4,6 +4,7 @@ import Modal from "../modals/Modal";
 import Button from "../common/Button";
 import Input from "../common/Input";
 import Select from "../common/Select";
+import DateTimePicker from "../common/DateTimePicker";
 import { formatDate, toDateTimeLocalValue } from "../../utils/attendanceFormat";
 import { apiErrorMessage } from "../../utils/apiError";
 
@@ -95,22 +96,18 @@ function EditForm({ record, onClose, onSaved }) {
           </div>
         )}
         <div className="grid gap-4 sm:grid-cols-2">
-          <Input
+          <DateTimePicker
             label="Clock in"
-            type="datetime-local"
-            name="clockIn"
             id="edit-clock-in"
             value={form.clockIn}
-            onChange={setField("clockIn")}
+            onChange={(v) => setForm((f) => ({ ...f, clockIn: v }))}
             error={errors.clockIn}
           />
-          <Input
+          <DateTimePicker
             label="Clock out"
-            type="datetime-local"
-            name="clockOut"
             id="edit-clock-out"
             value={form.clockOut}
-            onChange={setField("clockOut")}
+            onChange={(v) => setForm((f) => ({ ...f, clockOut: v }))}
             error={errors.clockOut}
           />
         </div>

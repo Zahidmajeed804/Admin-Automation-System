@@ -4,6 +4,7 @@ import Modal from "../modals/Modal";
 import Button from "../common/Button";
 import Input from "../common/Input";
 import Select from "../common/Select";
+import DatePicker from "../common/DatePicker";
 import { leaveTypeOptions, leaveTypeLabel, inclusiveDays } from "../../utils/leaveFormat";
 import { apiErrorMessage } from "../../utils/apiError";
 
@@ -25,8 +26,7 @@ function RequestForm({ onClose, onSubmitted }) {
 
   // Keep the range valid as dates change: a later start drags the end along, and an
   // empty end follows the start so a one-day request only needs one date picked.
-  const setStart = (e) => {
-    const startDate = e.target.value;
+  const setStart = (startDate) => {
     setForm((f) => ({ ...f, startDate, endDate: !f.endDate || f.endDate < startDate ? startDate : f.endDate }));
   };
 
@@ -132,24 +132,20 @@ function RequestForm({ onClose, onSubmitted }) {
           }
         />
         <div className="grid gap-4 sm:grid-cols-2">
-          <Input
+          <DatePicker
             label="From"
-            type="date"
-            name="startDate"
             id="leave-start"
             required
             value={form.startDate}
             onChange={setStart}
           />
-          <Input
+          <DatePicker
             label="To"
-            type="date"
-            name="endDate"
             id="leave-end"
             required
             value={form.endDate}
             min={form.startDate || undefined}
-            onChange={setField("endDate")}
+            onChange={(endDate) => setForm((f) => ({ ...f, endDate }))}
             error={rangeError || overBalanceError}
             helperText={!rangeError && !overBalanceError && days > 0 ? `${days} ${days === 1 ? "day" : "days"}` : undefined}
           />

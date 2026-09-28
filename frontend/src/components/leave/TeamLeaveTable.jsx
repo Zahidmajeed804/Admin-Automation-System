@@ -5,7 +5,7 @@ import { leaveService } from "../../services/leaveService";
 import { userService } from "../../services/userService";
 import FilterBar from "../common/FilterBar";
 import Select from "../common/Select";
-import Input from "../common/Input";
+import DatePicker from "../common/DatePicker";
 import Button from "../common/Button";
 import Badge from "../common/Badge";
 import Table from "../tables/Table";
@@ -203,25 +203,23 @@ export default function TeamLeaveTable({ canApprove, canReject, refreshKey: exte
               onChange={(e) => setFilter("status", e.target.value)}
               options={statusOptions}
             />
-            <Input
+            <DatePicker
               label="From"
-              type="date"
-              name="startDate"
               id="team-leave-filter-from"
               className="sm:w-40"
+              clearable
               value={filters.startDate}
               max={filters.endDate || undefined}
-              onChange={(e) => setFilter("startDate", e.target.value)}
+              onChange={(v) => setFilter("startDate", v)}
             />
-            <Input
+            <DatePicker
               label="To"
-              type="date"
-              name="endDate"
               id="team-leave-filter-to"
               className="sm:w-40"
+              clearable
               value={filters.endDate}
               min={filters.startDate || undefined}
-              onChange={(e) => setFilter("endDate", e.target.value)}
+              onChange={(v) => setFilter("endDate", v)}
             />
           </>
         }
