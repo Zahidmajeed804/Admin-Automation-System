@@ -5,6 +5,13 @@ import Button from "../common/Button";
 import { attendanceService } from "../../services/attendanceService";
 import { leaveService } from "../../services/leaveService";
 import { toDateStr, parseDateStr, addDays } from "../common/DatePicker";
+import { buildSampleDays } from "./attendanceCalendarSample";
+
+// Dev-only preview of every calendar state with sample data instead of a real fetch: open any
+// page that renders this component with ?calendarDemo=1 while running `npm run dev`. Gated on
+// import.meta.env.DEV so it can never appear (or be reached) in a production build.
+const isCalendarDemo = () =>
+  import.meta.env.DEV && new URLSearchParams(window.location.search).get("calendarDemo") === "1";
 
 const pad2 = (n) => String(n).padStart(2, "0");
 
@@ -62,11 +69,13 @@ export default function AttendanceCalendarContainer({ userId }) {
   const [view, setView] = useState({ year: now.getFullYear(), month: now.getMonth() });
   const [result, setResult] = useState({ key: null, days: [], failed: false });
   const [attempt, setAttempt] = useState(0);
+  const demo = isCalendarDemo();
 
   const requestKey = JSON.stringify([userId, view, attempt]);
-  const loading = result.key !== requestKey;
+  const loading = !demo && result.key !== requestKey;
 
   useEffect(() => {
+    if (demo) return;
     let cancelled = false;
     const monthStart = toDateStr(new Date(view.year, view.month, 1));
     const monthEnd = toDateStr(new Date(view.year, view.month + 1, 0));
@@ -93,7 +102,7 @@ export default function AttendanceCalendarContainer({ userId }) {
     return () => {
       cancelled = true;
     };
-  }, [userId, view, requestKey]);
+  }, [demo, userId, view, requestKey]);
 
   const changeMonth = (delta) => {
     setView(({ year, month }) => {
@@ -102,7 +111,7 @@ export default function AttendanceCalendarContainer({ userId }) {
     });
   };
 
-  if (result.failed) {
+  if (!demo && result.failed) {
     return (
       <div className="flex flex-col items-center gap-3 py-10 text-center">
         <p className="text-body text-ink-muted">Couldn't load the calendar. Please try again.</p>
@@ -113,12 +122,19 @@ export default function AttendanceCalendarContainer({ userId }) {
     );
   }
 
+  const days = demo ? buildSampleDays(view.year, view.month) : result.days;
+
   return (
     <div className={loading ? "opacity-60 transition-opacity duration-150" : undefined}>
+      {demo && (
+        <div className="mb-3 rounded-md bg-status-infoBg border border-blue-200 text-status-info text-helper px-3 py-1.5">
+          Preview — sample data, not real attendance (dev only, ?calendarDemo=1)
+        </div>
+      )}
       <AttendanceCalendar
         year={view.year}
         month={view.month}
-        days={result.days}
+        days={days}
         onPrevMonth={() => changeMonth(-1)}
         onNextMonth={() => changeMonth(1)}
       />
