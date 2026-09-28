@@ -5,6 +5,7 @@ import {
   updateUserValidator,
   listUserValidator,
   setUserStatusValidator,
+  assignLeaveAllocationAllValidator,
 } from "../validators/userValidators.js";
 import { authenticate } from "../middleware/authenticate.js";
 import { requirePermission, requireAnyPermission } from "../authorization/requirePermission.js";
@@ -27,6 +28,11 @@ router.use(requirePermission("users.manage"));
 
 router.get("/", listUserValidator, userController.list);
 router.post("/", createUserValidator, userController.create);
+router.put(
+  "/leave-allocation/all",
+  assignLeaveAllocationAllValidator,
+  userController.assignLeaveAllocationToAll
+);
 router.patch("/:id", updateUserValidator, userController.update);
 router.patch("/:id/status", setUserStatusValidator, userController.setStatus);
 

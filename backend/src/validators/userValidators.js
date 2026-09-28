@@ -77,3 +77,11 @@ export const setUserStatusValidator = [
   body("isActive").isBoolean().withMessage("isActive must be true or false").toBoolean(),
   runValidation,
 ];
+
+export const assignLeaveAllocationAllValidator = [
+  body("casual").isInt({ min: 0 }).withMessage("casual must be a non-negative integer").toInt(),
+  body("sick").isInt({ min: 0 }).withMessage("sick must be a non-negative integer").toInt(),
+  body("annual").isInt({ min: 0 }).withMessage("annual must be a non-negative integer").toInt(),
+  body("overwrite").optional().isBoolean().withMessage("overwrite must be true or false").toBoolean(),
+  runValidation,
+];

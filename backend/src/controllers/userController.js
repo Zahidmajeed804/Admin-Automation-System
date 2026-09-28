@@ -55,4 +55,18 @@ export const userController = {
       data: { user },
     });
   }),
+
+  assignLeaveAllocationToAll: asyncHandler(async (req, res) => {
+    const { casual, sick, annual, overwrite } = req.body;
+    const result = await userService.assignLeaveAllocationToAll({
+      casual,
+      sick,
+      annual,
+      overwrite: Boolean(overwrite),
+    });
+    sendSuccess(res, {
+      message: `Leave allocation applied to ${result.modified} of ${result.matched} matching staff member(s)`,
+      data: result,
+    });
+  }),
 };

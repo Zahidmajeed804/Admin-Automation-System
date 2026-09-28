@@ -99,6 +99,32 @@ export const userService = {
     return updated;
   },
 
+  // Bulk-sets the yearly leave allocation on every active account in one write.
+  // `overwrite: false` (the default) only fills accounts that look unset — all
+  // three types at 0 or missing, since there's no separate "unset" sentinel on a
+  // Number field. An admin who deliberately gave someone 0 days can always
+  // re-apply it individually afterward.
+  async assignLeaveAllocationToAll({ casual, sick, annual, overwrite = false }) {
+    const filter = { isActive: true };
+    if (!overwrite) {
+      // Accounts created before this field existed have no leaveAllocation at all —
+      // Mongoose only backfills the schema default when a document is READ, not in
+      // a raw query filter, so { casual: 0 } alone would silently skip them. $not:
+      // { $gt: 0 } matches 0, null and "field absent" alike, and only those.
+      const unset = { $not: { $gt: 0 } };
+      filter["leaveAllocation.casual"] = unset;
+      filter["leaveAllocation.sick"] = unset;
+      filter["leaveAllocation.annual"] = unset;
+    }
+
+    const result = await userRepository.updateManyLeaveAllocation(filter, {
+      "leaveAllocation.casual": casual,
+      "leaveAllocation.sick": sick,
+      "leaveAllocation.annual": annual,
+    });
+    return { matched: result.matchedCount, modified: result.modifiedCount };
+  },
+
   // Deactivating blocks login and hides the account from pickers but keeps their
   // attendance/leave/overtime history intact. `authenticate` re-checks isActive on
   // every request, so an existing token stops working on its very next call.
