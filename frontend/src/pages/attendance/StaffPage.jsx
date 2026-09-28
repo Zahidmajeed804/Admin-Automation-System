@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { UserPlus, Pencil, UserX, UserCheck } from "lucide-react";
+import { UserPlus, Pencil, UserX, UserCheck, CalendarRange } from "lucide-react";
 import { userService } from "../../services/userService";
 import { apiErrorMessage } from "../../utils/apiError";
 import PageHeader from "../../components/common/PageHeader";
@@ -11,6 +11,7 @@ import Badge from "../../components/common/Badge";
 import Table from "../../components/tables/Table";
 import ConfirmDialog from "../../components/modals/ConfirmDialog";
 import StaffFormModal from "../../components/staff/StaffFormModal";
+import AssignLeaveAllocationDialog from "../../components/staff/AssignLeaveAllocationDialog";
 
 const PAGE_SIZE = 10;
 
@@ -37,6 +38,8 @@ export default function StaffPage() {
   const [statusError, setStatusError] = useState("");
   const [formOpen, setFormOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState(null); // null = creating a new staff member
+  const [assignOpen, setAssignOpen] = useState(false);
+  const [assignResult, setAssignResult] = useState(null); // { matched, modified } from the last apply
   const [result, setResult] = useState({ key: null, items: [], pagination: null, failed: false });
 
   const requestKey = JSON.stringify([filters, page, attempt]);
@@ -154,12 +157,25 @@ export default function StaffPage() {
         title="Staff"
         description="Add staff logins, assign Employee IDs, and activate or deactivate accounts."
         action={
-          <Button icon={UserPlus} onClick={openCreate}>
-            Add staff
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" icon={CalendarRange} onClick={() => setAssignOpen(true)}>
+              Assign leaves to all
+            </Button>
+            <Button icon={UserPlus} onClick={openCreate}>
+              Add staff
+            </Button>
+          </div>
         }
       />
       <AttendanceSectionNav />
+      {assignResult && (
+        <div
+          role="status"
+          className="bg-status-successBg border border-green-200 text-status-success text-body rounded-md px-3 py-2"
+        >
+          Leave allocation applied to {assignResult.modified} of {assignResult.matched} matching staff member(s).
+        </div>
+      )}
       <div className="flex flex-col gap-4">
         <FilterBar
           search={filters.search}
@@ -223,6 +239,14 @@ export default function StaffPage() {
         onSaved={() => {
           setFormOpen(false);
           setRefreshKey((k) => k + 1);
+        }}
+      />
+      <AssignLeaveAllocationDialog
+        open={assignOpen}
+        onClose={() => setAssignOpen(false)}
+        onDone={(result) => {
+          setAssignOpen(false);
+          setAssignResult(result);
         }}
       />
     </>
