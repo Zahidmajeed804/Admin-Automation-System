@@ -6,6 +6,7 @@ import { attendanceService } from "../../services/attendanceService";
 import { leaveService } from "../../services/leaveService";
 import { toDateStr, parseDateStr, addDays } from "../common/DatePicker";
 import { buildSampleDays } from "./attendanceCalendarSample";
+import { describeError } from "../../utils/errorMessage";
 
 // Dev-only preview of every calendar state with sample data instead of a real fetch: open any
 // page that renders this component with ?calendarDemo=1 while running `npm run dev`. Gated on
@@ -67,7 +68,7 @@ const MAX_RECORDS_PER_MONTH = 100;
 export default function AttendanceCalendarContainer({ userId }) {
   const now = new Date();
   const [view, setView] = useState({ year: now.getFullYear(), month: now.getMonth() });
-  const [result, setResult] = useState({ key: null, days: [], failed: false });
+  const [result, setResult] = useState({ key: null, days: [], failed: null });
   const [attempt, setAttempt] = useState(0);
   const demo = isCalendarDemo();
 
@@ -93,11 +94,11 @@ export default function AttendanceCalendarContainer({ userId }) {
     ])
       .then(([attendance, leave]) => {
         if (cancelled) return;
-        setResult({ key: requestKey, days: buildDays(attendance.items, leave.items, monthStart, monthEnd), failed: false });
+        setResult({ key: requestKey, days: buildDays(attendance.items, leave.items, monthStart, monthEnd), failed: null });
       })
-      .catch(() => {
+      .catch((err) => {
         if (cancelled) return;
-        setResult({ key: requestKey, days: [], failed: true });
+        setResult({ key: requestKey, days: [], failed: err });
       });
     return () => {
       cancelled = true;
@@ -114,7 +115,7 @@ export default function AttendanceCalendarContainer({ userId }) {
   if (!demo && result.failed) {
     return (
       <div className="flex flex-col items-center gap-3 py-10 text-center">
-        <p className="text-body text-ink-muted">Couldn't load the calendar. Please try again.</p>
+        <p className="text-body text-ink-muted">{describeError(result.failed)}</p>
         <Button variant="secondary" size="sm" icon={RotateCcw} onClick={() => setAttempt((a) => a + 1)}>
           Retry
         </Button>

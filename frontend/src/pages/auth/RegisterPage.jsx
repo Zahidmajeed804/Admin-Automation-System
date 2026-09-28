@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ShieldCheck, Mail, Lock, User } from "lucide-react";
+import { Mail, Lock, User } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import Input from "../../components/common/Input";
 import Button from "../../components/common/Button";
@@ -43,9 +43,7 @@ export default function RegisterPage() {
     <div className="min-h-screen flex items-center justify-center bg-surface-subtle px-4 py-10">
       <div className="w-full max-w-sm flex flex-col gap-6">
         <div className="flex flex-col items-center gap-3 text-center">
-          <span className="h-11 w-11 rounded-md bg-primary flex items-center justify-center">
-            <ShieldCheck className="h-6 w-6 text-white" />
-          </span>
+          <img src="/folio3-logo.png" alt="Folio3" className="h-16 w-auto" />
           <div>
             <p className="text-page-title text-ink">Create your account</p>
             <p className="text-body text-ink-muted mt-1">Get access to the Admin Automation System</p>
