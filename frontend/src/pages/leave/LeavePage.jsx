@@ -8,6 +8,7 @@ import AttendanceSectionNav from "../../components/attendance/AttendanceSectionN
 import Tabs from "../../components/common/Tabs";
 import Button from "../../components/common/Button";
 import RequestLeaveModal from "../../components/leave/RequestLeaveModal";
+import LeaveBalanceCards from "../../components/leave/LeaveBalanceCards";
 import LeaveHistoryTable from "../../components/leave/LeaveHistoryTable";
 import PendingLeaveTable from "../../components/leave/PendingLeaveTable";
 import TeamLeaveTable from "../../components/leave/TeamLeaveTable";
@@ -63,6 +64,7 @@ export default function LeavePage() {
         }
       />
       <AttendanceSectionNav />
+      {showMine && <LeaveBalanceCards refreshKey={refreshKey} />}
       {showMine && submitted && (
         <div
           role="status"
