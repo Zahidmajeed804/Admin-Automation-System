@@ -11,11 +11,28 @@ const userSchema = new mongoose.Schema(
       trim: true,
       index: true,
     },
+    // Assigned by the admin when creating a staff login (not auto-generated). Uppercased so
+    // "emp-001" and "EMP-001" collide as the same id. `sparse` lets existing accounts and the
+    // seeded admin, which have no employeeId, keep passing the unique index.
+    employeeId: {
+      type: String,
+      trim: true,
+      uppercase: true,
+      unique: true,
+      sparse: true,
+    },
     passwordHash: { type: String, required: true, select: false },
     phone: { type: String, trim: true },
     department: { type: String, trim: true },
     isActive: { type: Boolean, default: true },
     lastLoginAt: { type: Date },
+    // Calendar days per year, set by an admin (individually or via "assign to all").
+    // Only the types that are actually limited; unpaid leave has no allocation and no cap.
+    leaveAllocation: {
+      casual: { type: Number, default: 0, min: 0 },
+      sick: { type: Number, default: 0, min: 0 },
+      annual: { type: Number, default: 0, min: 0 },
+    },
   },
   { timestamps: true }
 );

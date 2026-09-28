@@ -124,7 +124,12 @@ export default function ClockWidget({ onChange }) {
           <span className="text-body text-ink-secondary">Attendance</span>
           <p className="text-helper text-ink-muted">{hint}</p>
           {clockedOut && (
-            <div className="mt-1">
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              {attendance.earlyDepartureMinutes > 0 && (
+                <span className="text-helper text-amber-700 font-medium">
+                  Left {formatDuration(attendance.earlyDepartureMinutes)} early
+                </span>
+              )}
               <Badge status={statusBadgeKey[attendance.status]} />
             </div>
           )}

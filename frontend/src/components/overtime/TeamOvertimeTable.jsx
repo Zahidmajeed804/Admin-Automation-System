@@ -1,25 +1,24 @@
 import { useEffect, useState } from "react";
-import { Pencil } from "lucide-react";
-import { attendanceService } from "../../services/attendanceService";
+import { Check, X } from "lucide-react";
+import { useAuth } from "../../context/AuthContext";
+import { overtimeService } from "../../services/overtimeService";
+import { userService } from "../../services/userService";
 import FilterBar from "../common/FilterBar";
 import Select from "../common/Select";
 import DatePicker from "../common/DatePicker";
 import Button from "../common/Button";
+import Badge from "../common/Badge";
 import Table from "../tables/Table";
-import { attendanceColumns } from "./attendanceColumns";
-import EditAttendanceModal from "./EditAttendanceModal";
-import AttendanceCalendarContainer from "./AttendanceCalendarContainer";
-import AttendanceViewToggle from "./AttendanceViewToggle";
-import { formatDate } from "../../utils/attendanceFormat";
+import ReviewOvertimeDialog from "./ReviewOvertimeDialog";
+import { formatDate, formatDuration } from "../../utils/attendanceFormat";
 
 const PAGE_SIZE = 10;
 
 const statusOptions = [
   { value: "", label: "All statuses" },
-  { value: "present", label: "Present" },
-  { value: "half-day", label: "Half day" },
-  { value: "late", label: "Late" },
-  { value: "absent", label: "Absent" },
+  { value: "pending", label: "Pending" },
+  { value: "approved", label: "Approved" },
+  { value: "rejected", label: "Rejected" },
 ];
 
 const noFilters = { userId: "", status: "", startDate: "", endDate: "" };
@@ -36,21 +35,18 @@ const employeeColumn = {
 };
 
 /**
- * Attendance records for everyone (manager/admin view), filterable by
- * employee, status and date range. The filters map 1:1 onto the
- * GET /attendance query params; any filter change goes back to page 1.
+ * Overtime requests for everyone (reviewer view), filterable by employee,
+ * status and date range — same shape as TeamAttendanceTable. Approve/Reject
+ * appear on pending rows the signed-in reviewer didn't request themselves.
  */
-export default function TeamAttendanceTable() {
+export default function TeamOvertimeTable() {
+  const { user } = useAuth();
   const [filters, setFilters] = useState(noFilters);
   const [page, setPage] = useState(1);
   const [attempt, setAttempt] = useState(0);
-  // Bumped after an edit to re-fetch in place, without the loading skeleton.
+  // Bumped after a decision to re-fetch in place, without the loading skeleton.
   const [refreshKey, setRefreshKey] = useState(0);
-  const [editing, setEditing] = useState(null);
-  // Calendar only makes sense for one person, so it's only offered once an employee is picked;
-  // clearing that filter silently falls back to the list rather than showing an empty calendar.
-  const [view, setView] = useState("list");
-  const effectiveView = filters.userId ? view : "list";
+  const [review, setReview] = useState(null); // { request, decision }
   const [employees, setEmployees] = useState([]);
   const [employeesFailed, setEmployeesFailed] = useState(false);
   // `key` identifies the request the data belongs to; loading = it hasn't arrived yet.
@@ -61,15 +57,15 @@ export default function TeamAttendanceTable() {
   const hasFilters = Object.values(filters).some(Boolean);
 
   useEffect(() => {
-    attendanceService
-      .employees()
+    userService
+      .options()
       .then(setEmployees)
       .catch(() => setEmployeesFailed(true));
   }, []);
 
   useEffect(() => {
     let cancelled = false;
-    attendanceService
+    overtimeService
       .list({ ...filters, page, pageSize: PAGE_SIZE })
       .then(({ items, pagination }) => {
         if (!cancelled) setResult({ key: requestKey, items, pagination, failed: false });
@@ -111,21 +107,47 @@ export default function TeamAttendanceTable() {
 
   const columns = [
     employeeColumn,
-    ...attendanceColumns,
+    { key: "date", header: "Date", render: (row) => formatDate(row.date) },
+    { key: "overtimeMinutes", header: "Overtime", render: (row) => formatDuration(row.overtimeMinutes) },
+    { key: "status", header: "Status", render: (row) => <Badge status={row.status} /> },
+    { key: "reviewedBy", header: "Reviewed by", render: (row) => row.reviewedBy?.name ?? "—" },
     {
       key: "actions",
       header: "",
-      render: (row) => (
-        <Button
-          variant="ghost"
-          size="sm"
-          icon={Pencil}
-          aria-label={`Edit attendance for ${row.user?.name || "unknown user"} on ${formatDate(row.date)}`}
-          onClick={() => setEditing(row)}
-        >
-          Edit
-        </Button>
-      ),
+      render: (row) => {
+        if (row.status !== "pending") return null;
+        // The API forbids reviewing your own request, so don't offer it.
+        const own = row.user?._id === user?._id;
+        const who = row.user?.name || "unknown user";
+        const when = formatDate(row.date);
+        const hint = own ? "You can't review your own overtime request" : undefined;
+        return (
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={Check}
+              disabled={own}
+              title={hint}
+              aria-label={`Approve overtime for ${who} on ${when}`}
+              onClick={() => setReview({ request: row, decision: "approved" })}
+            >
+              Approve
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={X}
+              disabled={own}
+              title={hint}
+              aria-label={`Reject overtime for ${who} on ${when}`}
+              onClick={() => setReview({ request: row, decision: "rejected" })}
+            >
+              Reject
+            </Button>
+          </div>
+        );
+      },
     },
   ];
 
@@ -135,13 +157,12 @@ export default function TeamAttendanceTable() {
     <div className="flex flex-col gap-4">
       <FilterBar
         onReset={hasFilters ? reset : undefined}
-        actions={filters.userId ? <AttendanceViewToggle value={effectiveView} onChange={setView} /> : undefined}
         filters={
           <>
             <Select
               label="Employee"
               name="userId"
-              id="team-filter-employee"
+              id="team-overtime-filter-employee"
               className="sm:w-56"
               value={filters.userId}
               onChange={(e) => setFilter("userId", e.target.value)}
@@ -151,7 +172,7 @@ export default function TeamAttendanceTable() {
             <Select
               label="Status"
               name="status"
-              id="team-filter-status"
+              id="team-overtime-filter-status"
               className="sm:w-40"
               value={filters.status}
               onChange={(e) => setFilter("status", e.target.value)}
@@ -159,7 +180,7 @@ export default function TeamAttendanceTable() {
             />
             <DatePicker
               label="From"
-              id="team-filter-from"
+              id="team-overtime-filter-from"
               className="sm:w-40"
               clearable
               value={filters.startDate}
@@ -168,7 +189,7 @@ export default function TeamAttendanceTable() {
             />
             <DatePicker
               label="To"
-              id="team-filter-to"
+              id="team-overtime-filter-to"
               className="sm:w-40"
               clearable
               value={filters.endDate}
@@ -178,37 +199,34 @@ export default function TeamAttendanceTable() {
           </>
         }
       />
-      {effectiveView === "calendar" ? (
-        <AttendanceCalendarContainer userId={filters.userId} />
-      ) : (
-        <Table
-          columns={columns}
-          data={result.items}
-          keyField="_id"
-          loading={loading}
-          error={!loading && result.failed}
-          onRetry={() => setAttempt((a) => a + 1)}
-          emptyTitle={hasFilters ? "No matching records" : "No attendance records yet"}
-          emptyDescription={
-            hasFilters ? "Try changing or resetting the filters." : "Records appear here once employees clock in."
+      <Table
+        columns={columns}
+        data={result.items}
+        keyField="_id"
+        loading={loading}
+        error={!loading && result.failed}
+        onRetry={() => setAttempt((a) => a + 1)}
+        emptyTitle={hasFilters ? "No matching requests" : "No overtime requests yet"}
+        emptyDescription={
+          hasFilters ? "Try changing or resetting the filters." : "Requests appear here once employees clock out after standard duty hours."
+        }
+        emptyAction={hasFilters ? { label: "Reset filters", onClick: reset } : undefined}
+        pagination={
+          pagination && {
+            page: pagination.page,
+            totalPages: pagination.totalPages,
+            totalItems: pagination.totalItems,
+            pageSize: pagination.pageSize,
+            onPageChange: setPage,
           }
-          emptyAction={hasFilters ? { label: "Reset filters", onClick: reset } : undefined}
-          pagination={
-            pagination && {
-              page: pagination.page,
-              totalPages: pagination.totalPages,
-              totalItems: pagination.totalItems,
-              pageSize: pagination.pageSize,
-              onPageChange: setPage,
-            }
-          }
-        />
-      )}
-      <EditAttendanceModal
-        record={editing}
-        onClose={() => setEditing(null)}
-        onSaved={() => {
-          setEditing(null);
+        }
+      />
+      <ReviewOvertimeDialog
+        request={review?.request}
+        decision={review?.decision}
+        onClose={() => setReview(null)}
+        onDone={() => {
+          setReview(null);
           setRefreshKey((k) => k + 1);
         }}
       />
