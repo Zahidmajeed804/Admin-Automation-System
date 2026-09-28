@@ -3,6 +3,10 @@ import { cleanParams } from "../utils/cleanParams";
 
 // Staff management (admin only) — create logins, edit, activate/deactivate.
 export const userService = {
+  // Lightweight employee picker for the Team Overtime/Leave filters. Any
+  // reviewer (overtime.approve or leave.approve) can call this even without
+  // users.manage — see backend/src/routes/user.routes.js.
+  options: () => apiClient.get("/users/options").then((r) => r.data.data.users),
   // Resolves to { items, pagination } — pagination is { page, pageSize, totalItems, totalPages }.
   list: (params) =>
     apiClient

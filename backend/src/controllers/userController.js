@@ -1,8 +1,17 @@
+import { userRepository } from "../repositories/userRepository.js";
 import { userService } from "../services/userService.js";
 import { sendSuccess } from "../utils/apiResponse.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 
 export const userController = {
+  // Lightweight employee picker for the Team Overtime/Leave filters — not the
+  // full search/paginated directory, so reviewers who lack users.manage can
+  // still use it (see requireAnyPermission on this route).
+  options: asyncHandler(async (req, res) => {
+    const users = await userRepository.listAll();
+    sendSuccess(res, { message: "Employee options", data: { users } });
+  }),
+
   list: asyncHandler(async (req, res) => {
     const { search, status, page, pageSize } = req.query;
     const { items, pagination } = await userService.list({ search, status, page, pageSize });
