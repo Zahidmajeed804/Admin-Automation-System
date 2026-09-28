@@ -41,6 +41,7 @@ describe("toFormValues", () => {
       fuelTankCapacityLiters: "",
       status: "operational",
       installationDate: "",
+      maintenanceIntervalHours: "",
       notes: "",
     });
   });

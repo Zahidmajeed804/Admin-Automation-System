@@ -63,6 +63,7 @@ export const statusStyles = {
   under_maintenance: { label: "Under Maintenance", color: colors.warning, bg: "#FFFBEB" },
   faulty: { label: "Faulty", color: colors.error, bg: "#FEF2F2" },
   decommissioned: { label: "Decommissioned", color: colors.textMuted, bg: "#F8FAFC" },
+  maintenance_due: { label: "Maintenance Due", color: colors.info, bg: "#F0F9FF" },
 
   // Generator maintenance alertStatus (computed by the backend, never
   // stored — see generatorService.computeAlertStatus) plus the two real

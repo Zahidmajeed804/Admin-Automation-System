@@ -6,6 +6,9 @@ import { generatorMaintenanceRepository } from "../repositories/generatorMainten
 import { invoiceUploadDir } from "../middleware/uploadInvoice.js";
 import { NotFoundError, ConflictError, BadRequestError } from "../errors/AppError.js";
 import { logger } from "../utils/logger.js";
+import { mailer } from "../utils/mailer.js";
+import { getMaintenanceReminderRecipients } from "./notificationRecipients.js";
+import { buildMaintenanceIntervalDueEmail } from "../utils/emailTemplates/maintenanceIntervalDue.js";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const DEFAULT_ALERT_THRESHOLD_DAYS = 7;
@@ -47,6 +50,37 @@ async function findActiveGenerator(id) {
   const generator = await generatorRepository.findById(id);
   if (!generator || !generator.isActive) throw new NotFoundError("Generator not found");
   return generator;
+}
+
+/**
+ * Checks a just-updated generator against its own maintenanceIntervalHours
+ * (set at creation, independent of the per-job alert pipeline above) and, if
+ * hours since the last reset have reached it, flips status to
+ * "maintenance_due" and emails admins once. Best-effort and never throws —
+ * this runs after recordLog's own write has already succeeded, so a
+ * notification failure must not fail the log entry that triggered it. If the
+ * email fails, maintenanceDueNotifiedAt stays unset and the next log entry
+ * for this generator retries it.
+ */
+async function maybeFlagMaintenanceDue(generator) {
+  try {
+    if (!generator.maintenanceIntervalHours || generator.maintenanceDueNotifiedAt) return;
+
+    const hoursSinceReset = generator.runningHoursTotal - (generator.hoursAtLastMaintenanceReset || 0);
+    if (hoursSinceReset < generator.maintenanceIntervalHours) return;
+
+    if (generator.status !== "maintenance_due") {
+      await generatorRepository.updateById(generator._id, { status: "maintenance_due" });
+    }
+
+    const recipients = await getMaintenanceReminderRecipients();
+    if (recipients.length) {
+      await mailer.sendMail({ to: recipients, ...buildMaintenanceIntervalDueEmail(generator) });
+    }
+    await generatorRepository.updateById(generator._id, { maintenanceDueNotifiedAt: new Date() });
+  } catch (err) {
+    logger.error(`Could not process maintenance-due notification for generator ${generator._id}: ${err.message}`);
+  }
 }
 
 /** Whole days from `now` until the due date: 0 = today, negative = overdue. */
@@ -149,7 +183,8 @@ export const generatorService = {
    * writes are not a transaction, so if the increment fails the log is
    * removed again to keep the total and the log history consistent.
    * Fuel consumed and fuel cost are derived here (see computeFuelFigures)
-   * and override anything the client sent for them.
+   * and override anything the client sent for them. Afterwards, checks the
+   * generator's own maintenanceIntervalHours (see maybeFlagMaintenanceDue).
    */
   async recordLog({ generatorId, recordedBy, ...fields }) {
     await findActiveGenerator(generatorId);
@@ -168,6 +203,8 @@ export const generatorService = {
       await generatorLogRepository.deleteById(log._id);
       throw err;
     }
+
+    await maybeFlagMaintenanceDue(generator);
 
     return { log, generator };
   },
@@ -343,6 +380,9 @@ export const generatorService = {
    * racing request gets a 409 instead of a duplicate next occurrence. The
    * remaining writes are not a transaction; if one fails, the earlier ones
    * are undone so nothing is left half-completed.
+   *
+   * Also resets the generator's own hours-based maintenanceIntervalHours
+   * tracking (see maybeFlagMaintenanceDue), if it has one configured.
    */
   async completeMaintenance(maintenanceId, { completedDate, performedBy, vendor, cost, partsReplaced, notes, hoursAtService } = {}) {
     const original = await generatorMaintenanceRepository.findById(maintenanceId);
@@ -379,7 +419,17 @@ export const generatorService = {
           createdBy: original.createdBy,
         });
       }
-      const generator = await generatorRepository.recordServiceDate(original.generator, when);
+      let generator = await generatorRepository.recordServiceDate(original.generator, when);
+      // A completed job on this generator means whatever it owed on its own
+      // hours-based interval has now been paid off: count from here again,
+      // let a future crossing email again, and drop "maintenance_due" if
+      // that's what it was flagged (a service just happened, so it can't
+      // still be due).
+      if (generator?.maintenanceIntervalHours) {
+        const resetUpdate = { $set: { hoursAtLastMaintenanceReset: hoursAtService }, $unset: { maintenanceDueNotifiedAt: 1 } };
+        if (generator.status === "maintenance_due") resetUpdate.$set.status = "operational";
+        generator = await generatorRepository.updateById(original.generator, resetUpdate);
+      }
       return { maintenance, next, generator };
     } catch (err) {
       try {

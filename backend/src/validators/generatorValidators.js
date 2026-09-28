@@ -3,7 +3,7 @@ import { runValidation } from "../middleware/runValidation.js";
 
 // Must stay in sync with the enums on models/Generator.js.
 const FUEL_TYPES = ["diesel", "petrol", "gas"];
-const STATUSES = ["operational", "under_maintenance", "faulty", "decommissioned"];
+const STATUSES = ["operational", "under_maintenance", "faulty", "decommissioned", "maintenance_due"];
 
 const optionalFields = [
   body("location").optional().trim(),
@@ -18,6 +18,10 @@ const optionalFields = [
     .withMessage("fuelTankCapacityLiters must be a non-negative number"),
   body("status").optional().isIn(STATUSES).withMessage(`status must be one of: ${STATUSES.join(", ")}`),
   body("installationDate").optional().isISO8601().withMessage("installationDate must be a valid date"),
+  body("maintenanceIntervalHours")
+    .optional({ nullable: true })
+    .isFloat({ min: 1 })
+    .withMessage("maintenanceIntervalHours must be a positive number of hours, or null to remove the reminder"),
   body("notes").optional().trim(),
 ];
 

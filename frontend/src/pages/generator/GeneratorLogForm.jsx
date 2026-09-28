@@ -7,7 +7,7 @@ import { generatorService } from "../../services/generatorService";
 import { extractErrorMessage } from "./GeneratorForm";
 import { computeFuelFigures, closingExceedsAvailable } from "../../utils/fuelFigures";
 import { formatNumber } from "../../utils/formatNumber";
-import { formatDate } from "../../utils/formatDate";
+import { formatDate, todayDateValue } from "../../utils/formatDate";
 
 const BLANK = {
   generatorId: "",
@@ -110,7 +110,7 @@ export default function GeneratorLogForm({ open, onClose, onSaved, generatorOpti
 
   useEffect(() => {
     if (open) {
-      setValues(log ? toEditValues(log) : { ...BLANK, generatorId: defaultGeneratorId || "" });
+      setValues(log ? toEditValues(log) : { ...BLANK, generatorId: defaultGeneratorId || "", date: todayDateValue() });
       setFieldErrors({});
       setSubmitError(null);
     }
