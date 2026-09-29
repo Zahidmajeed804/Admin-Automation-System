@@ -20,9 +20,13 @@ export const parseDateStr = (s) => {
 export const monthLabel = (year, month) =>
   new Date(year, month, 1).toLocaleDateString([], { month: "long", year: "numeric" });
 
+// Deliberately "DD/MM/YYYY" via manual padding rather than toLocaleDateString: a locale-dependent
+// month name (e.g. "16 Sept 2026") is long enough to get clipped by the trigger's fixed width in
+// every place it's used at a narrow size (filter bars' `sm:w-40`), especially once the clear
+// button's reserved space is added on top - this stays compact and predictable at any width.
 const displayLabel = (s) => {
   const d = parseDateStr(s);
-  return d ? d.toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" }) : "";
+  return d ? `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()}` : "";
 };
 
 export const addDays = (d, n) => {

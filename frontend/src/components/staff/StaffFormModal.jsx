@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
 import { userService } from "../../services/userService";
 import Modal from "../modals/Modal";
 import Button from "../common/Button";
@@ -27,6 +28,10 @@ function StaffForm({ staff, onClose, onSaved }) {
   );
   const [saving, setSaving] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  // Validation errors only render after a submit attempt - not while the form is still empty
+  // or mid-fill, which is when `errors` below is otherwise most likely to be non-empty.
+  const [submitted, setSubmitted] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const setField = (name) => (e) => setForm((f) => ({ ...f, [name]: e.target.value }));
 
@@ -49,11 +54,12 @@ function StaffForm({ staff, onClose, onSaved }) {
     else if (!/\d/.test(password)) errors.password = "Must contain at least one number.";
   }
 
-  const canSave = Object.keys(errors).length === 0 && !saving;
+  const hasErrors = Object.keys(errors).length > 0;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!canSave) return;
+    setSubmitted(true);
+    if (hasErrors || saving) return;
 
     setSaving(true);
     setSubmitError("");
@@ -88,7 +94,7 @@ function StaffForm({ staff, onClose, onSaved }) {
           <Button variant="secondary" onClick={onClose} disabled={saving}>
             Cancel
           </Button>
-          <Button type="submit" form={FORM_ID} loading={saving} disabled={!canSave}>
+          <Button type="submit" form={FORM_ID} loading={saving} disabled={saving}>
             {isEdit ? "Save changes" : "Create staff"}
           </Button>
         </>
@@ -108,18 +114,20 @@ function StaffForm({ staff, onClose, onSaved }) {
             label="Full name"
             name="name"
             id="staff-name"
+            autoComplete="off"
             value={form.name}
             onChange={setField("name")}
-            error={errors.name}
+            error={submitted ? errors.name : undefined}
             required
           />
           <Input
             label="Employee ID"
             name="employeeId"
             id="staff-employee-id"
+            autoComplete="off"
             value={form.employeeId}
             onChange={setField("employeeId")}
-            error={errors.employeeId}
+            error={submitted ? errors.employeeId : undefined}
             placeholder="EMP-001"
             required
           />
@@ -129,22 +137,35 @@ function StaffForm({ staff, onClose, onSaved }) {
           type="email"
           name="email"
           id="staff-email"
+          autoComplete="off"
           value={form.email}
           onChange={setField("email")}
-          error={errors.email}
+          error={submitted ? errors.email : undefined}
           required
         />
         {!isEdit && (
           <Input
             label="Temporary password"
-            type="password"
+            type={showPassword ? "text" : "password"}
             name="password"
             id="staff-password"
+            autoComplete="new-password"
             value={form.password}
             onChange={setField("password")}
-            error={errors.password}
+            error={submitted ? errors.password : undefined}
             helperText="At least 8 characters, including a number. They can change it later."
             required
+            trailing={
+              <button
+                type="button"
+                onClick={() => setShowPassword((s) => !s)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                className="text-ink-muted hover:text-ink"
+                tabIndex={-1}
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            }
           />
         )}
         <div className="grid gap-4 sm:grid-cols-2">
@@ -152,6 +173,7 @@ function StaffForm({ staff, onClose, onSaved }) {
             label="Phone"
             name="phone"
             id="staff-phone"
+            autoComplete="off"
             value={form.phone}
             onChange={setField("phone")}
           />
@@ -159,6 +181,7 @@ function StaffForm({ staff, onClose, onSaved }) {
             label="Department"
             name="department"
             id="staff-department"
+            autoComplete="off"
             value={form.department}
             onChange={setField("department")}
           />

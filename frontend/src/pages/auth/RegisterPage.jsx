@@ -43,10 +43,10 @@ export default function RegisterPage() {
     <div className="min-h-screen flex items-center justify-center bg-surface-subtle px-4 py-10">
       <div className="w-full max-w-sm flex flex-col gap-6">
         <div className="flex flex-col items-center gap-3 text-center">
-          <img src="/folio3-logo.png" alt="Folio3" className="h-16 w-auto" />
+          <img src="/folio3-logo.png" alt="Folio3" className="h-20 w-auto" />
           <div>
             <p className="text-page-title text-ink">Create your account</p>
-            <p className="text-body text-ink-muted mt-1">Get access to the Admin Automation System</p>
+            <p className="text-body text-ink-muted mt-1">Fill in your details to get started</p>
           </div>
         </div>
 

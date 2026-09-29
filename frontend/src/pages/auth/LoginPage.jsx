@@ -58,11 +58,8 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-surface-subtle px-4">
       <div className="w-full max-w-sm flex flex-col gap-6">
         <div className="flex flex-col items-center gap-3 text-center">
-          <img src="/folio3-logo.png" alt="Folio3" className="h-16 w-auto" />
-          <div>
-            <p className="text-page-title text-ink">Admin Automation System</p>
-            <p className="text-body text-ink-muted mt-1">Sign in to manage administrative operations</p>
-          </div>
+          <img src="/folio3-logo.png" alt="Folio3" className="h-20 w-auto" />
+          <p className="text-body text-ink-muted">Sign in to manage administrative operations</p>
         </div>
 
         <form
