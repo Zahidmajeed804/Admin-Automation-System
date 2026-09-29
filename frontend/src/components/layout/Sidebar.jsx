@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { ShieldCheck, X } from "lucide-react";
+import { X } from "lucide-react";
 import clsx from "clsx";
 import { useAuth } from "../../context/AuthContext";
 import { navSections } from "../../constants/navigation";
@@ -13,9 +13,7 @@ export default function Sidebar({ open, onClose }) {
   const content = (
     <div className="flex h-full flex-col bg-white">
       <div className="flex items-center gap-2.5 px-5 h-16 border-b border-border flex-shrink-0">
-        <span className="h-9 w-9 rounded-md bg-primary flex items-center justify-center flex-shrink-0">
-          <ShieldCheck className="h-5 w-5 text-white" />
-        </span>
+        <img src="/folio3-logo.png" alt="Folio3" className="h-10 w-auto flex-shrink-0" />
         <div className="leading-tight">
           <p className="text-card-heading text-ink">Admin Automation</p>
           <p className="text-helper text-ink-muted">System</p>
