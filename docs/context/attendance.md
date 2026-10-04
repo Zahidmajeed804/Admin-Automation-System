@@ -14,6 +14,7 @@ Four pages under one sidebar entry ("Attendance"), switched by `AttendanceSectio
 | Overtime | `models/OvertimeRequest.js` | `overtimeRepository`, `overtimeService`, `overtimeController`, `overtimeValidators`, `overtime.routes.js` |
 | Leave | `models/LeaveRequest.js` | `leaveRepository`, `leaveService`, `leaveController`, `leaveValidators`, `leave.routes.js` |
 | Staff | `models/User.js` | `userRepository`, `userService`, `userController`, `userValidators`, `user.routes.js` |
+| Designations | `models/Designation.js` | `designationRepository`, `designationService`, `designationController`, `designationValidators`, `designation.routes.js` |
 
 Enums: `constants/attendance.js` — `ATTENDANCE_STATUSES` (present, absent, half-day, late),
 `OVERTIME_STATUSES` / `LEAVE_STATUSES` (pending, approved, rejected), `LEAVE_TYPES`
@@ -22,7 +23,11 @@ Enums: `constants/attendance.js` — `ATTENDANCE_STATUSES` (present, absent, hal
 ### Models
 
 - **Attendance** — `user`, `date` (midnight UTC; **unique `{ user, date }`**), `clockIn`, `clockOut`,
-  `workedMinutes`, `earlyDepartureMinutes` (absent on old records → UI shows "—"), `status`, `notes`.
+  `workedMinutes`, `earlyDepartureMinutes` (absent on old records → UI shows "—"), `shiftMinutes`
+  (shift the day was measured against, stored at clock-out; absent on older records), `status`, `notes`.
+- **Designation** — `name` (unique, case-insensitive collation), `shiftHours` (1–16, decimals allowed), `isActive`.
+  Deactivated, never deleted.
+- **User.designation** — optional ref to `Designation`; populated (`name shiftHours isActive`) in staff lists and `/users/options`.
 - **OvertimeRequest** — `user`, `attendance` (unique), `date`, `overtimeMinutes`, `status`, `reviewedBy`, `reviewedAt`, `reviewNote`.
 - **LeaveRequest** — `user`, `leaveType`, `startDate`/`endDate` (midnight UTC, inclusive), `totalDays`, `reason` (≤500), `status`, review fields.
 - **User.leaveAllocation** — `{ casual, sick, annual }` days per year (unpaid is unlimited).
@@ -45,14 +50,21 @@ Enums: `constants/attendance.js` — `ATTENDANCE_STATUSES` (present, absent, hal
 | `GET /users/options` | `overtime.approve` or `leave.approve` | lightweight employee list |
 | `GET /users` `?search&status&page&pageSize`, `POST /users`, `PATCH /users/:id`, `PATCH /users/:id/status` | `users.manage` | staff directory |
 | `PUT /users/leave-allocation/all` `{ casual, sick, annual, overwrite }` | `users.manage` | bulk allocation |
+| `GET /designations` `?status` | `users.manage` or `attendance.update` | sorted by name, `data: { designations }` |
+| `POST /designations` `{ name, shiftHours }`, `PATCH /designations/:id` `{ name, shiftHours, isActive }` | `users.manage` | duplicate name → 409 |
 
 ### Business rules (enforced server-side)
 
 - Worked time computed on clock-out; **< 240 min = `half-day`**, else `present`.
-- Shift = clock-in + overtime threshold (`OVERTIME_THRESHOLD_MINUTES`, default 600).
-  `earlyDepartureMinutes = max(0, threshold − worked)`. Manager corrections recompute it; `clockIn` must fall on the record's date.
-- Worked time above the threshold auto-creates a **pending OvertimeRequest** for the excess
-  (upsert on `attendance`, so it's idempotent).
+- Shift length = the person's `designation.shiftHours` × 60 (AAS-430–434), or `OVERTIME_THRESHOLD_MINUTES`
+  (default 600) when they have none; a deactivated designation still applies to its holders.
+  Stored as `Attendance.shiftMinutes` at clock-out. `earlyDepartureMinutes = max(0, shift − worked)`.
+  Manager corrections recompute it with the stored shift (older records take the current one and store it);
+  `clockIn` must fall on the record's date.
+- Worked time above the shift auto-creates a **pending OvertimeRequest** for the excess on clock-out
+  (upsert on `attendance`, so it's idempotent). Manager corrections don't create or adjust overtime.
+- Designations: assigning one requires it to exist (404) and be active (400); a person keeps a designation
+  that's deactivated later. `designationId: null` / `""` on `PATCH /users/:id` clears it.
 - Reviews are **decided once** (atomic `reviewIfPending`; second decision → 409) and **nobody reviews their own** request (403).
 - Leave can't overlap the same person's pending/approved leave (409); rejected leave frees the days.
 - Quotas (casual/sick/annual): `remaining = allocated − approved − pending`, checked **per calendar year**
@@ -69,9 +81,11 @@ Enums: `constants/attendance.js` — `ATTENDANCE_STATUSES` (present, absent, hal
 | `/attendance` | `pages/attendance/AttendancePage.jsx` | Tabs "My attendance" / "Team" (`?tab=team`, needs `attendance.update`); `ClockWidget`, `AttendanceViewToggle` (List/Calendar), `AttendanceHistoryTable`, `AttendanceCalendarContainer` → `AttendanceCalendar`, `TeamAttendanceTable`, `EditAttendanceModal` (DateTimePicker) |
 | `/attendance/overtime` | `pages/overtime/OvertimePage.jsx` | Pending / Team (`?view=team`) for `overtime.approve`: `PendingOvertimeTable`, `TeamOvertimeTable`, `ReviewOvertimeDialog`; "My overtime" `OvertimeHistoryTable` |
 | `/attendance/leave` | `pages/leave/LeavePage.jsx` | `LeaveBalanceCards`, `RequestLeaveModal` (shows remaining, blocks over-balance), `LeaveHistoryTable`, Pending/Team for approvers: `PendingLeaveTable`, `TeamLeaveTable`, `ReviewLeaveDialog` |
-| `/attendance/staff` | `pages/attendance/StaffPage.jsx` | `FilterBar` + `Table`, `StaffFormModal` (Employee ID, temp password with show/hide), `ConfirmDialog` (activate/deactivate), `AssignLeaveAllocationDialog` |
+| `/attendance/staff` | `pages/attendance/StaffPage.jsx` | `FilterBar` + `Table` (Designation column), `StaffFormModal` (Employee ID, temp password with show/hide, Designation select of active ones), `ConfirmDialog` (activate/deactivate), `AssignLeaveAllocationDialog`, `DesignationsDialog` (add/edit/(de)activate) |
 
-Services: `attendanceService`, `overtimeService`, `leaveService`, `userService` — all return `{ items, pagination }`.
+Services: `attendanceService`, `overtimeService`, `leaveService`, `userService` — all return `{ items, pagination }`;
+`designationService.list` returns a plain array (not paginated). Shift labels: `utils/designationFormat.js`
+(`formatShiftHours` → "8h" / "8h 30m", `formatDesignation`).
 Shared columns/formatting: `components/attendance/attendanceColumns.jsx`, `utils/attendanceFormat.js`, `utils/leaveFormat.js`.
 
 - **Calendar**: month grid; present days green with In/Out; red if check-in after `LATE_CHECK_IN_AFTER` ("09:00")
@@ -86,7 +100,8 @@ Shared columns/formatting: `components/attendance/attendanceColumns.jsx`, `utils
 
 AAS-91 clock in/out · AAS-96 list & edit · early-departure · AAS-280 overtime auto-trigger · AAS-290 leave
 · AAS-302 end-to-end · AAS-383–388 staff · AAS-390–392 hide self-service · AAS-394–398 team overtime/leave
-· AAS-400–406 leave quotas · AAS-408–412 date/time picker · AAS-414–420 calendar.
+· AAS-400–406 leave quotas · AAS-408–412 date/time picker · AAS-414–420 calendar
+· AAS-430–434 shift by designation.
 
 ## Not built yet
 

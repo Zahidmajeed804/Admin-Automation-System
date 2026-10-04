@@ -63,13 +63,16 @@ index), `OvertimeRequest` (one per attendance record) and `LeaveRequest`
 
 Rules the API enforces:
 - Worked time is computed on clock-out; under 4 hours is a **half-day**.
-- The shift starts at clock-in and lasts as long as the overtime threshold (10 hours).
-  Clocking out before that records an **early departure** (`earlyDepartureMinutes`, 0 for
-  a full shift). It is recalculated when a manager corrects the times. Records from before
-  this was added have no value and show "—".
-- When worked time passes the daily threshold, a **pending overtime request** for the
-  excess is created automatically. The threshold defaults to 10 hours and is set
-  with `OVERTIME_THRESHOLD_MINUTES` (600 by default).
+- The shift starts at clock-in and lasts as long as the person's **designation** says
+  (e.g. Office Boy 9h, Engineer 8h). Admins manage designations from **Staff →
+  Designations**; staff without one use the default from `OVERTIME_THRESHOLD_MINUTES`
+  (600 = 10 hours). The shift is stored on each day at clock-out (`shiftMinutes`), so
+  editing a designation later doesn't change past days.
+- Clocking out before the shift ends records an **early departure** (`earlyDepartureMinutes`,
+  0 for a full shift). It is recalculated when a manager corrects the times. Records from
+  before this was added have no value and show "—".
+- When worked time passes the shift, a **pending overtime request** for the excess is
+  created automatically.
 - A request is decided **once** (a second decision returns 409), and nobody can
   review **their own** overtime or leave request.
 - Leave cannot overlap the same person's pending or approved leave. A rejected
@@ -145,6 +148,7 @@ data removed afterwards. Each guide can be repeated by hand:
 - [`docs/verification/AAS-400-406-leave-quotas.md`](docs/verification/AAS-400-406-leave-quotas.md) — leave balances, quota enforcement, assign-to-all, full staff→approve→balance loop
 - [`docs/verification/AAS-408-412-date-time-picker.md`](docs/verification/AAS-408-412-date-time-picker.md) — the custom date/date-time picker: mouse, keyboard, ARIA, and mobile
 - [`docs/verification/AAS-414-420-attendance-calendar.md`](docs/verification/AAS-414-420-attendance-calendar.md) — the monthly attendance calendar: grid, real data, summary/legend, sample preview, mobile, and the List/Calendar toggle
+- [`docs/verification/AAS-430-434-shift-by-designation.md`](docs/verification/AAS-430-434-shift-by-designation.md) — designations with shift hours, 8h vs 9h overtime and early departure, Designations dialog and staff form field
 
 **After pulling this module, run `npm run seed` in `backend`.** It adds
 `overtime.read` to the staff role so staff can see their own overtime. It only adds
@@ -208,8 +212,9 @@ Runs on http://localhost:5000. Health check:
 `GET http://localhost:5000/api/v1/health`
 
 Optional setting: `OVERTIME_THRESHOLD_MINUTES` (default 600, i.e. 10 hours) is the
-worked time per day after which the excess counts as overtime. Set it to 1 to
-try overtime without working a full day.
+default shift for staff **without a designation**; worked time beyond it counts as
+overtime. Staff with a designation use its shift hours instead. Set it to 1 to try
+overtime without working a full day (for staff with no designation).
 
 ## Project structure
 

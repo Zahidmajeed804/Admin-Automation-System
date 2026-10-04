@@ -47,7 +47,8 @@ Register/login return `{ user, token, roles, permissions }`.
 ### User model (`models/User.js`)
 
 `name`, `email` (unique, lowercase), `employeeId` (trimmed, uppercased, unique + sparse, typed by an admin),
-`passwordHash` (`select: false`, stripped in `toJSON`), `phone`, `department`, `isActive` (default true),
+`passwordHash` (`select: false`, stripped in `toJSON`), `phone`, `department`, `designation` (ref
+`Designation`, sets the shift length — see `attendance.md`), `isActive` (default true),
 `lastLoginAt`, `leaveAllocation { casual, sick, annual }` (default 0), timestamps.
 
 ## Permission catalog
