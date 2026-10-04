@@ -42,6 +42,7 @@ export const createUserValidator = [
     .withMessage("Password must contain at least one number"),
   body("phone").optional().trim(),
   body("department").optional().trim(),
+  body("designationId").optional({ values: "falsy" }).isMongoId().withMessage("designationId must be a valid id"),
   ...leaveAllocationFields,
   runValidation,
 ];
@@ -60,6 +61,8 @@ export const updateUserValidator = [
     .withMessage(employeeIdMessage),
   body("phone").optional().trim(),
   body("department").optional().trim(),
+  // null or "" clears the designation (see userService.update).
+  body("designationId").optional({ values: "falsy" }).isMongoId().withMessage("designationId must be a valid id"),
   ...leaveAllocationFields,
   runValidation,
 ];

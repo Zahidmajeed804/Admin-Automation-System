@@ -24,6 +24,9 @@ const userSchema = new mongoose.Schema(
     passwordHash: { type: String, required: true, select: false },
     phone: { type: String, trim: true },
     department: { type: String, trim: true },
+    // Sets the length of this person's working day (Designation.shiftHours). Optional:
+    // without one, attendance falls back to the default shift (env.overtimeThresholdMinutes).
+    designation: { type: mongoose.Schema.Types.ObjectId, ref: "Designation" },
     isActive: { type: Boolean, default: true },
     lastLoginAt: { type: Date },
     // Calendar days per year, set by an admin (individually or via "assign to all").

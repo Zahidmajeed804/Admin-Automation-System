@@ -1,10 +1,23 @@
-import { userRepository } from "../repositories/userRepository.js";
+import { userRepository, DESIGNATION_FIELDS } from "../repositories/userRepository.js";
 import { rbacRepository } from "../repositories/rbacRepository.js";
+import { designationRepository } from "../repositories/designationRepository.js";
 import { hashPassword } from "../utils/password.js";
 import { BadRequestError, ConflictError, NotFoundError } from "../errors/AppError.js";
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
+
+// A designation picked for someone must exist and be active. Keeping a person on a
+// designation that was deactivated later is fine, so callers skip this when unchanged.
+async function assertAssignableDesignation(designationId) {
+  const designation = await designationRepository.findById(designationId);
+  if (!designation) {
+    throw new NotFoundError("Designation not found");
+  }
+  if (!designation.isActive) {
+    throw new BadRequestError("This designation is inactive and can't be assigned");
+  }
+}
 
 export const userService = {
   // `status` is "active", "inactive", or omitted for everyone.
@@ -34,7 +47,7 @@ export const userService = {
   // Creates a staff login and assigns the default "staff" role, the same way
   // self-registration does (authService.register). The admin can change roles
   // afterwards via the roles API.
-  async create({ name, email, employeeId, password, phone, department, leaveAllocation }) {
+  async create({ name, email, employeeId, password, phone, department, designationId, leaveAllocation }) {
     const [existingEmail, existingEmployeeId] = await Promise.all([
       userRepository.findByEmail(email),
       userRepository.findByEmployeeId(employeeId),
@@ -45,6 +58,9 @@ export const userService = {
     if (existingEmployeeId) {
       throw new ConflictError("An account with this Employee ID already exists");
     }
+    if (designationId) {
+      await assertAssignableDesignation(designationId);
+    }
 
     const passwordHash = await hashPassword(password);
     const user = await userRepository.create({
@@ -54,8 +70,10 @@ export const userService = {
       passwordHash,
       phone,
       department,
+      designation: designationId || undefined,
       leaveAllocation,
     });
+    await user.populate("designation", DESIGNATION_FIELDS);
 
     const staffRole = await rbacRepository.findRoleByName("staff");
     if (staffRole) {
@@ -65,7 +83,8 @@ export const userService = {
     return user;
   },
 
-  async update(id, { name, email, employeeId, phone, department, leaveAllocation }) {
+  // `designationId: null` (or "") removes the designation; undefined leaves it alone.
+  async update(id, { name, email, employeeId, phone, department, designationId, leaveAllocation }) {
     const existing = await userRepository.findById(id);
     if (!existing) {
       throw new NotFoundError("Staff member not found");
@@ -79,6 +98,9 @@ export const userService = {
       const clash = await userRepository.findByEmployeeId(employeeId);
       if (clash) throw new ConflictError("An account with this Employee ID already exists");
     }
+    if (designationId && String(designationId) !== String(existing.designation)) {
+      await assertAssignableDesignation(designationId);
+    }
 
     const changes = {};
     if (name !== undefined) changes.name = name;
@@ -86,6 +108,8 @@ export const userService = {
     if (employeeId !== undefined) changes.employeeId = employeeId;
     if (phone !== undefined) changes.phone = phone;
     if (department !== undefined) changes.department = department;
+    if (designationId) changes.designation = designationId;
+    else if (designationId !== undefined) changes.$unset = { designation: 1 };
     // Dot-path keys so an update to one leave type merges instead of replacing
     // the whole subdocument (and resetting the other two types to 0).
     if (leaveAllocation?.casual !== undefined) changes["leaveAllocation.casual"] = leaveAllocation.casual;

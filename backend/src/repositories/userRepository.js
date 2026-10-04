@@ -1,5 +1,8 @@
 import { User } from "../models/index.js";
 
+// What staff lists and the attendance service need to know about a designation.
+export const DESIGNATION_FIELDS = "name shiftHours isActive";
+
 export const userRepository = {
   findByEmail: (email, withPassword = false) => {
     const query = User.findOne({ email: email.toLowerCase() });
@@ -7,9 +10,15 @@ export const userRepository = {
   },
   findByEmployeeId: (employeeId) => User.findOne({ employeeId: employeeId.toUpperCase() }),
   findById: (id) => User.findById(id),
-  listAll: () => User.find().select("name email employeeId department isActive").sort({ name: 1 }),
+  findByIdWithDesignation: (id) => User.findById(id).populate("designation", DESIGNATION_FIELDS),
+  listAll: () =>
+    User.find()
+      .select("name email employeeId department designation isActive")
+      .populate("designation", DESIGNATION_FIELDS)
+      .sort({ name: 1 }),
   create: (data) => User.create(data),
-  updateById: (id, data) => User.findByIdAndUpdate(id, data, { returnDocument: "after" }),
+  updateById: (id, data) =>
+    User.findByIdAndUpdate(id, data, { returnDocument: "after" }).populate("designation", DESIGNATION_FIELDS),
   touchLastLogin: (id) => User.findByIdAndUpdate(id, { lastLoginAt: new Date() }),
   updateManyLeaveAllocation: (filter, allocation) => User.updateMany(filter, { $set: allocation }),
 
@@ -26,6 +35,7 @@ export const userRepository = {
 
     const [items, totalItems] = await Promise.all([
       User.find(query)
+        .populate("designation", DESIGNATION_FIELDS)
         .sort({ name: 1 })
         .skip((page - 1) * pageSize)
         .limit(pageSize),
