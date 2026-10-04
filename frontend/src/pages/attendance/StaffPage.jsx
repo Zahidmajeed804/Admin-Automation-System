@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { UserPlus, Pencil, UserX, UserCheck, CalendarRange } from "lucide-react";
+import { UserPlus, Pencil, UserX, UserCheck, CalendarRange, BriefcaseBusiness } from "lucide-react";
 import { userService } from "../../services/userService";
 import { apiErrorMessage } from "../../utils/apiError";
+import { formatShiftHours } from "../../utils/designationFormat";
 import PageHeader from "../../components/common/PageHeader";
 import AttendanceSectionNav from "../../components/attendance/AttendanceSectionNav";
 import FilterBar from "../../components/common/FilterBar";
@@ -12,6 +13,7 @@ import Table from "../../components/tables/Table";
 import ConfirmDialog from "../../components/modals/ConfirmDialog";
 import StaffFormModal from "../../components/staff/StaffFormModal";
 import AssignLeaveAllocationDialog from "../../components/staff/AssignLeaveAllocationDialog";
+import DesignationsDialog from "../../components/staff/DesignationsDialog";
 
 const PAGE_SIZE = 10;
 
@@ -40,6 +42,7 @@ export default function StaffPage() {
   const [editingStaff, setEditingStaff] = useState(null); // null = creating a new staff member
   const [assignOpen, setAssignOpen] = useState(false);
   const [assignResult, setAssignResult] = useState(null); // { matched, modified } from the last apply
+  const [designationsOpen, setDesignationsOpen] = useState(false);
   const [result, setResult] = useState({ key: null, items: [], pagination: null, failed: false });
 
   const requestKey = JSON.stringify([filters, page, attempt]);
@@ -112,6 +115,19 @@ export default function StaffPage() {
         </div>
       ),
     },
+    {
+      key: "designation",
+      header: "Designation",
+      render: (row) =>
+        row.designation ? (
+          <div className="flex flex-col">
+            <span className="text-ink">{row.designation.name}</span>
+            <span className="text-helper text-ink-muted">{formatShiftHours(row.designation.shiftHours)} shift</span>
+          </div>
+        ) : (
+          <span className="text-ink-muted">—</span>
+        ),
+    },
     { key: "email", header: "Email" },
     {
       key: "status",
@@ -157,7 +173,10 @@ export default function StaffPage() {
         title="Staff"
         description="Add staff logins, assign Employee IDs, and activate or deactivate accounts."
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="secondary" icon={BriefcaseBusiness} onClick={() => setDesignationsOpen(true)}>
+              Designations
+            </Button>
             <Button variant="secondary" icon={CalendarRange} onClick={() => setAssignOpen(true)}>
               Assign leaves to all
             </Button>
@@ -240,6 +259,12 @@ export default function StaffPage() {
           setFormOpen(false);
           setRefreshKey((k) => k + 1);
         }}
+      />
+      <DesignationsDialog
+        open={designationsOpen}
+        onClose={() => setDesignationsOpen(false)}
+        // Renames and shift changes show up in the Designation column.
+        onChanged={() => setRefreshKey((k) => k + 1)}
       />
       <AssignLeaveAllocationDialog
         open={assignOpen}

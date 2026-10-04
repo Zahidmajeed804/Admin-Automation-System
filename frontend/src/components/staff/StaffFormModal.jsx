@@ -1,14 +1,59 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { userService } from "../../services/userService";
+import { designationService } from "../../services/designationService";
 import Modal from "../modals/Modal";
 import Button from "../common/Button";
 import Input from "../common/Input";
+import Select from "../common/Select";
 import { apiErrorMessage } from "../../utils/apiError";
+import { formatShiftHours } from "../../utils/designationFormat";
 
 const FORM_ID = "staff-form";
 
-const emptyForm = { name: "", email: "", employeeId: "", password: "", phone: "", department: "" };
+const emptyForm = {
+  name: "",
+  email: "",
+  employeeId: "",
+  password: "",
+  phone: "",
+  department: "",
+  designationId: "",
+};
+
+const designationOption = (d) => ({
+  value: d._id,
+  label: `${d.name} (${formatShiftHours(d.shiftHours)} shift)${d.isActive ? "" : " — inactive"}`,
+});
+
+// Active designations to pick from, plus the person's current one if it has since been
+// deactivated, so editing someone doesn't silently drop it. Falls back to that current
+// one alone if the list can't be loaded.
+function useDesignationOptions(current) {
+  const [state, setState] = useState({ items: [], failed: false });
+
+  useEffect(() => {
+    let cancelled = false;
+    designationService
+      .list({ status: "active" })
+      .then((items) => {
+        if (!cancelled) setState({ items, failed: false });
+      })
+      .catch(() => {
+        if (!cancelled) setState({ items: [], failed: true });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const items = [...state.items];
+  if (current?._id && !items.some((d) => d._id === current._id)) items.push(current);
+  return {
+    options: [{ value: "", label: "No designation (default shift)" }, ...items.map(designationOption)],
+    failed: state.failed,
+  };
+}
 
 const serverMessage = (err) => apiErrorMessage(err, "Couldn't save this staff member. Please try again.");
 
@@ -23,9 +68,11 @@ function StaffForm({ staff, onClose, onSaved }) {
           password: "",
           phone: staff.phone || "",
           department: staff.department || "",
+          designationId: staff.designation?._id || "",
         }
       : emptyForm
   );
+  const designations = useDesignationOptions(staff?.designation);
   const [saving, setSaving] = useState(false);
   const [submitError, setSubmitError] = useState("");
   // Validation errors only render after a submit attempt - not while the form is still empty
@@ -67,9 +114,12 @@ function StaffForm({ staff, onClose, onSaved }) {
       const phone = form.phone.trim();
       const department = form.department.trim();
       if (isEdit) {
-        await userService.update(staff._id, { name, email, employeeId, phone, department });
+        // null clears a designation that was removed in the form.
+        const designationId = form.designationId || null;
+        await userService.update(staff._id, { name, email, employeeId, phone, department, designationId });
       } else {
-        await userService.create({ name, email, employeeId, password, phone, department });
+        const designationId = form.designationId || undefined;
+        await userService.create({ name, email, employeeId, password, phone, department, designationId });
       }
       onSaved();
     } catch (err) {
@@ -186,6 +236,19 @@ function StaffForm({ staff, onClose, onSaved }) {
             onChange={setField("department")}
           />
         </div>
+        <Select
+          label="Designation"
+          name="designationId"
+          id="staff-designation"
+          value={form.designationId}
+          onChange={setField("designationId")}
+          options={designations.options}
+          helperText={
+            designations.failed
+              ? "Couldn't load designations. You can still save; the current one is kept."
+              : "Sets their shift length. Work beyond the shift counts as overtime."
+          }
+        />
       </form>
     </Modal>
   );
