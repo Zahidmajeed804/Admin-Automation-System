@@ -23,8 +23,9 @@ export const reportRepository = {
       { $group: { _id: "$generator", hoursRun: { $sum: "$hoursRun" }, logCount: { $sum: 1 } } },
     ]),
 
-  // Fuel cost and litres bought per generator within [from, to), used to work
-  // out an average cost per litre.
+  // Fuel cost, litres bought and hours run per generator within [from, to),
+  // used to work out an average cost per running hour (hours run is a
+  // shared unit across fuel types, unlike litres/kg).
   fuelCostByGenerator: (generatorIds, from, to) =>
     GeneratorLog.aggregate([
       { $match: { generator: { $in: generatorIds }, date: { $gte: from, $lt: to } } },
@@ -33,6 +34,7 @@ export const reportRepository = {
           _id: "$generator",
           fuelCostTotal: { $sum: "$fuelCostTotal" },
           fuelAddedLiters: { $sum: "$fuelAddedLiters" },
+          hoursRun: { $sum: "$hoursRun" },
           logCount: { $sum: 1 },
         },
       },

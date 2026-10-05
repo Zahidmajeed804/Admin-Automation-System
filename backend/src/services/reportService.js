@@ -108,17 +108,19 @@ export const reportService = {
   /**
    * Monthly fuel-cost report (spec 4.2: "fuel cost"). One row per active
    * generator (or just the one requested), summed from its usage logs for
-   * the month, plus an average cost per litre bought (0 when nothing was
-   * bought, rather than a division-by-zero NaN).
+   * the month, plus an average cost per running hour (0 when nothing was
+   * run, rather than a division-by-zero NaN). Hours run — not litres/kg
+   * bought — is the basis so diesel/petrol (litres) and CNG (kg) generators
+   * are comparable on one measure; a per-fuel-unit average can't mix the two.
    */
   async getFuelCostReport({ generatorId, month } = {}) {
     const { from, to, year, month: monthNumber } = resolveMonthRange(month);
     const generators = await generatorsFor(generatorId);
     if (!generators.length) {
-      return { year, month: monthNumber, from, to, totalFuelCost: 0, averageCostPerLiter: 0, generators: [] };
+      return { year, month: monthNumber, from, to, totalFuelCost: 0, averageCostPerHour: 0, generators: [] };
     }
 
-    const rows = seedRows(generators, { fuelCostTotal: 0, fuelAddedLiters: 0, logCount: 0 });
+    const rows = seedRows(generators, { fuelCostTotal: 0, fuelAddedLiters: 0, hoursRun: 0, logCount: 0 });
     const aggregated = await reportRepository.fuelCostByGenerator(
       generators.map((g) => g._id),
       from,
@@ -129,23 +131,24 @@ export const reportService = {
       if (entry) {
         entry.fuelCostTotal = round2(row.fuelCostTotal);
         entry.fuelAddedLiters = round2(row.fuelAddedLiters);
+        entry.hoursRun = round2(row.hoursRun);
         entry.logCount = row.logCount;
       }
     }
 
     const result = [...rows.values()].map((row) => ({
       ...row,
-      averageCostPerLiter: row.fuelAddedLiters > 0 ? round2(row.fuelCostTotal / row.fuelAddedLiters) : 0,
+      averageCostPerHour: row.hoursRun > 0 ? round2(row.fuelCostTotal / row.hoursRun) : 0,
     }));
     const totalFuelCost = round2(result.reduce((sum, r) => sum + r.fuelCostTotal, 0));
-    const totalFuelAddedLiters = round2(result.reduce((sum, r) => sum + r.fuelAddedLiters, 0));
+    const totalHoursRun = round2(result.reduce((sum, r) => sum + r.hoursRun, 0));
     return {
       year,
       month: monthNumber,
       from,
       to,
       totalFuelCost,
-      averageCostPerLiter: totalFuelAddedLiters > 0 ? round2(totalFuelCost / totalFuelAddedLiters) : 0,
+      averageCostPerHour: totalHoursRun > 0 ? round2(totalFuelCost / totalHoursRun) : 0,
       generators: result,
     };
   },

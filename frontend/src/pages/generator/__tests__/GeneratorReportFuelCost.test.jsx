@@ -14,9 +14,9 @@ const REPORT = {
   month: 3,
   year: 2026,
   totalFuelCost: 90000,
-  averageCostPerLiter: 300,
+  averageCostPerHour: 3000,
   generators: [
-    { generator: { id: "g1", tag: "GEN-01" }, fuelCostTotal: 90000, fuelAddedLiters: 300, averageCostPerLiter: 300, logCount: 3 },
+    { generator: { id: "g1", tag: "GEN-01" }, fuelCostTotal: 90000, fuelAddedLiters: 300, hoursRun: 30, averageCostPerHour: 3000, logCount: 3 },
   ],
 };
 
@@ -26,10 +26,10 @@ beforeEach(() => {
 });
 
 describe("<GeneratorReportFuelCost />", () => {
-  it("shows the total-cost and average-cost stat cards and per-generator rows", async () => {
+  it("shows the total-cost and average-cost-per-hour stat cards and per-generator rows", async () => {
     render(<GeneratorReportFuelCost generatorOptions={GENERATOR_OPTIONS} />);
     expect(await screen.findByText("90,000", { selector: "div.text-2xl" })).toBeInTheDocument();
-    expect(screen.getByText("300", { selector: "div.text-2xl" })).toBeInTheDocument();
+    expect(screen.getByText("3,000", { selector: "div.text-2xl" })).toBeInTheDocument();
     expect(screen.getByText("GEN-01", { selector: "span.font-medium" })).toBeInTheDocument();
   });
 

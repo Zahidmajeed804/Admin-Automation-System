@@ -146,22 +146,38 @@ describe("reportService.getFuelConsumptionReport", () => {
 });
 
 describe("reportService.getFuelCostReport", () => {
-  it("sums fuel cost per generator for the given month and computes an average cost per litre", async () => {
+  it("sums fuel cost per generator for the given month and computes an average cost per running hour", async () => {
     const gen1 = await createGenerator();
     const gen2 = await createGenerator(); // no logs -> zeros, not an error
     const thisMonth = new Date(resolveMonthRange().from.getTime() + 86400000);
 
-    await insertLog(gen1, { date: thisMonth, fuelAddedLiters: 100, fuelCostTotal: 200 });
-    await insertLog(gen1, { date: thisMonth, fuelAddedLiters: 50, fuelCostTotal: 120 });
+    await insertLog(gen1, { date: thisMonth, hoursRun: 5, fuelAddedLiters: 100, fuelCostTotal: 200 });
+    await insertLog(gen1, { date: thisMonth, hoursRun: 3, fuelAddedLiters: 50, fuelCostTotal: 120 });
 
     const report = await reportService.getFuelCostReport({});
     const a = report.generators.find((g) => String(g.generator.id) === String(gen1._id));
     const b = report.generators.find((g) => String(g.generator.id) === String(gen2._id));
 
     expect(a.fuelCostTotal).toBe(320);
-    expect(a.averageCostPerLiter).toBe(Math.round((320 / 150) * 100) / 100);
-    expect(b).toMatchObject({ fuelCostTotal: 0, averageCostPerLiter: 0 }); // no division-by-zero NaN
+    expect(a.hoursRun).toBe(8);
+    expect(a.averageCostPerHour).toBe(Math.round((320 / 8) * 100) / 100);
+    expect(b).toMatchObject({ fuelCostTotal: 0, averageCostPerHour: 0 }); // no division-by-zero NaN
     expect(report.totalFuelCost).toBe(320);
+    expect(report.averageCostPerHour).toBe(Math.round((320 / 8) * 100) / 100);
+  });
+
+  it("averages across diesel and CNG generators the same way, since hours run (not litres/kg) is the basis", async () => {
+    const dieselGen = await createGenerator({ fuelType: "diesel" });
+    const cngGen = await createGenerator({ fuelType: "cng" });
+    const thisMonth = new Date(resolveMonthRange().from.getTime() + 86400000);
+
+    await insertLog(dieselGen, { date: thisMonth, hoursRun: 4, fuelAddedLiters: 40, fuelCostTotal: 400 });
+    await insertLog(cngGen, { date: thisMonth, hoursRun: 6, fuelAddedLiters: 30, fuelCostTotal: 600 });
+
+    const report = await reportService.getFuelCostReport({});
+
+    expect(report.totalFuelCost).toBe(1000);
+    expect(report.averageCostPerHour).toBe(100); // 1000 / (4 + 6) hours, unaffected by the litres/kg split
   });
 });
 
