@@ -3,7 +3,7 @@ import { FUEL_TYPES, DEFAULT_FUEL_TYPE } from "../constants/generator.js";
 
 const generatorSchema = new mongoose.Schema(
   {
-    tag: { type: String, required: true, unique: true, trim: true }, // asset tag, e.g. "GEN-01"
+    tag: { type: String, required: true, trim: true }, // asset tag, e.g. "GEN-01"; uniqueness is a partial index below
     name: { type: String, required: true, trim: true },
     location: { type: String, trim: true, index: true },
     make: { type: String, trim: true },
@@ -43,5 +43,10 @@ const generatorSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+// Only active generators compete for a tag: a soft-deleted/leftover
+// isActive:false document (e.g. a legacy record from before deletion became
+// permanent) must never block a new generator from reusing its tag.
+generatorSchema.index({ tag: 1 }, { unique: true, partialFilterExpression: { isActive: true } });
 
 export default mongoose.model("Generator", generatorSchema);

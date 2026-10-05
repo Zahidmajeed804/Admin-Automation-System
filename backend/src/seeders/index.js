@@ -83,6 +83,23 @@ export async function migrateGasFuelTypeToCng() {
   return result.modifiedCount;
 }
 
+// The generator tag's unique index used to apply to every document, so a
+// soft-deleted/leftover isActive:false row (from before deletion became
+// permanent) could block a new generator from reusing its tag. The model
+// now declares a partial unique index (isActive:true only) instead, but
+// Mongoose's autoIndex never drops/replaces an existing index of the same
+// name with different options — it has to be dropped explicitly first.
+// Idempotent: a second run finds no plain "tag_1" index left to drop.
+export async function migrateGeneratorTagPartialIndex() {
+  const indexes = await Generator.collection.indexes();
+  const oldIndex = indexes.find((i) => i.name === "tag_1" && !i.partialFilterExpression);
+  if (oldIndex) {
+    await Generator.collection.dropIndex("tag_1");
+    logger.info('Dropped the non-partial "tag_1" unique index on generators');
+  }
+  await Generator.collection.createIndex({ tag: 1 }, { unique: true, partialFilterExpression: { isActive: true } });
+}
+
 async function run() {
   // Same resolver override as server.js, so mongodb+srv:// Atlas URIs resolve
   // on networks whose default DNS refuses SRV lookups. Kept inside run() (not
@@ -93,6 +110,7 @@ async function run() {
   await seedRbacCatalog();
   await seedDefaultAdmin();
   await migrateGasFuelTypeToCng();
+  await migrateGeneratorTagPartialIndex();
   logger.info("RBAC seeding complete.");
   await disconnectDatabase();
   await mongoose.disconnect();

@@ -16,12 +16,18 @@ describe("Generator model", () => {
     expect(gen.lastServiceDate).toBeUndefined();
   });
 
-  it("requires a tag and a name, and keeps tags unique", async () => {
+  it("requires a tag and a name, and keeps tags unique among active generators", async () => {
     await Generator.init();
     await expect(Generator.create({ name: "No tag" })).rejects.toThrow();
     await expect(Generator.create({ tag: "T" })).rejects.toThrow();
     await Generator.create({ tag: "SAME", name: "A" });
     await expect(Generator.create({ tag: "SAME", name: "B" })).rejects.toThrow();
+  });
+
+  it("lets a new generator reuse a tag held by a soft-deleted/leftover isActive:false document", async () => {
+    await Generator.init();
+    await Generator.create({ tag: "REUSE-ME", name: "Old", isActive: false });
+    await expect(Generator.create({ tag: "REUSE-ME", name: "New" })).resolves.toMatchObject({ tag: "REUSE-ME", isActive: true });
   });
 
   it("rejects values outside the status and fuel-type lists", async () => {
