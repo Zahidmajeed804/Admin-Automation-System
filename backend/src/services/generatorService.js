@@ -9,6 +9,7 @@ import { logger } from "../utils/logger.js";
 import { mailer } from "../utils/mailer.js";
 import { getMaintenanceReminderRecipients } from "./notificationRecipients.js";
 import { buildMaintenanceIntervalDueEmail } from "../utils/emailTemplates/maintenanceIntervalDue.js";
+import { roundToMinute } from "../utils/hoursMinutes.js";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const DEFAULT_ALERT_THRESHOLD_DAYS = 7;
@@ -306,7 +307,8 @@ export const generatorService = {
     }
 
     // Signed (a correction can lower the hours), so not round2, which never goes below 0.
-    const hoursDelta = changes.hoursRun !== undefined ? Math.round((Number(changes.hoursRun) - before.hoursRun) * 100) / 100 : 0;
+    // Rounded to the nearest minute, not 2 decimals, so e.g. 20 minutes (0.333... h) round-trips exactly.
+    const hoursDelta = changes.hoursRun !== undefined ? roundToMinute(Number(changes.hoursRun) - before.hoursRun) : 0;
     let generator = null;
     if (hoursDelta !== 0) generator = await generatorRepository.incrementRunningHours(before.generator, hoursDelta);
 

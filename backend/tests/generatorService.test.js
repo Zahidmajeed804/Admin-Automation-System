@@ -283,6 +283,18 @@ describe("updateLog", () => {
     expect(await hoursOf(gen)).toBe(1.5);
   });
 
+  it("rounds the hours change to the nearest minute, not 2 decimals (20 minutes round-trips exactly)", async () => {
+    const gen = await createGenerator();
+    const { log } = await generatorService.recordLog({ generatorId: gen._id, recordedBy: userId(), hoursRun: 10 });
+
+    const { log: updated, generator } = await generatorService.updateLog(log._id, { hoursRun: 10 + 20 / 60 });
+
+    expect(updated.hoursRun).toBeCloseTo(10 + 20 / 60, 10);
+    expect(generator.runningHoursTotal).toBeCloseTo(10 + 20 / 60, 10);
+    // The old `* 100 / 100` (2-decimal) rounding would have truncated the delta to 0.33, not 1/3.
+    expect(await hoursOf(gen)).not.toBe(10.33);
+  });
+
   it("rejects an unknown log with NotFound and changes nothing", async () => {
     const gen = await createGenerator();
     await generatorService.recordLog({ generatorId: gen._id, recordedBy: userId(), hoursRun: 4 });
