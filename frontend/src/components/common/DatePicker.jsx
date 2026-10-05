@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, X } from "lucide-react";
 import clsx from "clsx";
 
@@ -90,6 +91,8 @@ export default function DatePicker({
   const [draft, setDraft] = useState(null); // staged "YYYY-MM-DD", only meaningful while open
   const [view, setView] = useState(null); // { year, month } currently shown
   const [focused, setFocused] = useState(null); // "YYYY-MM-DD" of the roving-tabindex day
+  // Viewport coordinates for the portaled popover (see the portal note below).
+  const [pos, setPos] = useState({ top: 0, left: 0 });
   const wrapperRef = useRef(null);
   const triggerRef = useRef(null);
   const popoverRef = useRef(null);
@@ -107,7 +110,12 @@ export default function DatePicker({
   useEffect(() => {
     if (!open) return;
     const onDocMouseDown = (e) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) close();
+      // The popover is portaled to <body> (see the return below), so it's
+      // no longer a DOM descendant of wrapperRef — it has to be checked
+      // separately, or every click inside it would look like a click outside.
+      if (wrapperRef.current?.contains(e.target)) return;
+      if (popoverRef.current?.contains(e.target)) return;
+      close();
     };
     document.addEventListener("mousedown", onDocMouseDown);
     return () => document.removeEventListener("mousedown", onDocMouseDown);
@@ -118,6 +126,44 @@ export default function DatePicker({
     if (!open || !focused) return;
     popoverRef.current?.querySelector(`[data-date="${focused}"]`)?.focus();
   }, [open, focused, view]);
+
+  // The popover is portaled to <body> (see the return below) so it isn't
+  // clipped by an ancestor with overflow:hidden/auto — e.g. a Modal's
+  // scrollable body, which otherwise cuts the calendar off mid-grid for a
+  // field anywhere past the fold. Portaling means it's no longer positioned
+  // by normal CSS flow relative to the trigger, so its viewport coordinates
+  // are computed here instead, and kept in sync while open since the page
+  // (or a scrollable ancestor) can scroll underneath a fixed-position popover.
+  const POPOVER_WIDTH = 288; // matches w-72
+  const POPOVER_HEIGHT_ESTIMATE = 360; // flips the popover above the trigger when this won't fit below
+  const updatePosition = () => {
+    const el = triggerRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const margin = 8;
+    let left = rect.left;
+    if (left + POPOVER_WIDTH > window.innerWidth - margin) {
+      left = Math.max(margin, window.innerWidth - POPOVER_WIDTH - margin);
+    }
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const openUpward = spaceBelow < POPOVER_HEIGHT_ESTIMATE && rect.top > POPOVER_HEIGHT_ESTIMATE;
+    const top = openUpward ? rect.top - POPOVER_HEIGHT_ESTIMATE - 4 : rect.bottom + 4;
+    setPos({ top, left });
+  };
+
+  useLayoutEffect(() => {
+    if (!open) return undefined;
+    updatePosition();
+    // Capture phase: also catches scrolling inside a scrollable ancestor
+    // (like a Modal body), not just the window itself.
+    window.addEventListener("scroll", updatePosition, true);
+    window.addEventListener("resize", updatePosition);
+    return () => {
+      window.removeEventListener("scroll", updatePosition, true);
+      window.removeEventListener("resize", updatePosition);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   const openPicker = () => {
     const start = parseDateStr(value) || new Date();
@@ -279,15 +325,18 @@ export default function DatePicker({
         <p className="text-helper text-ink-muted">{helperText}</p>
       ) : null}
 
-      {open && view && (
-        <div
-          ref={popoverRef}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Choose a date"
-          onKeyDown={onPopoverKeyDown}
-          className="absolute z-20 top-full mt-1 left-0 w-72 max-w-[calc(100vw-2rem)] bg-white rounded-card border border-border shadow-elevated p-3 flex flex-col gap-3"
-        >
+      {open &&
+        view &&
+        createPortal(
+          <div
+            ref={popoverRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Choose a date"
+            onKeyDown={onPopoverKeyDown}
+            style={{ top: pos.top, left: pos.left }}
+            className="fixed z-[60] w-72 max-w-[calc(100vw-2rem)] bg-white rounded-card border border-border shadow-elevated p-3 flex flex-col gap-3"
+          >
           <div className="flex items-center justify-between">
             <button
               type="button"
@@ -377,10 +426,11 @@ export default function DatePicker({
               className="h-9 sm:h-8 px-3 rounded-md text-sm font-medium bg-primary text-white hover:bg-primary-dark disabled:bg-blue-300 transition-colors duration-150"
             >
               OK
-            </button>
-          </div>
-        </div>
-      )}
+              </button>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

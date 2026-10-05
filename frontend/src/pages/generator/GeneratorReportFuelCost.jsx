@@ -3,7 +3,7 @@ import { Wallet, TrendingUp } from "lucide-react";
 import StatCard from "../../components/common/StatCard";
 import FilterBar from "../../components/common/FilterBar";
 import Select from "../../components/common/Select";
-import Input from "../../components/common/Input";
+import MonthPicker from "../../components/common/MonthPicker";
 import Table from "../../components/tables/Table";
 import { generatorService } from "../../services/generatorService";
 import { formatNumber } from "../../utils/formatNumber";
@@ -71,7 +71,7 @@ export default function GeneratorReportFuelCost({ generatorOptions }) {
         filters={
           <>
             <Select value={generatorId} onChange={(e) => setGeneratorId(e.target.value)} options={generatorOptions} placeholder="All generators" />
-            <Input type="month" aria-label="Month" value={month} onChange={(e) => setMonth(e.target.value)} />
+            <MonthPicker label="Month" id="fuel-cost-filter-month" className="sm:w-40" clearable value={month} onChange={setMonth} />
           </>
         }
         onReset={generatorId || month ? handleReset : undefined}

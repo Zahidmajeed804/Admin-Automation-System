@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { vi } from "vitest";
 import GeneratorReportFuelCost from "../GeneratorReportFuelCost";
 import { generatorService } from "../../../services/generatorService";
+import { pickMonth } from "../../../test/monthPicker";
 
 vi.mock("../../../services/generatorService", () => ({
   generatorService: { getFuelCostReport: vi.fn() },
@@ -38,7 +39,7 @@ describe("<GeneratorReportFuelCost />", () => {
     render(<GeneratorReportFuelCost generatorOptions={GENERATOR_OPTIONS} />);
     await screen.findByText("GEN-01", { selector: "span.font-medium" });
 
-    await user.type(screen.getByLabelText("Month"), "2026-01");
+    await pickMonth(user, "Month", "2026-01");
     await waitFor(() =>
       expect(generatorService.getFuelCostReport).toHaveBeenLastCalledWith(expect.objectContaining({ month: "2026-01" }))
     );

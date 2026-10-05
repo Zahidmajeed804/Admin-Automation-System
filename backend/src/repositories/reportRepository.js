@@ -16,10 +16,12 @@ async function resolveGenerators(generatorId) {
 export const reportRepository = {
   resolveGenerators,
 
-  // Total hours run per generator within [from, to), from the usage logs.
+  // Total hours run per generator within [from, to] (inclusive both ends —
+  // paired with resolveDateRange, same convention as fuelConsumptionByGenerator,
+  // so a single day can be queried with from === to).
   runningHoursByGenerator: (generatorIds, from, to) =>
     GeneratorLog.aggregate([
-      { $match: { generator: { $in: generatorIds }, date: { $gte: from, $lt: to } } },
+      { $match: { generator: { $in: generatorIds }, date: { $gte: from, $lte: to } } },
       { $group: { _id: "$generator", hoursRun: { $sum: "$hoursRun" }, logCount: { $sum: 1 } } },
     ]),
 

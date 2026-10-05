@@ -3,15 +3,11 @@ import { Clock3 } from "lucide-react";
 import StatCard from "../../components/common/StatCard";
 import FilterBar from "../../components/common/FilterBar";
 import Select from "../../components/common/Select";
-import Input from "../../components/common/Input";
+import DatePicker from "../../components/common/DatePicker";
 import Table from "../../components/tables/Table";
 import { generatorService } from "../../services/generatorService";
 import { formatHoursMinutes } from "../../utils/hoursMinutes";
-
-const MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
+import { formatDate } from "../../utils/formatDate";
 
 const COLUMNS = [
   { key: "generator", header: "Generator", render: (row) => <span className="font-medium text-ink">{row.generator.tag}</span> },
@@ -20,13 +16,15 @@ const COLUMNS = [
 ];
 
 /**
- * Spec 4.2's "monthly tracking of running hours" — total hours run per
- * generator for a chosen calendar month (defaults to the current one, same
- * as the backend). Zero-activity generators still show a 0 h row.
+ * Spec 4.2's "monthly tracking of running hours", widened to an arbitrary
+ * date range (defaults to "this month so far", same as the backend) so a
+ * single day can be reported on too — pick the same day for From and To.
+ * Zero-activity generators still show a 0 h row.
  */
 export default function GeneratorReportRunningHours({ generatorOptions }) {
   const [generatorId, setGeneratorId] = useState("");
-  const [month, setMonth] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
 
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -38,7 +36,8 @@ export default function GeneratorReportRunningHours({ generatorOptions }) {
     try {
       const data = await generatorService.getRunningHoursReport({
         ...(generatorId ? { generatorId } : {}),
-        ...(month ? { month } : {}),
+        ...(from ? { from } : {}),
+        ...(to ? { to } : {}),
       });
       setReport(data);
     } catch {
@@ -46,7 +45,7 @@ export default function GeneratorReportRunningHours({ generatorOptions }) {
     } finally {
       setLoading(false);
     }
-  }, [generatorId, month]);
+  }, [generatorId, from, to]);
 
   useEffect(() => {
     load();
@@ -54,10 +53,11 @@ export default function GeneratorReportRunningHours({ generatorOptions }) {
 
   const handleReset = () => {
     setGeneratorId("");
-    setMonth("");
+    setFrom("");
+    setTo("");
   };
 
-  const periodLabel = report ? `${MONTH_NAMES[report.month - 1]} ${report.year}` : "—";
+  const rangeLabel = report ? `${formatDate(report.from)} – ${formatDate(report.to)}` : "";
 
   return (
     <div className="flex flex-col gap-5">
@@ -65,14 +65,15 @@ export default function GeneratorReportRunningHours({ generatorOptions }) {
         filters={
           <>
             <Select value={generatorId} onChange={(e) => setGeneratorId(e.target.value)} options={generatorOptions} placeholder="All generators" />
-            <Input type="month" aria-label="Month" value={month} onChange={(e) => setMonth(e.target.value)} />
+            <DatePicker label="From" id="running-hours-filter-from" className="sm:w-40" clearable value={from} max={to || undefined} onChange={setFrom} />
+            <DatePicker label="To" id="running-hours-filter-to" className="sm:w-40" clearable value={to} min={from || undefined} onChange={setTo} />
           </>
         }
-        onReset={generatorId || month ? handleReset : undefined}
+        onReset={generatorId || from || to ? handleReset : undefined}
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <StatCard label={`Total Hours Run — ${periodLabel}`} value={report ? formatHoursMinutes(report.totalHoursRun) : "—"} icon={Clock3} />
+        <StatCard label={`Total Hours Run — ${rangeLabel}`} value={report ? formatHoursMinutes(report.totalHoursRun) : "—"} icon={Clock3} />
       </div>
 
       <Table

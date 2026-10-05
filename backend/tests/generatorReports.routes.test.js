@@ -38,10 +38,14 @@ describe("Generator reports API — /api/v1/generator/reports", () => {
   });
 
   describe("validation", () => {
-    it("rejects a malformed month (running-hours, fuel-cost)", async () => {
+    it("rejects a malformed month (fuel-cost)", async () => {
       const { admin } = await makeUsers();
-      expect((await as(admin).get("/reports/running-hours?month=2026-13")).status).toBe(400);
       expect((await as(admin).get("/reports/fuel-cost?month=not-a-month")).status).toBe(400);
+    });
+
+    it("rejects a malformed from/to date (running-hours)", async () => {
+      const { admin } = await makeUsers();
+      expect((await as(admin).get("/reports/running-hours?from=not-a-date")).status).toBe(400);
     });
 
     it("rejects an invalid generatorId", async () => {
@@ -59,9 +63,10 @@ describe("Generator reports API — /api/v1/generator/reports", () => {
       expect((await as(admin).get("/reports/service-history?status=bogus")).status).toBe(400);
     });
 
-    it("rejects a from after to (fuel-consumption, maintenance-cost, cost-summary)", async () => {
+    it("rejects a from after to (running-hours, fuel-consumption, maintenance-cost, cost-summary)", async () => {
       const { admin } = await makeUsers();
       const badRange = toQuery({ from: "2026-05-01", to: "2026-01-01" });
+      expect((await as(admin).get(`/reports/running-hours${badRange}`)).status).toBe(400);
       expect((await as(admin).get(`/reports/fuel-consumption${badRange}`)).status).toBe(400);
       expect((await as(admin).get(`/reports/maintenance-cost${badRange}`)).status).toBe(400);
       expect((await as(admin).get(`/reports/cost-summary${badRange}`)).status).toBe(400);
@@ -83,6 +88,19 @@ describe("Generator reports API — /api/v1/generator/reports", () => {
       expect(res.status).toBe(200);
       const row = res.body.data.generators.find((g) => g.generator.id === String(gen._id));
       expect(row.hoursRun).toBe(12);
+    });
+
+    it("running-hours report can be scoped to a single day via from=to", async () => {
+      const { admin } = await makeUsers();
+      const gen = await createGenerator();
+      const today = new Date().toISOString().slice(0, 10);
+      await GeneratorLog.create({ generator: gen._id, date: new Date(), hoursRun: 8, recordedBy: gen._id });
+      await GeneratorLog.create({ generator: gen._id, date: new Date("2020-01-01"), hoursRun: 999, recordedBy: gen._id });
+
+      const res = await as(admin).get(`/reports/running-hours${toQuery({ from: today, to: today })}`);
+      expect(res.status).toBe(200);
+      const row = res.body.data.generators.find((g) => g.generator.id === String(gen._id));
+      expect(row.hoursRun).toBe(8);
     });
 
     it("cost-summary report reflects a real completed maintenance job", async () => {

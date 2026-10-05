@@ -49,6 +49,11 @@ describe("resolveDateRange (pure)", () => {
   it("rejects a from after to", () => {
     expect(() => resolveDateRange({ from: "2026-05-01", to: "2026-01-01" })).toThrow(/from/i);
   });
+
+  it("widens an explicit to to the end of that UTC day, so from === to covers the whole day", () => {
+    const r = resolveDateRange({ from: "2026-03-15", to: "2026-03-15" });
+    expect(r.to.toISOString()).toBe("2026-03-15T23:59:59.999Z");
+  });
 });
 
 describe("resolveYearRange (pure)", () => {
@@ -64,7 +69,7 @@ describe("resolveYearRange (pure)", () => {
 });
 
 describe("reportService.getRunningHoursReport", () => {
-  it("sums hoursRun per active generator for the given month, excluding other months and soft-deleted generators", async () => {
+  it("sums hoursRun per active generator for the default range (this month so far), excluding other months and soft-deleted generators", async () => {
     const gen1 = await createGenerator();
     const gen2 = await createGenerator();
     const inactive = await createGenerator({ isActive: false });
@@ -108,6 +113,17 @@ describe("reportService.getRunningHoursReport", () => {
     const inactive = await createGenerator({ isActive: false });
     await expect(reportService.getRunningHoursReport({ generatorId: String(inactive._id) })).rejects.toMatchObject({ statusCode: 404 });
     await expect(reportService.getRunningHoursReport({ generatorId: UNKNOWN_ID })).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it("can be scoped to a single day via from === to", async () => {
+    const gen = await createGenerator();
+    await insertLog(gen, { date: new Date("2026-03-15T08:00:00.000Z"), hoursRun: 6 });
+    await insertLog(gen, { date: new Date("2026-03-15T20:00:00.000Z"), hoursRun: 2 });
+    await insertLog(gen, { date: new Date("2026-03-16T00:00:00.000Z"), hoursRun: 999 });
+    await insertLog(gen, { date: new Date("2026-03-14T23:59:00.000Z"), hoursRun: 999 });
+
+    const report = await reportService.getRunningHoursReport({ from: "2026-03-15", to: "2026-03-15" });
+    expect(report.totalHoursRun).toBe(8);
   });
 });
 

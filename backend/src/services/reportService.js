@@ -31,14 +31,22 @@ export function resolveMonthRange(month) {
  * An arbitrary [from, to] range (inclusive both ends, matching
  * generatorLogRepository.list's own from/to convention), for reports that
  * aren't locked to a calendar month. With nothing given, defaults to "this
- * month so far": from the 1st of the current UTC month, to now.
+ * month so far": from the 1st of the current UTC month, to now. An explicit
+ * `to` is widened to the end of that UTC day (23:59:59.999) so a date-only
+ * value — what every date picker in the app sends — includes everything
+ * logged that day; this is what makes from === to work as "just this one
+ * day" instead of matching only midnight-exact timestamps.
  */
 export function resolveDateRange({ from, to } = {}) {
   const now = new Date();
-  const resolvedTo = to ? new Date(to) : now;
+  const resolvedTo = to ? endOfUTCDay(new Date(to)) : now;
   const resolvedFrom = from ? new Date(from) : new Date(Date.UTC(resolvedTo.getUTCFullYear(), resolvedTo.getUTCMonth(), 1));
   if (resolvedFrom > resolvedTo) throw new BadRequestError("from must not be after to");
   return { from: resolvedFrom, to: resolvedTo };
+}
+
+function endOfUTCDay(date) {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 23, 59, 59, 999));
 }
 
 /** A calendar year as a [from, to) range, `to` exclusive. No year given defaults to the current UTC year. */
@@ -70,21 +78,22 @@ function seedRows(generators, zeroFields) {
 
 export const reportService = {
   /**
-   * Monthly running-hours report (spec 4.2: "monthly tracking of running
-   * hours"). One row per active generator (or just the one requested),
-   * summed from its usage logs for the month; generators with no logs that
-   * month still appear, at 0 hours.
+   * Running-hours report (spec 4.2: "monthly tracking of running hours",
+   * widened to an arbitrary date range so a single day can be reported on
+   * too — from and to can be the same day). One row per active generator (or
+   * just the one requested), summed from its usage logs in range; generators
+   * with no logs in range still appear, at 0 hours.
    */
-  async getRunningHoursReport({ generatorId, month } = {}) {
-    const { from, to, year, month: monthNumber } = resolveMonthRange(month);
+  async getRunningHoursReport({ generatorId, from, to } = {}) {
+    const range = resolveDateRange({ from, to });
     const generators = await generatorsFor(generatorId);
-    if (!generators.length) return { year, month: monthNumber, from, to, totalHoursRun: 0, generators: [] };
+    if (!generators.length) return { ...range, totalHoursRun: 0, generators: [] };
 
     const rows = seedRows(generators, { hoursRun: 0, logCount: 0 });
     const aggregated = await reportRepository.runningHoursByGenerator(
       generators.map((g) => g._id),
-      from,
-      to
+      range.from,
+      range.to
     );
     for (const row of aggregated) {
       const entry = rows.get(String(row._id));
@@ -96,10 +105,7 @@ export const reportService = {
 
     const result = [...rows.values()];
     return {
-      year,
-      month: monthNumber,
-      from,
-      to,
+      ...range,
       totalHoursRun: round2(result.reduce((sum, r) => sum + r.hoursRun, 0)),
       generators: result,
     };

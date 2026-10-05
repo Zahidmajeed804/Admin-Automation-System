@@ -10,7 +10,11 @@ import Button from "./Button";
 export default function FilterBar({ search, onSearchChange, searchPlaceholder, filters, onReset, actions }) {
   return (
     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 flex-wrap">
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3 flex-wrap">
+      {/* items-end, not items-center: filter controls that have a visible label above
+          their input (e.g. DatePicker) are taller than a label-less one (e.g. a bare
+          Select using only a placeholder) — centering the row left their input boxes
+          sitting at different heights, so the bottom edge is what actually lines up. */}
+      <div className="flex flex-col sm:flex-row sm:items-end gap-3 flex-wrap">
         {onSearchChange && (
           <SearchInput value={search} onChange={onSearchChange} placeholder={searchPlaceholder} />
         )}
