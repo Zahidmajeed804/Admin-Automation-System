@@ -63,7 +63,7 @@ async function generatorsFor(generatorId) {
 function seedRows(generators, zeroFields) {
   const rows = new Map();
   for (const generator of generators) {
-    rows.set(String(generator._id), { generator: { id: generator._id, tag: generator.tag, name: generator.name }, ...zeroFields });
+    rows.set(String(generator._id), { generator: { id: generator._id, tag: generator.tag, name: generator.name, fuelType: generator.fuelType }, ...zeroFields });
   }
   return rows;
 }
@@ -151,20 +151,23 @@ export const reportService = {
   },
 
   /**
-   * Diesel-consumption report (spec 4.2: "diesel consumption — additions,
-   * opening/closing fuel, consumption"). One row per active generator (or
-   * just the one requested), summed from its usage logs over an arbitrary
-   * date range; a generator with no logs in range still appears, at 0.
+   * Fuel-consumption report (spec 4.2: "diesel consumption — additions,
+   * opening/closing fuel, consumption"; widened to cover CNG too). One row
+   * per active generator (or just the one requested), summed from its usage
+   * logs over an arbitrary date range; a generator with no logs in range
+   * still appears, at 0. Diesel/petrol generators are measured in litres and
+   * CNG ones in kg, so the fleet totals are kept as two separate pairs
+   * (never summed together — adding litres to kg would be meaningless).
    */
-  async getDieselConsumptionReport({ generatorId, from, to } = {}) {
+  async getFuelConsumptionReport({ generatorId, from, to } = {}) {
     const range = resolveDateRange({ from, to });
     const generators = await generatorsFor(generatorId);
     if (!generators.length) {
-      return { ...range, totalFuelConsumedLiters: 0, totalFuelAddedLiters: 0, generators: [] };
+      return { ...range, totalFuelConsumedLiters: 0, totalFuelAddedLiters: 0, totalFuelConsumedKg: 0, totalFuelAddedKg: 0, generators: [] };
     }
 
     const rows = seedRows(generators, { fuelConsumedLiters: 0, fuelAddedLiters: 0, logCount: 0 });
-    const aggregated = await reportRepository.fuelByGenerator(
+    const aggregated = await reportRepository.fuelConsumptionByGenerator(
       generators.map((g) => g._id),
       range.from,
       range.to
@@ -179,10 +182,14 @@ export const reportService = {
     }
 
     const result = [...rows.values()];
+    const litreRows = result.filter((r) => r.generator.fuelType !== "cng");
+    const kgRows = result.filter((r) => r.generator.fuelType === "cng");
     return {
       ...range,
-      totalFuelConsumedLiters: round2(result.reduce((sum, r) => sum + r.fuelConsumedLiters, 0)),
-      totalFuelAddedLiters: round2(result.reduce((sum, r) => sum + r.fuelAddedLiters, 0)),
+      totalFuelConsumedLiters: round2(litreRows.reduce((sum, r) => sum + r.fuelConsumedLiters, 0)),
+      totalFuelAddedLiters: round2(litreRows.reduce((sum, r) => sum + r.fuelAddedLiters, 0)),
+      totalFuelConsumedKg: round2(kgRows.reduce((sum, r) => sum + r.fuelConsumedLiters, 0)),
+      totalFuelAddedKg: round2(kgRows.reduce((sum, r) => sum + r.fuelAddedLiters, 0)),
       generators: result,
     };
   },

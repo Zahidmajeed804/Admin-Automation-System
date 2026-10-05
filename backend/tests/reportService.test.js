@@ -91,7 +91,7 @@ describe("reportService.getRunningHoursReport", () => {
   it("still lists a generator with no logs this month, at 0", async () => {
     const gen = await createGenerator();
     const report = await reportService.getRunningHoursReport({});
-    expect(report.generators).toEqual([{ generator: { id: gen._id, tag: gen.tag, name: gen.name }, hoursRun: 0, logCount: 0 }]);
+    expect(report.generators).toEqual([{ generator: { id: gen._id, tag: gen.tag, name: gen.name, fuelType: gen.fuelType }, hoursRun: 0, logCount: 0 }]);
   });
 
   it("scopes to one generator via generatorId", async () => {
@@ -111,7 +111,7 @@ describe("reportService.getRunningHoursReport", () => {
   });
 });
 
-describe("reportService.getDieselConsumptionReport", () => {
+describe("reportService.getFuelConsumptionReport", () => {
   it("sums fuel added/consumed per generator within an arbitrary inclusive range", async () => {
     const gen1 = await createGenerator();
     const gen2 = await createGenerator();
@@ -120,12 +120,28 @@ describe("reportService.getDieselConsumptionReport", () => {
     await insertLog(gen2, { date: new Date("2026-03-15"), fuelAddedLiters: 20, fuelConsumedLiters: 15 });
     await insertLog(gen1, { date: new Date("2026-01-01"), fuelAddedLiters: 999, fuelConsumedLiters: 999 });
 
-    const report = await reportService.getDieselConsumptionReport({ from: "2026-03-01", to: "2026-03-31" });
+    const report = await reportService.getFuelConsumptionReport({ from: "2026-03-01", to: "2026-03-31" });
 
     const a = report.generators.find((g) => String(g.generator.id) === String(gen1._id));
     expect(a).toMatchObject({ fuelAddedLiters: 50, fuelConsumedLiters: 50, logCount: 2 });
     expect(report.totalFuelAddedLiters).toBe(70);
     expect(report.totalFuelConsumedLiters).toBe(65);
+    expect(report.totalFuelAddedKg).toBe(0);
+    expect(report.totalFuelConsumedKg).toBe(0);
+  });
+
+  it("keeps litres and kg totals separate, never summed together", async () => {
+    const dieselGen = await createGenerator({ fuelType: "diesel" });
+    const cngGen = await createGenerator({ fuelType: "cng" });
+    await insertLog(dieselGen, { date: new Date("2026-03-15"), fuelAddedLiters: 50, fuelConsumedLiters: 40 });
+    await insertLog(cngGen, { date: new Date("2026-03-15"), fuelAddedLiters: 30, fuelConsumedLiters: 25 });
+
+    const report = await reportService.getFuelConsumptionReport({ from: "2026-03-01", to: "2026-03-31" });
+
+    expect(report.totalFuelAddedLiters).toBe(50);
+    expect(report.totalFuelConsumedLiters).toBe(40);
+    expect(report.totalFuelAddedKg).toBe(30);
+    expect(report.totalFuelConsumedKg).toBe(25);
   });
 });
 

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import Tabs from "../../components/common/Tabs";
 import { generatorService } from "../../services/generatorService";
 import GeneratorReportRunningHours from "./GeneratorReportRunningHours";
-import GeneratorReportDieselConsumption from "./GeneratorReportDieselConsumption";
+import GeneratorReportFuelConsumption from "./GeneratorReportFuelConsumption";
 import GeneratorReportFuelCost from "./GeneratorReportFuelCost";
 import GeneratorReportMaintenanceCost from "./GeneratorReportMaintenanceCost";
 import GeneratorReportOperatingCost from "./GeneratorReportOperatingCost";
@@ -16,7 +16,7 @@ import GeneratorReportCostAnalysis from "./GeneratorReportCostAnalysis";
 // charted, S2.13 (its endpoint shipped back in S2.11).
 const REPORT_TABS = [
   { id: "running-hours", label: "Running Hours" },
-  { id: "diesel-consumption", label: "Diesel Consumption" },
+  { id: "fuel-consumption", label: "Fuel Consumption" },
   { id: "fuel-cost", label: "Fuel Cost" },
   { id: "maintenance-cost", label: "Maintenance Cost" },
   { id: "operating-cost", label: "Operating Cost" },
@@ -27,7 +27,7 @@ const REPORT_TABS = [
 // One component per REPORT_TABS entry.
 const REPORT_VIEWS = {
   "running-hours": GeneratorReportRunningHours,
-  "diesel-consumption": GeneratorReportDieselConsumption,
+  "fuel-consumption": GeneratorReportFuelConsumption,
   "fuel-cost": GeneratorReportFuelCost,
   "maintenance-cost": GeneratorReportMaintenanceCost,
   "operating-cost": GeneratorReportOperatingCost,

@@ -18,7 +18,7 @@ const dateRangeFilter = [
   query("to").optional().isISO8601().withMessage("to must be a valid date"),
 ];
 
-export const dieselConsumptionReportValidator = [generatorIdFilter, ...dateRangeFilter, runValidation];
+export const fuelConsumptionReportValidator = [generatorIdFilter, ...dateRangeFilter, runValidation];
 
 export const fuelCostReportValidator = [
   generatorIdFilter,

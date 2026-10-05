@@ -36,7 +36,7 @@ const CHART_COLORS = {
  * scoped to the same year/generator filter: getOperatingCostReport (totals
  * + monthly trend — it's already the yearly, 12-month-complete endpoint),
  * getCostSummaryReport (per-generator cost split, its % share unused here
- * since the bars already show relative size), and getDieselConsumptionReport
+ * since the bars already show relative size), and getFuelConsumptionReport
  * (per-generator fuel added/consumed) ranged over the same calendar year.
  */
 export default function GeneratorReportCostAnalysis({ generatorOptions }) {
@@ -45,11 +45,11 @@ export default function GeneratorReportCostAnalysis({ generatorOptions }) {
 
   const [operating, setOperating] = useState(null);
   const [costSummary, setCostSummary] = useState(null);
-  const [dieselConsumption, setDieselConsumption] = useState(null);
+  const [fuelConsumption, setFuelConsumption] = useState(null);
   const [loading, setLoading] = useState(true);
   // Only the operating-cost fetch (the totals row + trend chart) gates the
   // page-level error state, matching every other report view's "one fetch,
-  // one error state" convention — a cost-summary/diesel-consumption failure
+  // one error state" convention — a cost-summary/fuel-consumption failure
   // on its own just leaves that one chart empty, since the dashboard's core
   // numbers (fuel/maintenance/total cost) are still shown correctly.
   const [error, setError] = useState(false);
@@ -58,18 +58,18 @@ export default function GeneratorReportCostAnalysis({ generatorOptions }) {
     setLoading(true);
     setError(false);
     const resolvedYear = year || String(CURRENT_YEAR);
-    // cost-summary and diesel-consumption take an arbitrary from/to range, not
+    // cost-summary and fuel-consumption take an arbitrary from/to range, not
     // a year param like operating-cost, so the same calendar year is spelled
     // out as its own inclusive range for those two calls.
     const yearRange = { from: `${resolvedYear}-01-01`, to: `${resolvedYear}-12-31T23:59:59.999Z` };
 
     // The three fetches are independent of each other, so they run
-    // concurrently; a cost-summary/diesel-consumption failure only empties
+    // concurrently; a cost-summary/fuel-consumption failure only empties
     // its own chart, not the whole dashboard (see the `error` state above).
-    const [operatingResult, costSummaryResult, dieselResult] = await Promise.allSettled([
+    const [operatingResult, costSummaryResult, fuelConsumptionResult] = await Promise.allSettled([
       generatorService.getOperatingCostReport({ ...(generatorId ? { generatorId } : {}), ...(year ? { year } : {}) }),
       generatorService.getCostSummaryReport({ ...(generatorId ? { generatorId } : {}), ...yearRange }),
-      generatorService.getDieselConsumptionReport({ ...(generatorId ? { generatorId } : {}), ...yearRange }),
+      generatorService.getFuelConsumptionReport({ ...(generatorId ? { generatorId } : {}), ...yearRange }),
     ]);
     if (operatingResult.status === "fulfilled") {
       setOperating(operatingResult.value);
@@ -78,7 +78,7 @@ export default function GeneratorReportCostAnalysis({ generatorOptions }) {
       setError(true);
     }
     setCostSummary(costSummaryResult.status === "fulfilled" ? costSummaryResult.value : null);
-    setDieselConsumption(dieselResult.status === "fulfilled" ? dieselResult.value : null);
+    setFuelConsumption(fuelConsumptionResult.status === "fulfilled" ? fuelConsumptionResult.value : null);
     setLoading(false);
   }, [generatorId, year]);
 
@@ -104,7 +104,7 @@ export default function GeneratorReportCostAnalysis({ generatorOptions }) {
     maintenanceCost: row.maintenanceCost,
   }));
 
-  const consumptionData = (dieselConsumption?.generators ?? []).map((row) => ({
+  const consumptionData = (fuelConsumption?.generators ?? []).map((row) => ({
     name: row.generator.tag,
     fuelAddedLiters: row.fuelAddedLiters,
     fuelConsumedLiters: row.fuelConsumedLiters,

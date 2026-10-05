@@ -7,10 +7,10 @@ import { Generator, GeneratorLog, GeneratorMaintenance } from "../models/index.j
 // generator, for a fleet-wide report.
 async function resolveGenerators(generatorId) {
   if (generatorId) {
-    const generator = await Generator.findOne({ _id: generatorId, isActive: true }).select("tag name");
+    const generator = await Generator.findOne({ _id: generatorId, isActive: true }).select("tag name fuelType");
     return generator ? [generator] : [];
   }
-  return Generator.find({ isActive: true }).select("tag name").sort({ tag: 1 });
+  return Generator.find({ isActive: true }).select("tag name fuelType").sort({ tag: 1 });
 }
 
 export const reportRepository = {
@@ -47,9 +47,11 @@ export const reportRepository = {
       { $group: { _id: "$generator", fuelCostTotal: { $sum: "$fuelCostTotal" } } },
     ]),
 
-  // Diesel added/consumed per generator within [from, to] (inclusive both
-  // ends — same convention as generatorLogRepository.list's from/to).
-  fuelByGenerator: (generatorIds, from, to) =>
+  // Fuel added/consumed per generator within [from, to] (inclusive both
+  // ends — same convention as generatorLogRepository.list's from/to). Litres
+  // vs kg isn't decided here: the caller splits by each row's generator's
+  // fuelType (resolveGenerators already carries it).
+  fuelConsumptionByGenerator: (generatorIds, from, to) =>
     GeneratorLog.aggregate([
       { $match: { generator: { $in: generatorIds }, date: { $gte: from, $lte: to } } },
       {

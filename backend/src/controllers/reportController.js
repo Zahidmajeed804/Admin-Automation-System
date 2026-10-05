@@ -8,9 +8,9 @@ export const reportController = {
     sendSuccess(res, { data: report });
   }),
 
-  dieselConsumption: asyncHandler(async (req, res) => {
+  fuelConsumption: asyncHandler(async (req, res) => {
     const { generatorId, from, to } = req.query;
-    const report = await reportService.getDieselConsumptionReport({ generatorId, from, to });
+    const report = await reportService.getFuelConsumptionReport({ generatorId, from, to });
     sendSuccess(res, { data: report });
   }),
 

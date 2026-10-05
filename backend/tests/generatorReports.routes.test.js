@@ -4,7 +4,7 @@ import { GeneratorLog, GeneratorMaintenance } from "../src/models/index.js";
 // Every report endpoint, and the query each needs to pass validation cleanly.
 const ENDPOINTS = [
   ["/reports/running-hours", {}],
-  ["/reports/diesel-consumption", {}],
+  ["/reports/fuel-consumption", {}],
   ["/reports/fuel-cost", {}],
   ["/reports/maintenance-cost", {}],
   ["/reports/operating-cost", {}],
@@ -46,7 +46,7 @@ describe("Generator reports API — /api/v1/generator/reports", () => {
 
     it("rejects an invalid generatorId", async () => {
       const { admin } = await makeUsers();
-      expect((await as(admin).get("/reports/diesel-consumption?generatorId=not-an-id")).status).toBe(400);
+      expect((await as(admin).get("/reports/fuel-consumption?generatorId=not-an-id")).status).toBe(400);
     });
 
     it("rejects an out-of-range year (operating-cost)", async () => {
@@ -59,10 +59,10 @@ describe("Generator reports API — /api/v1/generator/reports", () => {
       expect((await as(admin).get("/reports/service-history?status=bogus")).status).toBe(400);
     });
 
-    it("rejects a from after to (diesel-consumption, maintenance-cost, cost-summary)", async () => {
+    it("rejects a from after to (fuel-consumption, maintenance-cost, cost-summary)", async () => {
       const { admin } = await makeUsers();
       const badRange = toQuery({ from: "2026-05-01", to: "2026-01-01" });
-      expect((await as(admin).get(`/reports/diesel-consumption${badRange}`)).status).toBe(400);
+      expect((await as(admin).get(`/reports/fuel-consumption${badRange}`)).status).toBe(400);
       expect((await as(admin).get(`/reports/maintenance-cost${badRange}`)).status).toBe(400);
       expect((await as(admin).get(`/reports/cost-summary${badRange}`)).status).toBe(400);
     });
