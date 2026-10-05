@@ -8,6 +8,7 @@ import { extractErrorMessage } from "./GeneratorForm";
 import { computeFuelFigures, closingExceedsAvailable } from "../../utils/fuelFigures";
 import { formatNumber } from "../../utils/formatNumber";
 import { formatDate, todayDateValue } from "../../utils/formatDate";
+import { fuelUnit } from "../../utils/fuelUnit";
 
 const BLANK = {
   generatorId: "",
@@ -24,14 +25,15 @@ const BLANK = {
   notes: "",
 };
 
-// Typed numbers that must be 0 or more.
+// Typed numbers that must be 0 or more. fuelCostPerLiter's label depends on
+// the generator's fuel unit (litres vs kg), so it takes a function.
 const NUMBER_FIELDS = [
-  ["meterReadingHours", "Meter reading"],
-  ["openingFuelLiters", "Opening fuel"],
-  ["fuelAddedLiters", "Fuel added"],
-  ["fuelReadingLiters", "Fuel reading"],
-  ["closingFuelLiters", "Closing fuel"],
-  ["fuelCostPerLiter", "Price per litre"],
+  ["meterReadingHours", () => "Meter reading"],
+  ["openingFuelLiters", () => "Opening fuel"],
+  ["fuelAddedLiters", () => "Fuel added"],
+  ["fuelReadingLiters", () => "Fuel reading"],
+  ["closingFuelLiters", () => "Closing fuel"],
+  ["fuelCostPerLiter", (unit) => `Price per ${unit}`],
 ];
 
 const str = (v) => (v === undefined || v === null ? "" : String(v));
@@ -96,7 +98,7 @@ const round2 = (n) => Math.round(n * 100) / 100;
  * meter then, opening fuel = the previous closing fuel). When there is no
  * previous entry to work from, those two fields become normal inputs.
  *
- * `generatorOptions` is [{ value, label }]; `defaultGeneratorId` preselects
+ * `generatorOptions` is [{ value, label, fuelType }]; `defaultGeneratorId` preselects
  * one. `onSaved(log)` fires with the created record after a successful post.
  */
 export default function GeneratorLogForm({ open, onClose, onSaved, generatorOptions, defaultGeneratorId, log = null }) {
@@ -142,6 +144,12 @@ export default function GeneratorLogForm({ open, onClose, onSaved, generatorOpti
     setFieldErrors((e) => (e[key] ? { ...e, [key]: undefined } : e));
   };
 
+  // The selected generator's fuel type decides the unit shown (L or kg).
+  // Editing works off the stored log's own generator; adding looks it up in
+  // the options list the page already fetched full generator records for.
+  const selectedFuelType = isEdit ? log.generator?.fuelType : generatorOptions.find((o) => o.value === values.generatorId)?.fuelType;
+  const unit = fuelUnit(selectedFuelType);
+
   const prev = last.log;
   const hoursFromMeter = prev?.meterReadingHours != null;
   const openingFromPrev = prev?.closingFuelLiters != null;
@@ -183,8 +191,8 @@ export default function GeneratorLogForm({ open, onClose, onSaved, generatorOpti
       next.date = `Date is before the last entry (${formatDate(prev.date)})`;
     }
 
-    for (const [key, label] of NUMBER_FIELDS) {
-      if (!next[key] && values[key] !== "" && !(Number(values[key]) >= 0)) next[key] = `${label} must be 0 or more`;
+    for (const [key, labelFor] of NUMBER_FIELDS) {
+      if (!next[key] && values[key] !== "" && !(Number(values[key]) >= 0)) next[key] = `${labelFor(unit)} must be 0 or more`;
     }
     // Same two rules the server enforces on POST /generator/logs.
     const closingKey = isEdit ? "closingFuelLiters" : "fuelReadingLiters";
@@ -194,7 +202,7 @@ export default function GeneratorLogForm({ open, onClose, onSaved, generatorOpti
         : "Fuel reading is higher than the opening fuel. Enter any fuel poured in under Fuel Added.";
     }
     if (!next.fuelCostPerLiter && values.fuelCostPerLiter !== "" && !(Number(values.fuelAddedLiters) > 0)) {
-      next.fuelCostPerLiter = "Enter the litres added to use a price per litre";
+      next.fuelCostPerLiter = `Enter the ${unit} added to use a price per ${unit}`;
     }
     setFieldErrors(next);
     return Object.keys(next).length === 0;
@@ -232,7 +240,7 @@ export default function GeneratorLogForm({ open, onClose, onSaved, generatorOpti
   else if (last.status === "ready") {
     const parts = [];
     if (hoursFromMeter) parts.push(`meter ${formatNumber(prev.meterReadingHours)} h`);
-    if (openingFromPrev) parts.push(`closing fuel ${formatNumber(prev.closingFuelLiters)} L`);
+    if (openingFromPrev) parts.push(`closing fuel ${formatNumber(prev.closingFuelLiters)} ${unit}`);
     lastEntryNote = parts.length
       ? `Last entry ${formatDate(prev.date)}: ${parts.join(", ")}. Hours run and opening fuel are worked out from it.`
       : `Last entry ${formatDate(prev.date)} has no meter or fuel reading, so enter hours run and opening fuel by hand.`;
@@ -320,20 +328,20 @@ export default function GeneratorLogForm({ open, onClose, onSaved, generatorOpti
           {openingFromPrev ? (
             <Input
               id="log-openingFuelLiters"
-              label="Opening Fuel (L)"
+              label={`Opening Fuel (${unit})`}
               disabled
               value={formatNumber(prev.closingFuelLiters)}
               helperText="Closing fuel of the last entry"
             />
           ) : (
-            <Input id="log-openingFuelLiters" label="Opening Fuel (L)" type="number" min="0" value={values.openingFuelLiters} onChange={setField("openingFuelLiters")} error={fieldErrors.openingFuelLiters} />
+            <Input id="log-openingFuelLiters" label={`Opening Fuel (${unit})`} type="number" min="0" value={values.openingFuelLiters} onChange={setField("openingFuelLiters")} error={fieldErrors.openingFuelLiters} />
           )}
           {isEdit ? (
-            <Input id="log-closingFuelLiters" label="Closing Fuel (L)" type="number" min="0" value={values.closingFuelLiters} onChange={setField("closingFuelLiters")} error={fieldErrors.closingFuelLiters} />
+            <Input id="log-closingFuelLiters" label={`Closing Fuel (${unit})`} type="number" min="0" value={values.closingFuelLiters} onChange={setField("closingFuelLiters")} error={fieldErrors.closingFuelLiters} />
           ) : (
             <Input
               id="log-fuelReadingLiters"
-              label="Fuel Reading (L)"
+              label={`Fuel Reading (${unit})`}
               type="number"
               min="0"
               value={values.fuelReadingLiters}
@@ -345,25 +353,25 @@ export default function GeneratorLogForm({ open, onClose, onSaved, generatorOpti
 
           <Input
             id="log-fuelAddedLiters"
-            label={prev ? "Fuel Added Since Last Entry (L)" : "Fuel Added (L)"}
+            label={prev ? `Fuel Added Since Last Entry (${unit})` : `Fuel Added (${unit})`}
             type="number"
             min="0"
             value={values.fuelAddedLiters}
             onChange={setField("fuelAddedLiters")}
-            helperText={prev ? "Litres poured in after the last entry. Leave empty if none." : undefined}
+            helperText={prev ? `${unit === "kg" ? "Kilograms" : "Litres"} poured in after the last entry. Leave empty if none.` : undefined}
             error={fieldErrors.fuelAddedLiters}
           />
           {!isEdit && (
             <Input
               id="log-closingFuelLiters"
-              label="Closing Fuel (L)"
+              label={`Closing Fuel (${unit})`}
               disabled
               value={closingFuel === null ? "" : formatNumber(closingFuel)}
               placeholder="Enter the fuel reading"
               helperText="Fuel reading + fuel added"
             />
           )}
-          <Input id="log-fuelCostPerLiter" label="Price per Litre" type="number" min="0" step="0.01" value={values.fuelCostPerLiter} onChange={setField("fuelCostPerLiter")} error={fieldErrors.fuelCostPerLiter} />
+          <Input id="log-fuelCostPerLiter" label={`Price per ${unit === "kg" ? "Kg" : "Litre"}`} type="number" min="0" step="0.01" value={values.fuelCostPerLiter} onChange={setField("fuelCostPerLiter")} error={fieldErrors.fuelCostPerLiter} />
 
           <Input id="log-fuelVendor" label="Fuel Vendor" value={values.fuelVendor} onChange={setField("fuelVendor")} placeholder="e.g. PSO Pump" />
           <Input id="log-reason" label="Reason" value={values.reason} onChange={setField("reason")} placeholder="e.g. power outage" />
@@ -380,7 +388,7 @@ export default function GeneratorLogForm({ open, onClose, onSaved, generatorOpti
               )}
               {consumed !== undefined && (
                 <span className="text-body text-ink">
-                  Fuel consumed: <strong>{formatNumber(consumed)} L</strong>
+                  Fuel consumed: <strong>{formatNumber(consumed)} {unit}</strong>
                   <span className="text-ink-muted">
                     {" "}({formatNumber(Number(effective.openingFuelLiters))} opening + {formatNumber(Number(effective.fuelAddedLiters) || 0)} added − {formatNumber(Number(effective.closingFuelLiters))} closing)
                   </span>
@@ -390,7 +398,7 @@ export default function GeneratorLogForm({ open, onClose, onSaved, generatorOpti
                 <span className="text-body text-ink">
                   Total cost: <strong>{formatNumber(derived.fuelCostTotal)}</strong>
                   <span className="text-ink-muted">
-                    {" "}({formatNumber(Number(effective.fuelAddedLiters))} L added × {formatNumber(Number(effective.fuelCostPerLiter))} per litre)
+                    {" "}({formatNumber(Number(effective.fuelAddedLiters))} {unit} added × {formatNumber(Number(effective.fuelCostPerLiter))} per {unit})
                   </span>
                 </span>
               )}

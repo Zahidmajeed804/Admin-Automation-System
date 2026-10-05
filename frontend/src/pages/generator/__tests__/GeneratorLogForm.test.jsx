@@ -162,7 +162,7 @@ describe("<GeneratorLogForm /> (create, no previous entry)", () => {
     await user.type(screen.getByLabelText("Price per Litre", { exact: false }), "300");
 
     await user.click(screen.getByRole("button", { name: "Add Log" }));
-    expect(await screen.findByText("Enter the litres added to use a price per litre")).toBeInTheDocument();
+    expect(await screen.findByText("Enter the L added to use a price per L")).toBeInTheDocument();
   });
 
   it("shows the calculated-on-save preview (consumed litres and cost) once enough figures are entered", async () => {

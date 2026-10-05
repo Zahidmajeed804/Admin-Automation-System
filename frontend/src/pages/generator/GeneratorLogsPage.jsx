@@ -13,6 +13,7 @@ import { useAuth } from "../../context/AuthContext";
 import { generatorService } from "../../services/generatorService";
 import { formatDate, formatDateNumeric } from "../../utils/formatDate";
 import { formatNumber } from "../../utils/formatNumber";
+import { fuelUnit } from "../../utils/fuelUnit";
 
 const PAGE_SIZE = 10;
 
@@ -53,12 +54,13 @@ const COLUMNS = [
     key: "fuel",
     header: "Fuel Movement",
     render: (row) => {
+      const unit = fuelUnit(row.generator?.fuelType);
       const hasBothReadings = row.openingFuelLiters != null && row.closingFuelLiters != null;
       return (
         <LabelledLines
           lines={[
-            row.fuelAddedLiters > 0 && ["Added", `+${formatNumber(row.fuelAddedLiters)} L`, "text-green-700"],
-            (row.fuelConsumedLiters > 0 || hasBothReadings) && ["Used", `${formatNumber(row.fuelConsumedLiters)} L`, "text-amber-700"],
+            row.fuelAddedLiters > 0 && ["Added", `+${formatNumber(row.fuelAddedLiters)} ${unit}`, "text-green-700"],
+            (row.fuelConsumedLiters > 0 || hasBothReadings) && ["Used", `${formatNumber(row.fuelConsumedLiters)} ${unit}`, "text-amber-700"],
           ]}
         />
       );
@@ -67,14 +69,17 @@ const COLUMNS = [
   {
     key: "tank",
     header: "Tank Level",
-    render: (row) => (
-      <LabelledLines
-        lines={[
-          row.openingFuelLiters != null && ["Opening", `${formatNumber(row.openingFuelLiters)} L`],
-          row.closingFuelLiters != null && ["Closing", `${formatNumber(row.closingFuelLiters)} L`],
-        ]}
-      />
-    ),
+    render: (row) => {
+      const unit = fuelUnit(row.generator?.fuelType);
+      return (
+        <LabelledLines
+          lines={[
+            row.openingFuelLiters != null && ["Opening", `${formatNumber(row.openingFuelLiters)} ${unit}`],
+            row.closingFuelLiters != null && ["Closing", `${formatNumber(row.closingFuelLiters)} ${unit}`],
+          ]}
+        />
+      );
+    },
   },
   { key: "cost", header: "Fuel Cost", render: (row) => formatNumber(row.fuelCostTotal) },
   { key: "vendor", header: "Vendor", render: (row) => row.fuelVendor || "—" },
@@ -113,7 +118,7 @@ export default function GeneratorLogsPage() {
   useEffect(() => {
     generatorService
       .listGenerators({ pageSize: GENERATOR_OPTIONS_PAGE_SIZE })
-      .then(({ items }) => setGeneratorOptions(items.map((g) => ({ value: g._id, label: g.tag }))))
+      .then(({ items }) => setGeneratorOptions(items.map((g) => ({ value: g._id, label: g.tag, fuelType: g.fuelType }))))
       .catch(() => {
         // The filter dropdown just stays empty (only "All generators"); the
         // table load below has its own error handling.

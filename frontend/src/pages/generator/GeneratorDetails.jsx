@@ -5,6 +5,7 @@ import { LoadingSpinner } from "../../components/common/Loading";
 import ErrorState from "../../components/common/ErrorState";
 import { generatorService } from "../../services/generatorService";
 import { formatDate } from "../../utils/formatDate";
+import { fuelUnit, fuelTypeLabel } from "../../utils/fuelUnit";
 
 const RECENT_LOGS_COUNT = 5;
 
@@ -63,7 +64,10 @@ export default function GeneratorDetails({ open, onClose, generator }) {
           <DetailField label="Make / Model" value={[generator.make, generator.model].filter(Boolean).join(" / ") || "—"} />
           <DetailField label="Serial Number" value={generator.serialNumber || "—"} />
           <DetailField label="Capacity" value={generator.capacityKVA != null ? `${generator.capacityKVA} kVA` : "—"} />
-          <DetailField label="Fuel" value={`${generator.fuelType}${generator.fuelTankCapacityLiters != null ? ` · ${generator.fuelTankCapacityLiters} L tank` : ""}`} />
+          <DetailField
+            label="Fuel"
+            value={`${fuelTypeLabel(generator.fuelType)}${generator.fuelTankCapacityLiters != null ? ` · ${generator.fuelTankCapacityLiters} ${fuelUnit(generator.fuelType)} tank` : ""}`}
+          />
           <DetailField label="Running Hours" value={generator.runningHoursTotal.toFixed(1)} />
           <DetailField label="Last Service" value={formatDate(generator.lastServiceDate)} />
           <DetailField label="Installed" value={formatDate(generator.installationDate)} />
@@ -113,7 +117,7 @@ export default function GeneratorDetails({ open, onClose, generator }) {
                         <p className="text-helper text-ink-muted">{formatDate(log.date)}</p>
                       </div>
                       {log.fuelAddedLiters > 0 && (
-                        <span className="text-helper text-ink-muted">+{log.fuelAddedLiters} L</span>
+                        <span className="text-helper text-ink-muted">+{log.fuelAddedLiters} {fuelUnit(generator.fuelType)}</span>
                       )}
                     </li>
                   ))}

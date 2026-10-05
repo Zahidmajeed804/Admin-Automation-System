@@ -22,7 +22,7 @@ export const generatorLogRepository = {
         .sort({ date: -1, createdAt: -1 })
         .skip(skip)
         .limit(pageSize)
-        .populate("generator", "tag name")
+        .populate("generator", "tag name fuelType")
         .populate("recordedBy", "name"),
       GeneratorLog.countDocuments(filter),
     ]);

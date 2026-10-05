@@ -4,11 +4,12 @@ import Button from "../../components/common/Button";
 import Input from "../../components/common/Input";
 import Select from "../../components/common/Select";
 import { generatorService } from "../../services/generatorService";
+import { fuelUnit } from "../../utils/fuelUnit";
 
 const FUEL_TYPE_OPTIONS = [
   { value: "diesel", label: "Diesel" },
   { value: "petrol", label: "Petrol" },
-  { value: "gas", label: "Gas" },
+  { value: "cng", label: "CNG" },
 ];
 
 const STATUS_OPTIONS = [
@@ -181,7 +182,7 @@ export default function GeneratorForm({ open, onClose, onSaved, generator }) {
           <Select id="generator-fuelType" label="Fuel Type" value={values.fuelType} onChange={setField("fuelType")} options={FUEL_TYPE_OPTIONS} />
           <Input
             id="generator-fuelTankCapacityLiters"
-            label="Fuel Tank Capacity (L)"
+            label={`Fuel Tank Capacity (${fuelUnit(values.fuelType)})`}
             type="number"
             min="0"
             value={values.fuelTankCapacityLiters}
