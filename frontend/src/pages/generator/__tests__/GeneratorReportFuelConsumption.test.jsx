@@ -33,7 +33,7 @@ describe("<GeneratorReportFuelConsumption />", () => {
     expect(screen.getByText("GEN-01", { selector: "span.font-medium" })).toBeInTheDocument();
   });
 
-  it("shows separate kg stat cards for a CNG generator, never combined with litres", async () => {
+  it("shows only kg (no bare '0 L') when the filter has only CNG generators", async () => {
     generatorService.getFuelConsumptionReport.mockResolvedValue({
       from: "2026-03-01T00:00:00.000Z",
       to: "2026-03-31T23:59:59.999Z",
@@ -46,7 +46,25 @@ describe("<GeneratorReportFuelConsumption />", () => {
     render(<GeneratorReportFuelConsumption generatorOptions={GENERATOR_OPTIONS} />);
     expect(await screen.findByText("80 kg", { selector: "div.text-2xl" })).toBeInTheDocument();
     expect(screen.getByText("65 kg", { selector: "div.text-2xl" })).toBeInTheDocument();
-    expect(screen.getAllByText("0 L", { selector: "div.text-2xl" })).toHaveLength(2);
+    expect(screen.queryByText(/0 L/, { selector: "div.text-2xl" })).not.toBeInTheDocument();
+  });
+
+  it("combines both units into one card for a mixed diesel+CNG filter", async () => {
+    generatorService.getFuelConsumptionReport.mockResolvedValue({
+      from: "2026-03-01T00:00:00.000Z",
+      to: "2026-03-31T23:59:59.999Z",
+      totalFuelAddedLiters: 300,
+      totalFuelConsumedLiters: 250,
+      totalFuelAddedKg: 80,
+      totalFuelConsumedKg: 65,
+      generators: [
+        { generator: { id: "g1", tag: "GEN-01", fuelType: "diesel" }, fuelAddedLiters: 300, fuelConsumedLiters: 250, logCount: 3 },
+        { generator: { id: "g2", tag: "GEN-02", fuelType: "cng" }, fuelAddedLiters: 80, fuelConsumedLiters: 65, logCount: 2 },
+      ],
+    });
+    render(<GeneratorReportFuelConsumption generatorOptions={GENERATOR_OPTIONS} />);
+    expect(await screen.findByText("300 L · 80 kg", { selector: "div.text-2xl" })).toBeInTheDocument();
+    expect(screen.getByText("250 L · 65 kg", { selector: "div.text-2xl" })).toBeInTheDocument();
   });
 
   it("filters by an explicit from/to date range", async () => {

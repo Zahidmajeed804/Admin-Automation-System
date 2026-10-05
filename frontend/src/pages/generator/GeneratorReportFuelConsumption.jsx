@@ -17,14 +17,30 @@ const COLUMNS = [
   { key: "logCount", header: "Log Entries", render: (row) => row.logCount },
 ];
 
+// A stat value combining litres and kg into one line, e.g. "300 L" for an
+// all-diesel filter, "10 kg" for an all-CNG one, or "300 L · 10 kg" for a
+// mixed fleet — never a unit the current filter has nothing in, so a fleet
+// with no CNG generators never shows a bare "0 kg" card.
+function combinedFuelValue(report, litersField, kgField) {
+  if (!report) return "—";
+  const generators = report.generators ?? [];
+  const hasLiters = generators.some((r) => r.generator.fuelType !== "cng");
+  const hasKg = generators.some((r) => r.generator.fuelType === "cng");
+  const parts = [];
+  if (hasLiters) parts.push(`${formatNumber(report[litersField])} L`);
+  if (hasKg) parts.push(`${formatNumber(report[kgField])} kg`);
+  return parts.join(" · ") || "—";
+}
+
 /**
  * Spec 4.2's "diesel consumption" report, widened to cover CNG — additions
  * and consumption per generator over an arbitrary date range (defaults to
  * "this month so far", matching the backend). Diesel/petrol generators are
- * litres, CNG generators are kg; the two are never added together, so the
- * fleet totals show as two separate stat-card pairs. Opening/closing
- * readings are per-log detail already shown on the Fuel & Usage Logs tab,
- * not repeated here.
+ * litres, CNG generators are kg, kept as separate totals that are never
+ * added together — but shown as just two stat cards (Added/Consumed), each
+ * combining whichever unit(s) are actually relevant to the current filter.
+ * Opening/closing readings are per-log detail already shown on the Fuel &
+ * Usage Logs tab, not repeated here.
  */
 export default function GeneratorReportFuelConsumption({ generatorOptions }) {
   const [generatorId, setGeneratorId] = useState("");
@@ -77,11 +93,9 @@ export default function GeneratorReportFuelConsumption({ generatorOptions }) {
         onReset={generatorId || from || to ? handleReset : undefined}
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label={`Fuel Added (L) — ${rangeLabel}`} value={report ? `${formatNumber(report.totalFuelAddedLiters)} L` : "—"} icon={Fuel} />
-        <StatCard label={`Fuel Consumed (L) — ${rangeLabel}`} value={report ? `${formatNumber(report.totalFuelConsumedLiters)} L` : "—"} icon={Droplet} />
-        <StatCard label={`Fuel Added (kg) — ${rangeLabel}`} value={report ? `${formatNumber(report.totalFuelAddedKg)} kg` : "—"} icon={Fuel} />
-        <StatCard label={`Fuel Consumed (kg) — ${rangeLabel}`} value={report ? `${formatNumber(report.totalFuelConsumedKg)} kg` : "—"} icon={Droplet} />
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <StatCard label={`Fuel Added — ${rangeLabel}`} value={combinedFuelValue(report, "totalFuelAddedLiters", "totalFuelAddedKg")} icon={Fuel} />
+        <StatCard label={`Fuel Consumed — ${rangeLabel}`} value={combinedFuelValue(report, "totalFuelConsumedLiters", "totalFuelConsumedKg")} icon={Droplet} />
       </div>
 
       <Table
