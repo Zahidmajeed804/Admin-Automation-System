@@ -28,10 +28,10 @@ beforeEach(() => {
 describe("<GeneratorReportRunningHours />", () => {
   it("shows the total-hours stat card and per-generator rows, including a zero-activity row", async () => {
     render(<GeneratorReportRunningHours generatorOptions={GENERATOR_OPTIONS} />);
-    expect(await screen.findByText("128.5 h", { selector: "div.text-2xl" })).toBeInTheDocument();
+    expect(await screen.findByText("128h 30m", { selector: "div.text-2xl" })).toBeInTheDocument();
     expect(screen.getByText("March 2026", { exact: false })).toBeInTheDocument();
     expect(screen.getByText("GEN-02", { selector: "span.font-medium" })).toBeInTheDocument();
-    expect(screen.getByText("0 h")).toBeInTheDocument();
+    expect(screen.getByText("0h 0m")).toBeInTheDocument();
   });
 
   it("re-fetches with the generator and month filters, resetting via Reset", async () => {

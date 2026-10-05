@@ -164,7 +164,7 @@ describe("GeneratorLogsPage", () => {
     await waitFor(() => expect(screen.getByText("GEN-01", { selector: "span.font-medium" })).toBeInTheDocument());
 
     await user.click(screen.getByRole("button", { name: /delete gen-01 log/i }));
-    expect(screen.getByText(/takes its 8 h off the generator's running hours/i)).toBeInTheDocument();
+    expect(screen.getByText(/takes its 8h 0m off the generator's running hours/i)).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Delete" }));
     await waitFor(() => expect(generatorService.deleteLog).toHaveBeenCalledWith("l1"));

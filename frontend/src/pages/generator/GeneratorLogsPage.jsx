@@ -14,6 +14,7 @@ import { generatorService } from "../../services/generatorService";
 import { formatDate, formatDateNumeric } from "../../utils/formatDate";
 import { formatNumber } from "../../utils/formatNumber";
 import { fuelUnit } from "../../utils/fuelUnit";
+import { formatHoursMinutes } from "../../utils/hoursMinutes";
 
 const PAGE_SIZE = 10;
 
@@ -49,7 +50,7 @@ const COLUMNS = [
     render: (row) => <span className="font-medium text-ink">{row.generator?.tag ?? "—"}</span>,
   },
   { key: "date", header: "Date", render: (row) => formatDateNumeric(row.date) },
-  { key: "hoursRun", header: "Hours Run", render: (row) => row.hoursRun },
+  { key: "hoursRun", header: "Hours Run", render: (row) => formatHoursMinutes(row.hoursRun) },
   {
     key: "fuel",
     header: "Fuel Movement",
@@ -238,7 +239,7 @@ export default function GeneratorLogsPage() {
   const deleteHours = Number(deleteTarget?.hoursRun) || 0;
   const deleteDescription = deleteTarget
     ? `This removes the ${deleteTarget.generator?.tag ?? "generator"} entry from ${formatDate(deleteTarget.date)}` +
-      `${deleteHours > 0 ? ` and takes its ${formatNumber(deleteHours)} h off the generator's running hours` : ""}. ` +
+      `${deleteHours > 0 ? ` and takes its ${formatHoursMinutes(deleteHours)} off the generator's running hours` : ""}. ` +
       "Entries recorded after it are not recalculated."
     : "";
 

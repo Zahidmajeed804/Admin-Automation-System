@@ -6,6 +6,7 @@ import ErrorState from "../../components/common/ErrorState";
 import { generatorService } from "../../services/generatorService";
 import { formatDate } from "../../utils/formatDate";
 import { fuelUnit, fuelTypeLabel } from "../../utils/fuelUnit";
+import { formatHoursMinutes } from "../../utils/hoursMinutes";
 
 const RECENT_LOGS_COUNT = 5;
 
@@ -68,7 +69,7 @@ export default function GeneratorDetails({ open, onClose, generator }) {
             label="Fuel"
             value={`${fuelTypeLabel(generator.fuelType)}${generator.fuelTankCapacityLiters != null ? ` · ${generator.fuelTankCapacityLiters} ${fuelUnit(generator.fuelType)} tank` : ""}`}
           />
-          <DetailField label="Running Hours" value={generator.runningHoursTotal.toFixed(1)} />
+          <DetailField label="Running Hours" value={formatHoursMinutes(generator.runningHoursTotal)} />
           <DetailField label="Last Service" value={formatDate(generator.lastServiceDate)} />
           <DetailField label="Installed" value={formatDate(generator.installationDate)} />
         </section>
@@ -112,7 +113,7 @@ export default function GeneratorDetails({ open, onClose, generator }) {
                     <li key={log._id} className="flex items-center justify-between py-2.5">
                       <div>
                         <p className="text-body text-ink">
-                          {log.hoursRun}h{log.reason ? ` — ${log.reason}` : ""}
+                          {formatHoursMinutes(log.hoursRun)}{log.reason ? ` — ${log.reason}` : ""}
                         </p>
                         <p className="text-helper text-ink-muted">{formatDate(log.date)}</p>
                       </div>

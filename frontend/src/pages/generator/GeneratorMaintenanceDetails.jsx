@@ -4,12 +4,13 @@ import Badge from "../../components/common/Badge";
 import Button from "../../components/common/Button";
 import { formatDate } from "../../utils/formatDate";
 import { formatNumber } from "../../utils/formatNumber";
+import { formatHoursMinutes } from "../../utils/hoursMinutes";
 import { DueInfo } from "./DueInfo";
 
 function recurrenceText(job) {
   const parts = [];
   if (job.intervalDays) parts.push(`Every ${job.intervalDays} day${job.intervalDays === 1 ? "" : "s"}`);
-  if (job.intervalHours) parts.push(`every ${formatNumber(job.intervalHours)} running hour${job.intervalHours === 1 ? "" : "s"}`);
+  if (job.intervalHours) parts.push(`every ${formatHoursMinutes(job.intervalHours)} of running`);
   return parts.length ? parts.join(", ") : "One-off (does not repeat)";
 }
 
@@ -40,7 +41,7 @@ export default function GeneratorMaintenanceDetails({ open, onClose, job, onMana
           />
           <DetailField label="Recurrence" value={recurrenceText(job)} />
           <DetailField label="Completed Date" value={formatDate(job.completedDate)} />
-          <DetailField label="Generator's Hours at Service" value={job.hoursAtService != null ? `${formatNumber(job.hoursAtService)} h` : "—"} />
+          <DetailField label="Generator's Hours at Service" value={job.hoursAtService != null ? formatHoursMinutes(job.hoursAtService) : "—"} />
           <DetailField label="Technician" value={job.performedBy || "—"} />
           <DetailField label="Vendor" value={job.vendor || "—"} />
           <DetailField label="Cost" value={formatNumber(job.cost)} />

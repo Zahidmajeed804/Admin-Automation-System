@@ -6,7 +6,7 @@ import Select from "../../components/common/Select";
 import Input from "../../components/common/Input";
 import Table from "../../components/tables/Table";
 import { generatorService } from "../../services/generatorService";
-import { formatNumber } from "../../utils/formatNumber";
+import { formatHoursMinutes } from "../../utils/hoursMinutes";
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -15,7 +15,7 @@ const MONTH_NAMES = [
 
 const COLUMNS = [
   { key: "generator", header: "Generator", render: (row) => <span className="font-medium text-ink">{row.generator.tag}</span> },
-  { key: "hoursRun", header: "Hours Run", render: (row) => `${formatNumber(row.hoursRun)} h` },
+  { key: "hoursRun", header: "Hours Run", render: (row) => formatHoursMinutes(row.hoursRun) },
   { key: "logCount", header: "Log Entries", render: (row) => row.logCount },
 ];
 
@@ -72,7 +72,7 @@ export default function GeneratorReportRunningHours({ generatorOptions }) {
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <StatCard label={`Total Hours Run — ${periodLabel}`} value={report ? `${formatNumber(report.totalHoursRun)} h` : "—"} icon={Clock3} />
+        <StatCard label={`Total Hours Run — ${periodLabel}`} value={report ? formatHoursMinutes(report.totalHoursRun) : "—"} icon={Clock3} />
       </div>
 
       <Table

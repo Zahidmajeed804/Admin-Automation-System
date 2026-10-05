@@ -48,7 +48,7 @@ describe("<GeneratorDetails />", () => {
     render(<GeneratorDetails open onClose={vi.fn()} generator={GENERATOR} />);
 
     expect(screen.getByText("Main Hall Generator")).toBeInTheDocument();
-    expect(screen.getByText("320.4")).toBeInTheDocument();
+    expect(screen.getByText("320h 24m")).toBeInTheDocument();
     expect(screen.getByText(/loading recent activity/i)).toBeInTheDocument();
 
     resolveLogs({ items: [] });
@@ -62,7 +62,7 @@ describe("<GeneratorDetails />", () => {
     render(<GeneratorDetails open onClose={vi.fn()} generator={GENERATOR} />);
 
     expect(await screen.findByText("Oil change")).toBeInTheDocument();
-    expect(screen.getByText(/8h — Power outage/)).toBeInTheDocument();
+    expect(screen.getByText(/8h 0m — Power outage/)).toBeInTheDocument();
     expect(screen.getByText("+20 L")).toBeInTheDocument();
   });
 
