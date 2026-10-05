@@ -1,8 +1,7 @@
 import { body, query } from "express-validator";
 import { runValidation } from "../middleware/runValidation.js";
+import { FUEL_TYPES } from "../constants/generator.js";
 
-// Must stay in sync with the enums on models/Generator.js.
-const FUEL_TYPES = ["diesel", "petrol", "gas"];
 const STATUSES = ["operational", "under_maintenance", "faulty", "decommissioned", "maintenance_due"];
 
 const optionalFields = [

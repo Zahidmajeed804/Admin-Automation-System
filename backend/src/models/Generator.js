@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { FUEL_TYPES, DEFAULT_FUEL_TYPE } from "../constants/generator.js";
 
 const generatorSchema = new mongoose.Schema(
   {
@@ -11,8 +12,8 @@ const generatorSchema = new mongoose.Schema(
     capacityKVA: { type: Number },
     fuelType: {
       type: String,
-      enum: ["diesel", "petrol", "gas"],
-      default: "diesel",
+      enum: FUEL_TYPES,
+      default: DEFAULT_FUEL_TYPE,
     },
     fuelTankCapacityLiters: { type: Number },
     status: {

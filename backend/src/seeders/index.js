@@ -5,7 +5,7 @@ import { connectDatabase, disconnectDatabase } from "../config/database.js";
 import { rbacRepository } from "../repositories/rbacRepository.js";
 import { permissionsCatalog, defaultRoles } from "../constants/permissions.js";
 import { hashPassword } from "../utils/password.js";
-import { User } from "../models/index.js";
+import { User, Generator } from "../models/index.js";
 import { logger } from "../utils/logger.js";
 
 export async function seedPermissions() {
@@ -73,6 +73,16 @@ export async function seedRbacCatalog() {
   return permissionIdByName;
 }
 
+// "gas" was renamed to "cng" when CNG support (measured in kg) was added.
+// Idempotent: a second run matches zero documents once migrated.
+export async function migrateGasFuelTypeToCng() {
+  const result = await Generator.updateMany({ fuelType: "gas" }, { $set: { fuelType: "cng" } });
+  if (result.modifiedCount > 0) {
+    logger.info(`Migrated ${result.modifiedCount} generator(s) from fuelType "gas" to "cng"`);
+  }
+  return result.modifiedCount;
+}
+
 async function run() {
   // Same resolver override as server.js, so mongodb+srv:// Atlas URIs resolve
   // on networks whose default DNS refuses SRV lookups. Kept inside run() (not
@@ -82,6 +92,7 @@ async function run() {
   logger.info("Seeding RBAC data...");
   await seedRbacCatalog();
   await seedDefaultAdmin();
+  await migrateGasFuelTypeToCng();
   logger.info("RBAC seeding complete.");
   await disconnectDatabase();
   await mongoose.disconnect();
