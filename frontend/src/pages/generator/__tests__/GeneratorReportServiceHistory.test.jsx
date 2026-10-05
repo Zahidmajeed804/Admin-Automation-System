@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { vi } from "vitest";
 import GeneratorReportServiceHistory from "../GeneratorReportServiceHistory";
 import { generatorService } from "../../../services/generatorService";
+import { pickDate } from "../../../test/datePicker";
 
 vi.mock("../../../services/generatorService", () => ({
   generatorService: { getServiceHistoryReport: vi.fn() },
@@ -72,7 +73,7 @@ describe("<GeneratorReportServiceHistory />", () => {
       )
     );
 
-    await user.type(screen.getByLabelText("From date"), "2026-01-01");
+    await pickDate(user, "From", "2026-01-01");
     await waitFor(() =>
       expect(generatorService.getServiceHistoryReport).toHaveBeenLastCalledWith(
         expect.objectContaining({ from: "2026-01-01", page: 1 })

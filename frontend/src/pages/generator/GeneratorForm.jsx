@@ -4,6 +4,7 @@ import Button from "../../components/common/Button";
 import Input from "../../components/common/Input";
 import Select from "../../components/common/Select";
 import HoursMinutesInput from "../../components/common/HoursMinutesInput";
+import DatePicker from "../../components/common/DatePicker";
 import { generatorService } from "../../services/generatorService";
 import { fuelUnit } from "../../utils/fuelUnit";
 
@@ -179,7 +180,7 @@ export default function GeneratorForm({ open, onClose, onSaved, generator }) {
           <Input id="generator-make" label="Make" value={values.make} onChange={setField("make")} />
           <Input id="generator-model" label="Model" value={values.model} onChange={setField("model")} />
           <Input id="generator-serialNumber" label="Serial Number" value={values.serialNumber} onChange={setField("serialNumber")} />
-          <Input id="generator-installationDate" label="Installation Date" type="date" value={values.installationDate} onChange={setField("installationDate")} />
+          <DatePicker id="generator-installationDate" label="Installation Date" clearable value={values.installationDate} onChange={setField("installationDate")} />
           <Select id="generator-fuelType" label="Fuel Type" value={values.fuelType} onChange={setField("fuelType")} options={FUEL_TYPE_OPTIONS} />
           <Input
             id="generator-fuelTankCapacityLiters"

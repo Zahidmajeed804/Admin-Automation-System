@@ -4,6 +4,7 @@ import Button from "../../components/common/Button";
 import Input from "../../components/common/Input";
 import Select from "../../components/common/Select";
 import HoursMinutesInput from "../../components/common/HoursMinutesInput";
+import DatePicker from "../../components/common/DatePicker";
 import { generatorService } from "../../services/generatorService";
 import { extractErrorMessage } from "./GeneratorForm";
 
@@ -203,10 +204,9 @@ export default function GeneratorMaintenanceForm({ open, onClose, onSaved, job, 
             error={fieldErrors.description}
             placeholder="e.g. Oil and filter change"
           />
-          <Input
+          <DatePicker
             id="maintenance-scheduledDate"
             label="Scheduled Date"
-            type="date"
             required
             value={values.scheduledDate}
             onChange={setField("scheduledDate")}

@@ -10,6 +10,7 @@ import { formatNumber } from "../../utils/formatNumber";
 import { formatDate, todayDateValue } from "../../utils/formatDate";
 import { fuelUnit } from "../../utils/fuelUnit";
 import HoursMinutesInput from "../../components/common/HoursMinutesInput";
+import DatePicker from "../../components/common/DatePicker";
 import { formatHoursMinutes } from "../../utils/hoursMinutes";
 
 const BLANK = {
@@ -284,7 +285,7 @@ export default function GeneratorLogForm({ open, onClose, onSaved, generatorOpti
             disabled={isEdit}
             error={fieldErrors.generatorId}
           />
-          <Input id="log-date" label="Date" type="date" value={values.date} onChange={setField("date")} error={fieldErrors.date} />
+          <DatePicker id="log-date" label="Date" value={values.date} onChange={setField("date")} error={fieldErrors.date} />
 
           {lastEntryNote && (
             <p id="log-last-entry" aria-live="polite" className="sm:col-span-2 text-helper text-ink-muted rounded-md bg-surface-subtle px-3 py-2">

@@ -21,8 +21,8 @@ describe("<GeneratorMaintenanceCompleteForm />", () => {
   it("shows the job's description and defaults completed date to today, vendor carried over", () => {
     render(<GeneratorMaintenanceCompleteForm open onClose={vi.fn()} onSaved={vi.fn()} job={JOB} />);
     expect(screen.getByText("Oil change")).toBeInTheDocument();
-    const today = new Date().toISOString().slice(0, 10);
-    expect(screen.getByLabelText("Completed Date", { exact: false })).toHaveValue(today);
+    const todayLabel = new Date().toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" });
+    expect(screen.getByLabelText("Completed Date", { exact: false })).toHaveTextContent(todayLabel);
     expect(screen.getByLabelText("Vendor", { exact: false })).toHaveValue("AutoServ");
   });
 

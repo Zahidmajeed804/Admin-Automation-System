@@ -8,5 +8,8 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/test/setup.js"],
+    // Default 5s is tight for tests that drive the calendar DatePicker across
+    // several months (see src/test/datePicker.js) under full-suite CPU load.
+    testTimeout: 15000,
   },
 });

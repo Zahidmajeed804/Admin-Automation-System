@@ -3,7 +3,7 @@ import { Plus, Pencil, Trash2 } from "lucide-react";
 import clsx from "clsx";
 import FilterBar from "../../components/common/FilterBar";
 import Select from "../../components/common/Select";
-import Input from "../../components/common/Input";
+import DatePicker from "../../components/common/DatePicker";
 import Button from "../../components/common/Button";
 import ConfirmDialog from "../../components/modals/ConfirmDialog";
 import Table from "../../components/tables/Table";
@@ -254,8 +254,8 @@ export default function GeneratorLogsPage() {
               options={generatorOptions}
               placeholder="All generators"
             />
-            <Input type="date" aria-label="From date" value={from} onChange={(e) => handleFromChange(e.target.value)} />
-            <Input type="date" aria-label="To date" value={to} onChange={(e) => handleToChange(e.target.value)} />
+            <DatePicker label="From" id="logs-filter-from" className="sm:w-40" clearable value={from} max={to || undefined} onChange={handleFromChange} />
+            <DatePicker label="To" id="logs-filter-to" className="sm:w-40" clearable value={to} min={from || undefined} onChange={handleToChange} />
           </>
         }
         onReset={generatorId || from || to ? handleReset : undefined}

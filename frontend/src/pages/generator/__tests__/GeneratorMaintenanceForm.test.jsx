@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { vi } from "vitest";
 import GeneratorMaintenanceForm, { toEditValues, toPayload, toUpdatePayload } from "../GeneratorMaintenanceForm";
 import { generatorService } from "../../../services/generatorService";
+import { pickDate } from "../../../test/datePicker";
 
 vi.mock("../../../services/generatorService", () => ({
   generatorService: {
@@ -142,7 +143,7 @@ describe("<GeneratorMaintenanceForm /> (create)", () => {
 
     await user.selectOptions(screen.getByLabelText("Generator", { exact: false }), "g1");
     await user.type(screen.getByLabelText("Description", { exact: false }), "Oil change");
-    await user.type(screen.getByLabelText("Scheduled Date", { exact: false }), "2026-03-01");
+    await pickDate(user, "Scheduled Date", "2026-03-01");
     await user.type(screen.getByLabelText("Vendor", { exact: false }), "AutoServ");
 
     await user.click(screen.getByRole("button", { name: "Schedule" }));
@@ -169,7 +170,7 @@ describe("<GeneratorMaintenanceForm /> (create)", () => {
 
     await user.selectOptions(screen.getByLabelText("Generator", { exact: false }), "g1");
     await user.type(screen.getByLabelText("Description", { exact: false }), "Oil change");
-    await user.type(screen.getByLabelText("Scheduled Date", { exact: false }), "2026-03-01");
+    await pickDate(user, "Scheduled Date", "2026-03-01");
     await user.click(screen.getByRole("button", { name: "Schedule" }));
 
     expect(await screen.findByText("Conflict")).toBeInTheDocument();

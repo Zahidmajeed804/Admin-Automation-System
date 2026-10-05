@@ -4,6 +4,7 @@ import { vi } from "vitest";
 import GeneratorLogsPage from "../GeneratorLogsPage";
 import { generatorService } from "../../../services/generatorService";
 import { useAuth } from "../../../context/AuthContext";
+import { pickDate } from "../../../test/datePicker";
 
 vi.mock("../../../services/generatorService", () => ({
   generatorService: {
@@ -139,7 +140,7 @@ describe("GeneratorLogsPage", () => {
       expect(generatorService.listLogs).toHaveBeenCalledWith(expect.objectContaining({ generatorId: "g2", page: 1 }))
     );
 
-    await user.type(screen.getByLabelText("From date"), "2026-01-01");
+    await pickDate(user, "From", "2026-01-01");
     await waitFor(() =>
       expect(generatorService.listLogs).toHaveBeenCalledWith(expect.objectContaining({ from: "2026-01-01", page: 1 }))
     );
