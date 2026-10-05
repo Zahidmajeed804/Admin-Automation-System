@@ -9,6 +9,8 @@ import { computeFuelFigures, closingExceedsAvailable } from "../../utils/fuelFig
 import { formatNumber } from "../../utils/formatNumber";
 import { formatDate, todayDateValue } from "../../utils/formatDate";
 import { fuelUnit } from "../../utils/fuelUnit";
+import HoursMinutesInput from "../../components/common/HoursMinutesInput";
+import { formatHoursMinutes } from "../../utils/hoursMinutes";
 
 const BLANK = {
   generatorId: "",
@@ -290,12 +292,9 @@ export default function GeneratorLogForm({ open, onClose, onSaved, generatorOpti
             </p>
           )}
 
-          <Input
+          <HoursMinutesInput
             id="log-meterReadingHours"
             label="Meter Reading (hours)"
-            type="number"
-            min="0"
-            step="0.1"
             required={hoursFromMeter}
             value={values.meterReadingHours}
             onChange={setField("meterReadingHours")}
@@ -306,18 +305,15 @@ export default function GeneratorLogForm({ open, onClose, onSaved, generatorOpti
               id="log-hoursRun"
               label="Hours Run (calculated)"
               disabled
-              value={autoHours === null ? "" : formatNumber(autoHours)}
+              value={autoHours === null ? "" : formatHoursMinutes(autoHours)}
               placeholder="Enter the meter reading"
-              helperText={`Meter reading minus ${formatNumber(prev.meterReadingHours)} h from the last entry`}
+              helperText={`Meter reading minus ${formatHoursMinutes(prev.meterReadingHours)} from the last entry`}
               error={fieldErrors.hoursRun}
             />
           ) : (
-            <Input
+            <HoursMinutesInput
               id="log-hoursRun"
               label="Hours Run"
-              type="number"
-              min="0"
-              step="0.1"
               required
               value={values.hoursRun}
               onChange={setField("hoursRun")}

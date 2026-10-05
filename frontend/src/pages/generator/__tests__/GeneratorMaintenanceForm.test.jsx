@@ -129,9 +129,9 @@ describe("<GeneratorMaintenanceForm /> (create)", () => {
     const user = userEvent.setup();
     render(<GeneratorMaintenanceForm open onClose={vi.fn()} onSaved={vi.fn()} generatorOptions={GENERATOR_OPTIONS} />);
 
-    expect(screen.queryByLabelText("Starting Running Hours", { exact: false })).not.toBeInTheDocument();
-    await user.type(screen.getByLabelText("Repeat Every (running hours)", { exact: false }), "250");
-    expect(screen.getByLabelText("Starting Running Hours", { exact: false })).toBeInTheDocument();
+    expect(screen.queryAllByLabelText("Starting Running Hours", { exact: false })).toHaveLength(0);
+    await user.type(screen.getByLabelText("Repeat Every (running hours) — hours", { exact: false }), "250");
+    expect(screen.queryAllByLabelText("Starting Running Hours", { exact: false }).length).toBeGreaterThan(0);
   });
 
   it("creates a job with the entered fields", async () => {

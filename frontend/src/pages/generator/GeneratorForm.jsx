@@ -3,6 +3,7 @@ import Modal from "../../components/modals/Modal";
 import Button from "../../components/common/Button";
 import Input from "../../components/common/Input";
 import Select from "../../components/common/Select";
+import HoursMinutesInput from "../../components/common/HoursMinutesInput";
 import { generatorService } from "../../services/generatorService";
 import { fuelUnit } from "../../utils/fuelUnit";
 
@@ -189,12 +190,9 @@ export default function GeneratorForm({ open, onClose, onSaved, generator }) {
             onChange={setField("fuelTankCapacityLiters")}
           />
           <Input id="generator-capacityKVA" label="Capacity (kVA)" type="number" min="0" value={values.capacityKVA} onChange={setField("capacityKVA")} />
-          <Input
+          <HoursMinutesInput
             id="generator-maintenanceIntervalHours"
             label="Maintenance Interval (hours)"
-            type="number"
-            min="1"
-            placeholder="e.g. 250"
             value={values.maintenanceIntervalHours}
             onChange={setField("maintenanceIntervalHours")}
           />

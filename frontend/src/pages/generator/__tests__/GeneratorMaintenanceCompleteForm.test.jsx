@@ -59,7 +59,7 @@ describe("<GeneratorMaintenanceCompleteForm />", () => {
     const user = userEvent.setup();
     render(<GeneratorMaintenanceCompleteForm open onClose={vi.fn()} onSaved={vi.fn()} job={JOB} />);
 
-    await user.type(screen.getByLabelText("Generator's Running Hours", { exact: false }), "320");
+    await user.type(screen.getByLabelText("Generator's Running Hours — hours", { exact: false }), "320");
     await user.type(screen.getByLabelText("Technician", { exact: false }), "Zain");
     await user.type(screen.getByLabelText("Cost", { exact: false }), "1500");
 

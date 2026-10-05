@@ -122,7 +122,7 @@ describe("<GeneratorLogForm /> (create, no previous entry)", () => {
 
     await user.selectOptions(screen.getByLabelText("Generator", { exact: false }), "g1");
     expect(await screen.findByText(/first entry for this generator/i)).toBeInTheDocument();
-    expect(screen.getByLabelText("Hours Run", { exact: false })).not.toBeDisabled();
+    expect(screen.getByLabelText("Hours Run — hours", { exact: false })).not.toBeDisabled();
     expect(screen.getByLabelText("Opening Fuel (L)", { exact: false })).not.toBeDisabled();
   });
 
@@ -143,7 +143,7 @@ describe("<GeneratorLogForm /> (create, no previous entry)", () => {
 
     await user.selectOptions(screen.getByLabelText("Generator", { exact: false }), "g1");
     await screen.findByText(/first entry for this generator/i);
-    await user.type(screen.getByLabelText("Hours Run", { exact: false }), "8");
+    await user.type(screen.getByLabelText("Hours Run — hours", { exact: false }), "8");
     await user.type(screen.getByLabelText("Opening Fuel (L)", { exact: false }), "50");
     await user.type(screen.getByLabelText("Fuel Reading (L)", { exact: false }), "80");
 
@@ -158,7 +158,7 @@ describe("<GeneratorLogForm /> (create, no previous entry)", () => {
 
     await user.selectOptions(screen.getByLabelText("Generator", { exact: false }), "g1");
     await screen.findByText(/first entry for this generator/i);
-    await user.type(screen.getByLabelText("Hours Run", { exact: false }), "8");
+    await user.type(screen.getByLabelText("Hours Run — hours", { exact: false }), "8");
     await user.type(screen.getByLabelText("Price per Litre", { exact: false }), "300");
 
     await user.click(screen.getByRole("button", { name: "Add Log" }));
@@ -189,7 +189,7 @@ describe("<GeneratorLogForm /> (create, no previous entry)", () => {
 
     await user.selectOptions(screen.getByLabelText("Generator", { exact: false }), "g1");
     await screen.findByText(/first entry for this generator/i);
-    await user.type(screen.getByLabelText("Hours Run", { exact: false }), "8");
+    await user.type(screen.getByLabelText("Hours Run — hours", { exact: false }), "8");
     await user.type(screen.getByLabelText("Opening Fuel (L)", { exact: false }), "100");
     await user.type(screen.getByLabelText("Fuel Reading (L)", { exact: false }), "70");
     await user.type(screen.getByLabelText(/fuel added/i), "20");
@@ -204,6 +204,23 @@ describe("<GeneratorLogForm /> (create, no previous entry)", () => {
     expect(onSaved).toHaveBeenCalledWith({ _id: "new1" });
   });
 
+  it("accepts hours and minutes separately, sending the combined decimal value (20 minutes -> exactly 1/3 hour, not 0.33)", async () => {
+    generatorService.createLog.mockResolvedValue({ _id: "new1" });
+    const user = userEvent.setup();
+    render(<GeneratorLogForm open onClose={vi.fn()} onSaved={vi.fn()} generatorOptions={GENERATOR_OPTIONS} />);
+
+    await user.selectOptions(screen.getByLabelText("Generator", { exact: false }), "g1");
+    await screen.findByText(/first entry for this generator/i);
+    await user.type(screen.getByLabelText("Hours Run — hours", { exact: false }), "4");
+    await user.type(screen.getByLabelText("Hours Run — minutes", { exact: false }), "20");
+
+    await user.click(screen.getByRole("button", { name: "Add Log" }));
+
+    await waitFor(() =>
+      expect(generatorService.createLog).toHaveBeenCalledWith(expect.objectContaining({ hoursRun: 4 + 20 / 60 }))
+    );
+  });
+
   it("shows the server error inline on a failed save", async () => {
     generatorService.createLog.mockRejectedValue({ response: { data: { message: "Duplicate entry" } } });
     const user = userEvent.setup();
@@ -211,7 +228,7 @@ describe("<GeneratorLogForm /> (create, no previous entry)", () => {
 
     await user.selectOptions(screen.getByLabelText("Generator", { exact: false }), "g1");
     await screen.findByText(/first entry for this generator/i);
-    await user.type(screen.getByLabelText("Hours Run", { exact: false }), "8");
+    await user.type(screen.getByLabelText("Hours Run — hours", { exact: false }), "8");
     await user.click(screen.getByRole("button", { name: "Add Log" }));
 
     expect(await screen.findByText("Duplicate entry")).toBeInTheDocument();
@@ -238,8 +255,8 @@ describe("<GeneratorLogForm /> (create, with a previous entry)", () => {
     await user.selectOptions(screen.getByLabelText("Generator", { exact: false }), "g1");
     expect(await screen.findByLabelText("Hours Run (calculated)", { exact: false })).toBeDisabled();
 
-    await user.type(screen.getByLabelText("Meter Reading (hours)", { exact: false }), "1208");
-    expect(screen.getByLabelText("Hours Run (calculated)", { exact: false })).toHaveValue("8");
+    await user.type(screen.getByLabelText("Meter Reading (hours) — hours", { exact: false }), "1208");
+    expect(screen.getByLabelText("Hours Run (calculated)", { exact: false })).toHaveValue("8h 0m");
   });
 
   it("derives Opening Fuel from the previous entry's closing fuel and disables direct entry", async () => {
@@ -258,7 +275,7 @@ describe("<GeneratorLogForm /> (create, with a previous entry)", () => {
 
     await user.selectOptions(screen.getByLabelText("Generator", { exact: false }), "g1");
     await screen.findByLabelText("Hours Run (calculated)", { exact: false });
-    await user.type(screen.getByLabelText("Meter Reading (hours)", { exact: false }), "1100");
+    await user.type(screen.getByLabelText("Meter Reading (hours) — hours", { exact: false }), "1100");
 
     await user.click(screen.getByRole("button", { name: "Add Log" }));
     expect(await screen.findByText(/meter reading is lower than the last entry/i)).toBeInTheDocument();
@@ -271,7 +288,7 @@ describe("<GeneratorLogForm /> (create, with a previous entry)", () => {
 
     await user.selectOptions(screen.getByLabelText("Generator", { exact: false }), "g1");
     await screen.findByLabelText("Hours Run (calculated)", { exact: false });
-    await user.type(screen.getByLabelText("Meter Reading (hours)", { exact: false }), "1208");
+    await user.type(screen.getByLabelText("Meter Reading (hours) — hours", { exact: false }), "1208");
     await user.type(screen.getByLabelText("Fuel Reading (L)", { exact: false }), "90");
 
     await user.click(screen.getByRole("button", { name: "Add Log" }));
@@ -293,7 +310,7 @@ describe("<GeneratorLogForm /> (edit)", () => {
     );
     expect(screen.getByRole("heading", { name: "Edit Log Entry" })).toBeInTheDocument();
     expect(screen.getByLabelText("Generator", { exact: false })).toBeDisabled();
-    expect(screen.getByLabelText("Hours Run", { exact: false })).toHaveValue(8);
+    expect(screen.getByLabelText("Hours Run — hours", { exact: false })).toHaveValue(8);
     expect(screen.getByLabelText("Closing Fuel (L)", { exact: false })).toHaveValue(115);
     expect(generatorService.listLogs).not.toHaveBeenCalled();
   });
@@ -306,7 +323,7 @@ describe("<GeneratorLogForm /> (edit)", () => {
       <GeneratorLogForm open onClose={vi.fn()} onSaved={onSaved} generatorOptions={GENERATOR_OPTIONS} log={STORED_LOG} />
     );
 
-    const hoursInput = screen.getByLabelText("Hours Run", { exact: false });
+    const hoursInput = screen.getByLabelText("Hours Run — hours", { exact: false });
     await user.clear(hoursInput);
     await user.type(hoursInput, "9");
     await user.click(screen.getByRole("button", { name: "Save Changes" }));
