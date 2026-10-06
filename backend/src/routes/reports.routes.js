@@ -7,6 +7,7 @@ import {
   attendanceSummaryExportValidator,
   overtimeSummaryReportValidator,
   overtimeSummaryExportValidator,
+  leaveUsageReportValidator,
 } from "../validators/reportsValidators.js";
 
 const router = Router();
@@ -20,5 +21,6 @@ router.get("/attendance-summary", requirePermission("reports.read"), attendanceS
 router.get("/attendance-summary/export", requirePermission("reports.read"), attendanceSummaryExportValidator, reportsController.attendanceSummaryExport);
 router.get("/overtime-summary", requirePermission("reports.read"), overtimeSummaryReportValidator, reportsController.overtimeSummary);
 router.get("/overtime-summary/export", requirePermission("reports.read"), overtimeSummaryExportValidator, reportsController.overtimeSummaryExport);
+router.get("/leave-usage", requirePermission("reports.read"), leaveUsageReportValidator, reportsController.leaveUsage);
 
 export default router;

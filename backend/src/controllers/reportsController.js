@@ -120,4 +120,10 @@ export const reportsController = {
     res.set({ "Content-Type": "text/csv", "Content-Disposition": `attachment; filename="${filename}.csv"` });
     return res.send(csv);
   }),
+
+  leaveUsage: asyncHandler(async (req, res) => {
+    const { employeeId, year } = req.query;
+    const report = await reportsService.getLeaveUsageReport({ employeeId, year });
+    sendSuccess(res, { data: report });
+  }),
 };
