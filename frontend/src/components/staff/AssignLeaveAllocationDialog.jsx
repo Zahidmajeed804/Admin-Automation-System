@@ -1,20 +1,51 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { userService } from "../../services/userService";
+import { designationService } from "../../services/designationService";
 import Modal from "../modals/Modal";
 import Button from "../common/Button";
 import Input from "../common/Input";
+import Select from "../common/Select";
 import { apiErrorMessage } from "../../utils/apiError";
 
 const FORM_ID = "assign-leave-allocation-form";
 
-const emptyForm = { casual: "", sick: "", annual: "", overwrite: false };
+const emptyForm = { casual: "", sick: "", annual: "", overwrite: false, designationId: "" };
+
+// Every designation, inactive ones included: people who still hold a deactivated
+// designation need leave too. If the list can't load, "All active staff" still works.
+function useDesignations() {
+  const [state, setState] = useState({ items: [], failed: false });
+  useEffect(() => {
+    let cancelled = false;
+    designationService
+      .list()
+      .then((items) => {
+        if (!cancelled) setState({ items, failed: false });
+      })
+      .catch(() => {
+        if (!cancelled) setState({ items: [], failed: true });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return state;
+}
 
 function AssignForm({ onClose, onDone }) {
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const designations = useDesignations();
 
   const setField = (name) => (e) => setForm((f) => ({ ...f, [name]: e.target.value }));
+
+  const target = designations.items.find((d) => d._id === form.designationId);
+  const targetPhrase = target ? `every active ${target.name}` : "every active account";
+  const applyToOptions = [
+    { value: "", label: "All active staff" },
+    ...designations.items.map((d) => ({ value: d._id, label: d.isActive ? d.name : `${d.name} (inactive)` })),
+  ];
 
   const casual = Number(form.casual);
   const sick = Number(form.sick);
@@ -36,8 +67,9 @@ function AssignForm({ onClose, onDone }) {
         sick,
         annual,
         overwrite: form.overwrite,
+        designationId: form.designationId || undefined,
       });
-      onDone(result);
+      onDone(result, target?.name);
     } catch (err) {
       setSubmitError(apiErrorMessage(err, "Couldn't apply this allocation. Please try again."));
       setSaving(false);
@@ -49,8 +81,8 @@ function AssignForm({ onClose, onDone }) {
       open
       // Don't let Escape/backdrop/X discard an in-flight save.
       onClose={saving ? undefined : onClose}
-      title="Assign leaves to all staff"
-      description="Sets the yearly leave allocation for every active account in one go."
+      title="Assign leaves"
+      description="Sets the yearly leave allocation for all active staff, or only for one designation, in one go."
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={saving}>
@@ -71,6 +103,21 @@ function AssignForm({ onClose, onDone }) {
             {submitError}
           </div>
         )}
+        <Select
+          label="Apply to"
+          name="designationId"
+          id="assign-leave-apply-to"
+          value={form.designationId}
+          onChange={setField("designationId")}
+          options={applyToOptions}
+          helperText={
+            designations.failed
+              ? "Couldn't load designations, so this can only apply to all active staff right now."
+              : target
+                ? `Only active staff with the ${target.name} designation.`
+                : "Every active staff account."
+          }
+        />
         <div className="grid gap-4 sm:grid-cols-3">
           <Input
             label="Casual days"
@@ -118,8 +165,8 @@ function AssignForm({ onClose, onDone }) {
             Overwrite existing allocations
             <span className="block text-helper text-ink-muted">
               {form.overwrite
-                ? "Replaces every active account's allocation, even ones already set individually."
-                : "Only fills in accounts that don't have an allocation set yet — anyone already set individually is left alone."}
+                ? `Replaces the allocation of ${targetPhrase}, even ones already set individually.`
+                : `Only fills in ${targetPhrase} that doesn't have an allocation yet — anyone already set is left alone.`}
             </span>
           </span>
         </label>
@@ -129,8 +176,9 @@ function AssignForm({ onClose, onDone }) {
 }
 
 /**
- * Bulk-sets casual/sick/annual leave days for every active staff account.
- * `onDone` fires with { matched, modified } after a successful apply (the
+ * Bulk-sets casual/sick/annual leave days for every active staff account, or
+ * only for active staff with one designation ("Apply to"). `onDone` fires with
+ * ({ matched, modified }, designationName?) after a successful apply (the
  * caller closes and can show the counts).
  */
 export default function AssignLeaveAllocationDialog({ open, onClose, onDone }) {

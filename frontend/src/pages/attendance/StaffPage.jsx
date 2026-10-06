@@ -41,7 +41,8 @@ export default function StaffPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState(null); // null = creating a new staff member
   const [assignOpen, setAssignOpen] = useState(false);
-  const [assignResult, setAssignResult] = useState(null); // { matched, modified } from the last apply
+  // { matched, modified, designationName? } from the last bulk apply
+  const [assignResult, setAssignResult] = useState(null);
   const [designationsOpen, setDesignationsOpen] = useState(false);
   const [result, setResult] = useState({ key: null, items: [], pagination: null, failed: false });
 
@@ -178,7 +179,7 @@ export default function StaffPage() {
               Designations
             </Button>
             <Button variant="secondary" icon={CalendarRange} onClick={() => setAssignOpen(true)}>
-              Assign leaves to all
+              Assign leaves
             </Button>
             <Button icon={UserPlus} onClick={openCreate}>
               Add staff
@@ -192,7 +193,8 @@ export default function StaffPage() {
           role="status"
           className="bg-status-successBg border border-green-200 text-status-success text-body rounded-md px-3 py-2"
         >
-          Leave allocation applied to {assignResult.modified} of {assignResult.matched} matching staff member(s).
+          Leave allocation applied to {assignResult.modified} of {assignResult.matched} matching staff member(s)
+          {assignResult.designationName ? ` with the ${assignResult.designationName} designation` : ""}.
         </div>
       )}
       <div className="flex flex-col gap-4">
@@ -269,9 +271,11 @@ export default function StaffPage() {
       <AssignLeaveAllocationDialog
         open={assignOpen}
         onClose={() => setAssignOpen(false)}
-        onDone={(result) => {
+        onDone={(result, designationName) => {
           setAssignOpen(false);
-          setAssignResult(result);
+          setAssignResult({ ...result, designationName });
+          // Rows carry each person's allocation; reload so they show the new values.
+          setRefreshKey((k) => k + 1);
         }}
       />
     </>

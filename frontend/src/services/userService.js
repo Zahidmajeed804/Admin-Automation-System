@@ -16,8 +16,9 @@ export const userService = {
   update: (id, payload) => apiClient.patch(`/users/${id}`, payload).then((r) => r.data.data.user),
   setActive: (id, isActive) =>
     apiClient.patch(`/users/${id}/status`, { isActive }).then((r) => r.data.data.user),
-  // payload is { casual, sick, annual, overwrite? }. Applies to every active account;
-  // overwrite:false (the default) only fills accounts with no allocation set yet.
+  // payload is { casual, sick, annual, overwrite?, designationId? }. Applies to every
+  // active account, or only to active staff with `designationId`; overwrite:false
+  // (the default) only fills accounts with no allocation set yet.
   // Resolves to { matched, modified }.
   assignLeaveAllocationToAll: (payload) =>
     apiClient.put("/users/leave-allocation/all", payload).then((r) => r.data.data),
