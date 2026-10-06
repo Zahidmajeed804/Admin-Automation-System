@@ -1,7 +1,19 @@
 import { OvertimeRequest } from "../models/index.js";
 import { startOfDay } from "../utils/dates.js";
+import { toObjectIds } from "../utils/objectIds.js";
 
 export const overtimeRepository = {
+  // Overtime minutes per user per status with `date` in [from, to), `to` exclusive.
+  // Resolves to [{ _id: { user, status }, minutes }].
+  sumMinutesByUserAndStatus: ({ from, to, userIds }) => {
+    const match = { date: { $gte: from, $lt: to } };
+    if (userIds) match.user = { $in: toObjectIds(userIds) };
+    return OvertimeRequest.aggregate([
+      { $match: match },
+      { $group: { _id: { user: "$user", status: "$status" }, minutes: { $sum: "$overtimeMinutes" } } },
+    ]);
+  },
+
   findById: (id) => OvertimeRequest.findById(id),
 
   // Idempotent: one request per attendance record, so a repeated call returns the existing one.

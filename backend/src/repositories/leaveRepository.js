@@ -2,6 +2,16 @@ import { LeaveRequest } from "../models/index.js";
 import { startOfDay } from "../utils/dates.js";
 
 export const leaveRepository = {
+  // Approved leave touching [from, to) — `to` exclusive — as whole documents, so the
+  // caller can clip each one to the month. `userIds` limits it to those people.
+  findApprovedInRange: ({ from, to, userIds }) =>
+    LeaveRequest.find({
+      status: "approved",
+      startDate: { $lt: to },
+      endDate: { $gte: from },
+      ...(userIds ? { user: { $in: userIds } } : {}),
+    }).select("user leaveType startDate endDate"),
+
   create: (data) => LeaveRequest.create(data),
   findById: (id) => LeaveRequest.findById(id),
 

@@ -20,6 +20,19 @@ export const userRepository = {
   updateById: (id, data) =>
     User.findByIdAndUpdate(id, data, { returnDocument: "after" }).populate("designation", DESIGNATION_FIELDS),
   touchLastLogin: (id) => User.findByIdAndUpdate(id, { lastLoginAt: new Date() }),
+  // People a monthly attendance summary covers: everyone in `ids` (they had activity
+  // that month) plus every active staff member with a designation, optionally only
+  // one designation. With `userId`, just that person.
+  findForSummary: ({ ids = [], userId, designationId }) => {
+    const query = userId
+      ? { _id: userId }
+      : { $or: [{ _id: { $in: ids } }, { isActive: true, designation: { $exists: true, $ne: null } }] };
+    if (designationId) query.designation = designationId;
+    return User.find(query)
+      .select("name employeeId department designation isActive")
+      .populate("designation", DESIGNATION_FIELDS)
+      .sort({ name: 1 });
+  },
   updateManyLeaveAllocation: (filter, allocation) => User.updateMany(filter, { $set: allocation }),
 
   // Paginated, searchable staff directory for the admin's Staff page.
