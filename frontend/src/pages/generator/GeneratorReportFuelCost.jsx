@@ -8,6 +8,7 @@ import Table from "../../components/tables/Table";
 import { generatorService } from "../../services/generatorService";
 import { formatNumber } from "../../utils/formatNumber";
 import { formatHoursMinutes } from "../../utils/hoursMinutes";
+import { fuelUnit } from "../../utils/fuelUnit";
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -17,7 +18,7 @@ const MONTH_NAMES = [
 const COLUMNS = [
   { key: "generator", header: "Generator", render: (row) => <span className="font-medium text-ink">{row.generator.tag}</span> },
   { key: "fuelCostTotal", header: "Fuel Cost", render: (row) => formatNumber(row.fuelCostTotal) },
-  { key: "fuelAddedLiters", header: "Fuel Added", render: (row) => `${formatNumber(row.fuelAddedLiters)} L` },
+  { key: "fuelAddedLiters", header: "Fuel Added", render: (row) => `${formatNumber(row.fuelAddedLiters)} ${fuelUnit(row.generator.fuelType)}` },
   { key: "hoursRun", header: "Hours Run", render: (row) => formatHoursMinutes(row.hoursRun) },
   { key: "averageCostPerHour", header: "Avg Cost / Hour", render: (row) => formatNumber(row.averageCostPerHour) },
   { key: "logCount", header: "Log Entries", render: (row) => row.logCount },
