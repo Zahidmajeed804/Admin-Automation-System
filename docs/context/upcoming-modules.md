@@ -5,9 +5,10 @@ already exists that these modules should build on, so they stay consistent with 
 
 ## Module 6 — Centralized Dashboard
 
-- `pages/dashboard/DashboardPage.jsx` (route `/dashboard`, the post-login landing page; ungated). First section is live
-  (AAS-462): `components/attendance/summary/DashboardMonthlySummary.jsx` — this month's overtime/attendance stat cards
-  and overtime pie from `GET /attendance/summary`, shown with `attendance.read`. The rest is a placeholder card.
+- Placeholder: `pages/dashboard/DashboardPage.jsx` (route `/dashboard`, the post-login landing page; ungated).
+  A monthly overtime/attendance section was added in AAS-462 and then taken back out (the page is Coming Soon
+  again); when the dashboard is built, `GET /attendance/summary` and the `components/attendance/summary/`
+  pieces (`useMonthlySummary`, `MonthlySummaryStats`, `OvertimeShareChart`) can be reused for it.
 - Permission seeded: `dashboard.read` (admin, manager, staff).
 - No backend yet. Suggested: `routes/dashboard.routes.js` → `GET /dashboard` gated by `dashboard.read`, with a
   `dashboardService` that composes **existing repositories** (attendance today, pending overtime/leave counts,

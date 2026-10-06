@@ -15,7 +15,7 @@ seeder), not a code change.
 |---|---|
 | Models | `models/User.js`, `Role.js`, `Permission.js`, `UserRole.js`, `RolePermission.js` |
 | Catalog + default roles (seed data only) | `constants/permissions.js` |
-| Seeder | `seeders/index.js` (`seedPermissions`, `seedRoles`, `seedRbacCatalog`, `seedDefaultAdmin`) |
+| Seeder | `seeders/index.js` (`seedPermissions`, `seedRoles`, `seedRbacCatalog`, `seedDefaultAdmin`), then `seeders/migrations.js` `runDataMigrations` (user contact fields, AAS-469) |
 | Auth | `routes/auth.routes.js`, `controllers/authController.js`, `services/authService.js`, `validators/authValidators.js` |
 | RBAC admin | `routes/rbac.routes.js`, `controllers/rbacController.js`, `repositories/rbacRepository.js` |
 | Middleware | `middleware/authenticate.js`, `authorization/requirePermission.js` |
@@ -25,8 +25,8 @@ seeder), not a code change.
 
 | Method & path | Guard | Notes |
 |---|---|---|
-| `POST /auth/register` | public | password ≥ 8 chars with a digit + `confirmPassword`; new user gets `staff` role |
-| `POST /auth/login` | public, 20 req / 15 min | rejects inactive users; sets `lastLoginAt` |
+| `POST /auth/register` | public | name + **phone** required, email and Employee ID optional; password ≥ 8 chars with a digit + `confirmPassword`; new user gets `staff` role; taken phone/email/ID → 409 naming it |
+| `POST /auth/login` `{ identifier, password }` | public, 20 req / 15 min | identifier = phone, Employee ID or email (`userRepository.findByIdentifier`; `email` still accepted); one 401 message for every failure; rejects inactive users; sets `lastLoginAt` |
 | `GET /auth/me` | `authenticate` | returns `{ user, roles, permissions }` |
 | `GET/POST /rbac/roles`, `GET /rbac/permissions` | `roles.manage` | |
 | `POST/DELETE /rbac/role-permissions` `{ roleId, permissionId }` | `roles.manage` | |
@@ -46,8 +46,9 @@ Register/login return `{ user, token, roles, permissions }`.
 
 ### User model (`models/User.js`)
 
-`name`, `email` (unique, lowercase), `employeeId` (trimmed, uppercased, unique + sparse, typed by an admin),
-`passwordHash` (`select: false`, stripped in `toJSON`), `phone`, `department`, `designation` (ref
+`name`, `email` (optional, lowercase; unique via a **partial** index on string values), `employeeId` (trimmed, uppercased,
+unique + sparse, typed by an admin), `passwordHash` (`select: false`, stripped in `toJSON`), `phone` (normalized by
+`utils/phone.js` setter, unique via a partial index), `department`, `designation` (ref
 `Designation`, sets the shift length — see `attendance.md`), `isActive` (default true),
 `lastLoginAt`, `leaveAllocation { casual, sick, annual }` (default 0), timestamps.
 
@@ -87,7 +88,7 @@ Register/login return `{ user, token, roles, permissions }`.
 
 - `context/AuthContext.jsx` — session state, token in `localStorage["aas_token"]`, `hasPermission`.
 - `routes/ProtectedRoute.jsx` — auth + optional `permission` gate.
-- `pages/auth/LoginPage.jsx` — `useState` form; on success plays `LogoLoader` ("Welcome, {name}!")
+- `pages/auth/LoginPage.jsx` — one "Phone, Employee ID or email" field (`identifier`) + password, `useState` form; on success plays `LogoLoader` ("Welcome, {name}!")
   then navigates to `state.from` or `/dashboard`. "Remember me" is not wired; "Forgot password?"
   links to `/forgot-password`, which has no route yet.
 - `pages/auth/RegisterPage.jsx` — maps `details[].field` to field errors.

@@ -83,10 +83,14 @@ Rules the API enforces:
 - A reviewer can change the dates of a **pending** request that was applied for **more than 2 days**
   before deciding it (not their own). The new dates get the same overlap and balance checks, with
   the request itself left out; the applied dates are kept and shown as "Edited · was N days".
-- An admin (`users.manage`) creates a staff login with a name, email, a unique
-  **Employee ID** they type themselves, and a temporary password; the account gets the
+- **Login** takes one field: phone number, Employee ID or email (`POST /auth/login
+  { identifier, password }`; older clients sending `email` still work). Registering needs a
+  name, phone and password; email and Employee ID are optional. Phones are stored in one form
+  (`+92 300-1234567` = `0300 1234567` = `03001234567`).
+- An admin (`users.manage`) creates a staff login with a name, a unique **Employee ID** they
+  type themselves, a phone, an optional email, and a temporary password; the account gets the
   `staff` role by default. Employee ID is case-insensitive (`emp-001` and `EMP-001`
-  collide) and duplicate emails/IDs return 409.
+  collide) and a duplicate phone, email or ID returns 409 naming the field.
 - **Deactivating** a staff member blocks new logins immediately, and any token they
   already hold stops working on its very next request — there is no separate
   revocation list; `authenticate` re-checks `isActive` on every call. Their attendance,
@@ -128,7 +132,7 @@ Rules the API enforces:
 - `/attendance/summary` — a month of overtime (approved and pending, per person and in
   total) and attendance % per person, with month/employee/designation filters, stat cards,
   an overtime-share pie, an attendance-breakdown pie for one employee, and a table. Managers
-  see everyone; staff see only themselves. The **Dashboard** shows this month's version.
+  see everyone; staff see only themselves.
 - A single Attendance entry in the sidebar, and a page switcher at the top of the
   four pages (Attendance, Overtime, Leave, Staff), each link shown only to users who
   hold that page's permission.
@@ -162,12 +166,14 @@ data removed afterwards. Each guide can be repeated by hand:
 - [`docs/verification/AAS-430-434-shift-by-designation.md`](docs/verification/AAS-430-434-shift-by-designation.md) — designations with shift hours, 8h vs 9h overtime and early departure, Designations dialog and staff form field
 - [`docs/verification/AAS-447-450-leave-allocation-by-designation.md`](docs/verification/AAS-447-450-leave-allocation-by-designation.md) — bulk leave allocation by designation ("Apply to") and per-person allocation from the staff row
 - [`docs/verification/AAS-452-456-edit-long-leave-dates.md`](docs/verification/AAS-452-456-edit-long-leave-dates.md) — reviewers change the dates of pending requests over 2 days, checks, and the "Edited" badge
-- [`docs/verification/AAS-458-463-monthly-summary.md`](docs/verification/AAS-458-463-monthly-summary.md) — monthly overtime and attendance % per person, filters, pie charts, and the Dashboard section
+- [`docs/verification/AAS-458-463-monthly-summary.md`](docs/verification/AAS-458-463-monthly-summary.md) — monthly overtime and attendance % per person, filters and pie charts
+- [`docs/verification/AAS-469-473-phone-employee-id-login.md`](docs/verification/AAS-469-473-phone-employee-id-login.md) — log in with phone, Employee ID or email; register and create staff without email; the seed migration
 
 **After pulling this module, run `npm run seed` in `backend`.** It adds
-`overtime.read` to the staff role so staff can see their own overtime. It only adds
-permissions and is safe to repeat. Until then, staff are sent to "Unauthorized"
-when they open the Overtime page.
+`overtime.read` to the staff role so staff can see their own overtime, and migrates user
+indexes so email is optional and phone numbers are unique (AAS-469). It is safe to repeat.
+Until then, staff are sent to "Unauthorized" when they open the Overtime page, and only one
+account can be created without an email.
 
 **Not built yet** (in the requirements, outside the planned scope):
 - Late-arrival tracking. Skipped on purpose: the shift starts at clock-in, so there is no

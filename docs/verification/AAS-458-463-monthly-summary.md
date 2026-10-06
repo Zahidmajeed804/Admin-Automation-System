@@ -6,13 +6,17 @@ Attendance module and on the Dashboard. There's now an **Attendance › Summary*
 page with month, employee and designation filters, stat cards, two pie charts and
 a per-person table, plus a compact version on the **Dashboard**.
 
+> **Update:** the Dashboard section (AAS-462) has since been taken out; the
+> Dashboard is a Coming Soon page again until Module 6 is built. The Dashboard
+> rows in the results below record that earlier run.
+
 | Ticket | What it covers |
 |---|---|
 | AAS-458 | `GET /api/v1/attendance/summary?month&userId&designationId`: per-person overtime, day counts, leave days; totals |
 | AAS-459 | Working days, approved leave on working days, attendance %, average % |
 | AAS-460 | Summary page: filters, stat cards, table; "Summary" in the Attendance section nav |
 | AAS-461 | Overtime-share pie; attendance-breakdown pie for one employee |
-| AAS-462 | "Overtime & attendance" section on the Dashboard, linking to the full page |
+| AAS-462 | "Overtime & attendance" section on the Dashboard, linking to the full page (since removed) |
 | AAS-463 | This verification guide |
 
 Run on 2026-10-06 over real HTTP and in real headless Chrome, against a
@@ -107,8 +111,7 @@ Takes about 10 minutes with the backend and frontend running. Nothing new to see
 2. As a manager or admin, open **Attendance → Summary**. Pick a month; check the
    stat cards and table against the Team views on the Attendance and Overtime pages.
 3. Pick one employee: the breakdown pie appears; its numbers match their row.
-4. Open the **Dashboard**: the same totals for this month, with a link to the page.
-5. Log in as a staff member: Summary and Dashboard show only their own month.
+4. Log in as a staff member: Summary shows only their own month.
 
 ## Behaviour to know about
 

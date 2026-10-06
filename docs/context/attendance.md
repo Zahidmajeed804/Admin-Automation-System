@@ -80,8 +80,9 @@ Enums: `constants/attendance.js` — `ATTENDANCE_STATUSES` (present, absent, hal
 - Leave can't overlap the same person's pending/approved leave (409); rejected leave frees the days.
 - Quotas (casual/sick/annual): `remaining = allocated − approved − pending`, checked **per calendar year**
   the request touches (`daysInYear`, `yearsTouched` in `leaveService.js`); over quota → 400 naming the year and days left.
-- Staff accounts: admin types a unique **Employee ID** (case-insensitive) + temp password; new users get `staff`;
-  duplicate email/ID → 409. Leave allocation updates use dot-paths so other types aren't reset.
+- Staff accounts: admin types a unique **Employee ID** (case-insensitive), a **phone** (required, normalized) and an
+  optional email + temp password; new users get `staff`; duplicate phone/email/ID → 409 naming it (`assertContactsAvailable`).
+  On edit, `""` for email or phone removes it. Leave allocation updates use dot-paths so other types aren't reset.
 - Bulk allocation touches active users only (optionally only one designation); without `overwrite` it fills only
   accounts with no allocation. Per-person changes send only the changed types (dot-path update).
 - Deactivation blocks login and invalidates existing tokens on the next request; history is kept; you can't deactivate yourself.
@@ -93,7 +94,7 @@ Enums: `constants/attendance.js` — `ATTENDANCE_STATUSES` (present, absent, hal
 | `/attendance` | `pages/attendance/AttendancePage.jsx` | Tabs "My attendance" / "Team" (`?tab=team`, needs `attendance.update`); `ClockWidget`, `AttendanceViewToggle` (List/Calendar), `AttendanceHistoryTable`, `AttendanceCalendarContainer` → `AttendanceCalendar`, `TeamAttendanceTable`, `EditAttendanceModal` (DateTimePicker) |
 | `/attendance/overtime` | `pages/overtime/OvertimePage.jsx` | Pending / Team (`?view=team`) for `overtime.approve`: `PendingOvertimeTable`, `TeamOvertimeTable`, `ReviewOvertimeDialog`; "My overtime" `OvertimeHistoryTable` |
 | `/attendance/leave` | `pages/leave/LeavePage.jsx` | `LeaveBalanceCards`, `RequestLeaveModal` (shows remaining, blocks over-balance), `LeaveHistoryTable`, Pending/Team for approvers: `PendingLeaveTable`, `TeamLeaveTable`, `ReviewLeaveDialog`, `EditLeaveDatesDialog` (Edit dates on pending rows > 2 days); `LeaveDaysCell` adds the "Edited · was N days" badge (`theme.statusStyles.edited`) in all three tables |
-| `/attendance/summary` | `pages/attendance/AttendanceSummaryPage.jsx` | month/employee/designation filters, `components/attendance/summary/`: `useMonthlySummary`, `MonthlySummaryStats`, `MonthlySummaryTable`, lazy `SummaryCharts` (`OvertimeShareChart`, `AttendanceBreakdownChart`, `SummaryPie`); `DashboardMonthlySummary` on the Dashboard |
+| `/attendance/summary` | `pages/attendance/AttendanceSummaryPage.jsx` | month/employee/designation filters, `components/attendance/summary/`: `useMonthlySummary`, `MonthlySummaryStats`, `MonthlySummaryTable`, lazy `SummaryCharts` (`OvertimeShareChart`, `AttendanceBreakdownChart`, `SummaryPie`) |
 | `/attendance/staff` | `pages/attendance/StaffPage.jsx` | `FilterBar` + `Table` (Designation column), `StaffFormModal` (Employee ID, temp password with show/hide, Designation select of active ones), `ConfirmDialog` (activate/deactivate), `AssignLeaveAllocationDialog` ("Apply to": all active staff or a designation), `StaffLeaveAllocationDialog` (row **Leave** action, prefilled, sends only changed types), `DesignationsDialog` (add/edit/(de)activate) |
 
 Services: `attendanceService`, `overtimeService`, `leaveService`, `userService` — all return `{ items, pagination }`;

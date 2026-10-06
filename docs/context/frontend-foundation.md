@@ -113,11 +113,11 @@ There is no `hooks/` folder, no state library, no form library, no toast library
 | `common/Button` | `variant` primary/secondary/ghost/danger/link, `size` sm/md/lg, `icon` (lucide), `iconPosition`, `loading`; default `type="button"` |
 | `common/Input` | forwardRef; `label`, `id`/`name`, `error`, `helperText`, `required`, `icon`, `trailing` (right slot, e.g. show-password) |
 | `common/Select` | Input props + `options=[{ value, label }]`, `placeholder` |
-| `common/DatePicker` | value `"YYYY-MM-DD"`; `min`, `max`, `clearable`, `error`; popover with OK/Cancel, full keyboard + ARIA; shows `DD/MM/YYYY`; exports date helpers (`toDateStr`, `parseDateStr`, `buildMonthGrid`, …) |
+| `common/DatePicker` | value `"YYYY-MM-DD"`; `min`, `max`, `clearable`, `error`; popover with OK/Cancel (`common/PickerPopover`: portalled to <body>, fixed position, flips above when needed, so a Modal body never clips it), full keyboard + ARIA; shows `DD/MM/YYYY`; exports date helpers (`toDateStr`, `parseDateStr`, `buildMonthGrid`, …) |
 | `common/DateTimePicker` | value `"YYYY-MM-DDTHH:mm"` |
 | `common/Badge` | `status` key from `theme.statusStyles`, or `color`/`bg`/`children`; `dot` |
 | `common/Card`, `PageHeader` | `PageHeader`: `title`, `description`, `action` |
-| `common/FilterBar` | `search`, `onSearchChange`, `filters` (nodes), `onReset`, `actions` |
+| `common/FilterBar` | `search`, `onSearchChange`, `filters` (nodes), `onReset`, `actions`; controls align on their bottom edge and Reset is input height |
 | `common/SearchInput`, `Pagination` | `Pagination`: `page` (1-based), `totalPages`, `totalItems`, `pageSize`, `onPageChange` |
 | `common/Tabs` | controlled `tabs=[{ id, label }]`, `value`, `onChange`; ARIA + arrow keys |
 | `common/StatCard` | `label`, `value`, `icon`, `trend`, `iconColor`, `iconBg` |

@@ -33,10 +33,10 @@ cd frontend && npm run dev
 npm run build | npm run lint | npm test
 ```
 
-- Seeded login: `admin@admin-automation.local` / `ChangeMe123!`.
+- Seeded login: `admin@admin-automation.local` / `ChangeMe123!`. Login accepts phone, Employee ID or email.
 - Backend env vars are read **only** in `backend/src/config/env.js` (template:
   `backend/.env.example`). Frontend: `VITE_API_BASE_URL` (default `http://localhost:5000/api/v1`).
-- After adding permissions, re-run `npm run seed` (it only adds, safe to repeat).
+- After adding permissions, re-run `npm run seed` (it only adds, safe to repeat; it also runs `seeders/migrations.js`).
 
 ## Module map
 
@@ -49,7 +49,7 @@ npm run build | npm run lint | npm test
 | 3 | Grocery & Cleaning Inventory | Frontend + permissions only, **no backend** | [docs/context/inventory.md](docs/context/inventory.md) |
 | 4 | Generator Management | Done (PR #7) | [docs/context/generator.md](docs/context/generator.md) |
 | 5 | Attendance, Overtime, Leave, Staff | Done for planned scope | [docs/context/attendance.md](docs/context/attendance.md) |
-| 6–8 | Dashboard · Reports/Alerts/Notifications · Profile/Settings | `ComingSoon` placeholders (Dashboard has its first section: the monthly summary) | [docs/context/upcoming-modules.md](docs/context/upcoming-modules.md) |
+| 6–8 | Dashboard · Reports/Alerts/Notifications · Profile/Settings | `ComingSoon` placeholders | [docs/context/upcoming-modules.md](docs/context/upcoming-modules.md) |
 
 ## Foundation rules (keep every module consistent)
 
