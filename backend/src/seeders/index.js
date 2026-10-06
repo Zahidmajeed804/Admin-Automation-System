@@ -7,6 +7,7 @@ import { permissionsCatalog, defaultRoles } from "../constants/permissions.js";
 import { hashPassword } from "../utils/password.js";
 import { User } from "../models/index.js";
 import { logger } from "../utils/logger.js";
+import { runDataMigrations } from "./migrations.js";
 
 export async function seedPermissions() {
   const permissionIdByName = {};
@@ -83,6 +84,7 @@ async function run() {
   await seedRbacCatalog();
   await seedDefaultAdmin();
   logger.info("RBAC seeding complete.");
+  await runDataMigrations();
   await disconnectDatabase();
   await mongoose.disconnect();
   process.exit(0);

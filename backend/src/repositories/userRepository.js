@@ -1,14 +1,27 @@
 import { User } from "../models/index.js";
+import { normalizePhone } from "../utils/phone.js";
 
 // What staff lists and the attendance service need to know about a designation.
 export const DESIGNATION_FIELDS = "name shiftHours isActive";
 
 export const userRepository = {
+  // The lookups below return null for an empty value instead of matching "no email/phone".
   findByEmail: (email, withPassword = false) => {
-    const query = User.findOne({ email: email.toLowerCase() });
+    if (!email) return Promise.resolve(null);
+    const query = User.findOne({ email: String(email).trim().toLowerCase() });
     return withPassword ? query.select("+passwordHash") : query;
   },
-  findByEmployeeId: (employeeId) => User.findOne({ employeeId: employeeId.toUpperCase() }),
+  findByEmployeeId: (employeeId, withPassword = false) => {
+    if (!employeeId) return Promise.resolve(null);
+    const query = User.findOne({ employeeId: String(employeeId).trim().toUpperCase() });
+    return withPassword ? query.select("+passwordHash") : query;
+  },
+  findByPhone: (phone, withPassword = false) => {
+    const normalized = normalizePhone(phone);
+    if (!normalized) return Promise.resolve(null);
+    const query = User.findOne({ phone: normalized });
+    return withPassword ? query.select("+passwordHash") : query;
+  },
   findById: (id) => User.findById(id),
   findByIdWithDesignation: (id) => User.findById(id).populate("designation", DESIGNATION_FIELDS),
   listAll: () =>
@@ -43,7 +56,12 @@ export const userRepository = {
     if (search) {
       const escaped = search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const pattern = new RegExp(escaped, "i");
-      query.$or = [{ name: pattern }, { email: pattern }, { employeeId: pattern }];
+      query.$or = [{ name: pattern }, { email: pattern }, { employeeId: pattern }, { phone: pattern }];
+      // A phone typed with spaces or +92 still finds the stored (normalized) number.
+      const phone = normalizePhone(search);
+      if (phone && /^\+?\d{3,}$/.test(phone)) {
+        query.$or.push({ phone: new RegExp(phone.replace(/\+/g, "\\+")) });
+      }
     }
 
     const [items, totalItems] = await Promise.all([
