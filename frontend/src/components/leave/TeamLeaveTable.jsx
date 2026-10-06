@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Check, X } from "lucide-react";
+import { CalendarClock, Check, X } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { leaveService } from "../../services/leaveService";
 import { userService } from "../../services/userService";
@@ -10,7 +10,14 @@ import Button from "../common/Button";
 import Badge from "../common/Badge";
 import Table from "../tables/Table";
 import ReviewLeaveDialog from "./ReviewLeaveDialog";
-import { formatLeaveDate, leaveTypeLabel, leaveTypeOptions } from "../../utils/leaveFormat";
+import EditLeaveDatesDialog from "./EditLeaveDatesDialog";
+import {
+  canEditLeaveDates,
+  editedNotice,
+  formatLeaveDate,
+  leaveTypeLabel,
+  leaveTypeOptions,
+} from "../../utils/leaveFormat";
 
 const PAGE_SIZE = 10;
 
@@ -51,6 +58,8 @@ export default function TeamLeaveTable({ canApprove, canReject, refreshKey: exte
   // own request) to re-fetch in place, without the loading skeleton.
   const [refreshKey, setRefreshKey] = useState(0);
   const [review, setReview] = useState(null); // { request, decision }
+  const [editing, setEditing] = useState(null); // request whose dates are being changed
+  const [notice, setNotice] = useState("");
   const [employees, setEmployees] = useState([]);
   const [employeesFailed, setEmployeesFailed] = useState(false);
   // `key` identifies the request the data belongs to; loading = it hasn't arrived yet.
@@ -135,6 +144,22 @@ export default function TeamLeaveTable({ canApprove, canReject, refreshKey: exte
         const hint = own ? "You can't review your own leave request" : undefined;
         return (
           <div className="flex items-center gap-2">
+            {canEditLeaveDates(row) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={CalendarClock}
+                disabled={own}
+                title={own ? "You can't change the dates of your own leave request" : undefined}
+                aria-label={`Edit dates of leave for ${who} starting ${when}`}
+                onClick={() => {
+                  setNotice("");
+                  setEditing(row);
+                }}
+              >
+                Edit dates
+              </Button>
+            )}
             {canApprove && (
               <Button
                 variant="secondary"
@@ -171,6 +196,14 @@ export default function TeamLeaveTable({ canApprove, canReject, refreshKey: exte
 
   return (
     <div className="flex flex-col gap-4">
+      {notice && (
+        <div
+          role="status"
+          className="bg-status-successBg border border-green-200 text-status-success text-body rounded-md px-3 py-2"
+        >
+          {notice}
+        </div>
+      )}
       <FilterBar
         onReset={hasFilters ? reset : undefined}
         filters={
@@ -252,6 +285,16 @@ export default function TeamLeaveTable({ canApprove, canReject, refreshKey: exte
         onClose={() => setReview(null)}
         onDone={() => {
           setReview(null);
+          setNotice("");
+          setRefreshKey((k) => k + 1);
+        }}
+      />
+      <EditLeaveDatesDialog
+        request={editing}
+        onClose={() => setEditing(null)}
+        onSaved={(updated) => {
+          setEditing(null);
+          setNotice(editedNotice(updated));
           setRefreshKey((k) => k + 1);
         }}
       />
