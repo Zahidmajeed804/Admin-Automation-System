@@ -131,7 +131,8 @@ export default function StaffPage() {
           <span className="text-ink-muted">—</span>
         ),
     },
-    { key: "email", header: "Email" },
+    { key: "phone", header: "Phone", render: (row) => row.phone || <span className="text-ink-muted">—</span> },
+    { key: "email", header: "Email", render: (row) => row.email || <span className="text-ink-muted">—</span> },
     {
       key: "status",
       header: "Status",
@@ -211,7 +212,7 @@ export default function StaffPage() {
         <FilterBar
           search={filters.search}
           onSearchChange={(v) => setFilter("search", v)}
-          searchPlaceholder="Search name, email or Employee ID"
+          searchPlaceholder="Search name, phone, email or Employee ID"
           onReset={hasFilters ? reset : undefined}
           filters={
             <Select

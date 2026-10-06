@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Mail, Lock, User } from "lucide-react";
+import { Mail, Lock, User, Phone, IdCard } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import Input from "../../components/common/Input";
 import Button from "../../components/common/Button";
@@ -9,7 +9,15 @@ export default function RegisterPage() {
   const { register } = useAuth();
   const navigate = useNavigate();
 
-  const [form, setForm] = useState({ name: "", email: "", password: "", confirmPassword: "" });
+  // Phone is required; email and Employee ID are optional (the API accepts "" for them).
+  const [form, setForm] = useState({
+    name: "",
+    phone: "",
+    employeeId: "",
+    email: "",
+    password: "",
+    confirmPassword: "",
+  });
   const [fieldErrors, setFieldErrors] = useState({});
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -55,7 +63,10 @@ export default function RegisterPage() {
           className="bg-white border border-border rounded-card shadow-card p-6 flex flex-col gap-4"
         >
           {error && (
-            <div className="bg-status-errorBg border border-red-200 text-status-error text-body rounded-md px-3 py-2">
+            <div
+              role="alert"
+              className="bg-status-errorBg border border-red-200 text-status-error text-body rounded-md px-3 py-2"
+            >
               {error}
             </div>
           )}
@@ -71,15 +82,40 @@ export default function RegisterPage() {
             required
           />
           <Input
-            label="Email"
+            label="Phone"
+            name="phone"
+            id="register-phone"
+            type="tel"
+            icon={Phone}
+            placeholder="0300 1234567"
+            value={form.phone}
+            onChange={handleChange}
+            error={fieldErrors.phone}
+            helperText="You can sign in with this number."
+            required
+            autoComplete="tel"
+          />
+          <Input
+            label="Employee ID (optional)"
+            name="employeeId"
+            id="register-employee-id"
+            icon={IdCard}
+            placeholder="EMP-001"
+            value={form.employeeId}
+            onChange={handleChange}
+            error={fieldErrors.employeeId}
+            autoComplete="off"
+          />
+          <Input
+            label="Email (optional)"
             name="email"
+            id="register-email"
             type="email"
             icon={Mail}
             placeholder="you@company.com"
             value={form.email}
             onChange={handleChange}
             error={fieldErrors.email}
-            required
             autoComplete="email"
           />
           <Input

@@ -8,6 +8,7 @@ import Input from "../common/Input";
 import Select from "../common/Select";
 import { apiErrorMessage } from "../../utils/apiError";
 import { formatShiftHours } from "../../utils/designationFormat";
+import { isValidPhone } from "../../utils/phone";
 
 const FORM_ID = "staff-form";
 
@@ -85,12 +86,16 @@ function StaffForm({ staff, onClose, onSaved }) {
   const name = form.name.trim();
   const email = form.email.trim();
   const employeeId = form.employeeId.trim();
+  const phone = form.phone.trim();
   const password = form.password;
 
   const errors = {};
   if (!name) errors.name = "Name is required.";
-  if (!email) errors.email = "Email is required.";
-  else if (!/^\S+@\S+\.\S+$/.test(email)) errors.email = "Enter a valid email address.";
+  // Email is optional (staff can sign in with their phone or Employee ID); phone is
+  // required for new staff. On edit, clearing either removes it.
+  if (email && !/^\S+@\S+\.\S+$/.test(email)) errors.email = "Enter a valid email address.";
+  if (!isEdit && !phone) errors.phone = "Phone number is required.";
+  else if (phone && !isValidPhone(phone)) errors.phone = "Enter a valid phone number, e.g. 0300 1234567.";
   if (!employeeId) errors.employeeId = "Employee ID is required.";
   else if (!/^[A-Za-z0-9-]{2,20}$/.test(employeeId)) {
     errors.employeeId = "2-20 letters, numbers or hyphens.";
@@ -111,7 +116,6 @@ function StaffForm({ staff, onClose, onSaved }) {
     setSaving(true);
     setSubmitError("");
     try {
-      const phone = form.phone.trim();
       const department = form.department.trim();
       if (isEdit) {
         // null clears a designation that was removed in the form.
@@ -182,17 +186,31 @@ function StaffForm({ staff, onClose, onSaved }) {
             required
           />
         </div>
-        <Input
-          label="Email"
-          type="email"
-          name="email"
-          id="staff-email"
-          autoComplete="off"
-          value={form.email}
-          onChange={setField("email")}
-          error={submitted ? errors.email : undefined}
-          required
-        />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Input
+            label="Phone"
+            type="tel"
+            name="phone"
+            id="staff-phone"
+            autoComplete="off"
+            placeholder="0300 1234567"
+            value={form.phone}
+            onChange={setField("phone")}
+            error={submitted ? errors.phone : undefined}
+            helperText="They can sign in with this number or their Employee ID."
+            required={!isEdit}
+          />
+          <Input
+            label="Email (optional)"
+            type="email"
+            name="email"
+            id="staff-email"
+            autoComplete="off"
+            value={form.email}
+            onChange={setField("email")}
+            error={submitted ? errors.email : undefined}
+          />
+        </div>
         {!isEdit && (
           <Input
             label="Temporary password"
@@ -218,24 +236,14 @@ function StaffForm({ staff, onClose, onSaved }) {
             }
           />
         )}
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Input
-            label="Phone"
-            name="phone"
-            id="staff-phone"
-            autoComplete="off"
-            value={form.phone}
-            onChange={setField("phone")}
-          />
-          <Input
-            label="Department"
-            name="department"
-            id="staff-department"
-            autoComplete="off"
-            value={form.department}
-            onChange={setField("department")}
-          />
-        </div>
+        <Input
+          label="Department"
+          name="department"
+          id="staff-department"
+          autoComplete="off"
+          value={form.department}
+          onChange={setField("department")}
+        />
         <Select
           label="Designation"
           name="designationId"
