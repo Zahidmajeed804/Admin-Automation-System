@@ -9,6 +9,7 @@ import { logger } from "../utils/logger.js";
 import { mailer } from "../utils/mailer.js";
 import { getMaintenanceReminderRecipients } from "./notificationRecipients.js";
 import { buildMaintenanceIntervalDueEmail } from "../utils/emailTemplates/maintenanceIntervalDue.js";
+import { roundToMinute } from "../utils/hoursMinutes.js";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const DEFAULT_ALERT_THRESHOLD_DAYS = 7;
@@ -50,6 +51,16 @@ async function findActiveGenerator(id) {
   const generator = await generatorRepository.findById(id);
   if (!generator || !generator.isActive) throw new NotFoundError("Generator not found");
   return generator;
+}
+
+// A needle-gauge mark only means something on a "gauge"-measurement
+// generator (see Generator.fuelMeasurementType); a digital generator reports
+// a precise number instead, so a gauge mark sent for one is rejected rather
+// than silently ignored.
+function rejectGaugeReadingOnDigital(generator, fields) {
+  if (generator.fuelMeasurementType !== "digital") return;
+  if (fields.openingFuelGaugeReading == null && fields.fuelGaugeReading == null) return;
+  throw new BadRequestError("This generator uses digital fuel readings — a gauge mark cannot be recorded for it");
 }
 
 /**
@@ -187,7 +198,7 @@ export const generatorService = {
    * generator's own maintenanceIntervalHours (see maybeFlagMaintenanceDue).
    */
   async recordLog({ generatorId, recordedBy, ...fields }) {
-    await findActiveGenerator(generatorId);
+    rejectGaugeReadingOnDigital(await findActiveGenerator(generatorId), fields);
 
     const log = await generatorLogRepository.create({
       ...fields,
@@ -267,6 +278,13 @@ export const generatorService = {
       }
     }
 
+    // Only re-fetch the generator (an extra query) when a mark is actually
+    // being set — clearing one, or editing unrelated fields, needs no check.
+    if (changes.openingFuelGaugeReading || changes.fuelGaugeReading) {
+      const owningGenerator = await generatorRepository.findById(before.generator);
+      rejectGaugeReadingOnDigital(owningGenerator, changes);
+    }
+
     const opening = isGiven(merged.openingFuelLiters) ? Number(merged.openingFuelLiters) : null;
     const closing = isGiven(merged.closingFuelLiters) ? Number(merged.closingFuelLiters) : null;
     const added = Number(merged.fuelAddedLiters) || 0;
@@ -306,7 +324,8 @@ export const generatorService = {
     }
 
     // Signed (a correction can lower the hours), so not round2, which never goes below 0.
-    const hoursDelta = changes.hoursRun !== undefined ? Math.round((Number(changes.hoursRun) - before.hoursRun) * 100) / 100 : 0;
+    // Rounded to the nearest minute, not 2 decimals, so e.g. 20 minutes (0.333... h) round-trips exactly.
+    const hoursDelta = changes.hoursRun !== undefined ? roundToMinute(Number(changes.hoursRun) - before.hoursRun) : 0;
     let generator = null;
     if (hoursDelta !== 0) generator = await generatorRepository.incrementRunningHours(before.generator, hoursDelta);
 

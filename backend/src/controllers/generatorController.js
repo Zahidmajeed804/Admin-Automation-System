@@ -2,7 +2,7 @@ import { generatorRepository } from "../repositories/generatorRepository.js";
 import { generatorService } from "../services/generatorService.js";
 import { sendSuccess } from "../utils/apiResponse.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
-import { NotFoundError } from "../errors/AppError.js";
+import { NotFoundError, BadRequestError } from "../errors/AppError.js";
 
 export const generatorController = {
   list: asyncHandler(async (req, res) => {
@@ -31,6 +31,18 @@ export const generatorController = {
   update: asyncHandler(async (req, res) => {
     const existing = await generatorRepository.findById(req.params.id);
     if (!existing || !existing.isActive) throw new NotFoundError("Generator not found");
+
+    // Only re-check the gauge/capacity rule when the request actually touches
+    // one of the two fields — editing an unrelated field on a legacy gauge
+    // generator with no capacity yet must not suddenly start failing.
+    if (req.body.fuelMeasurementType !== undefined || req.body.fuelTankCapacityLiters !== undefined) {
+      const effectiveType = req.body.fuelMeasurementType ?? existing.fuelMeasurementType;
+      const effectiveCapacity = req.body.fuelTankCapacityLiters ?? existing.fuelTankCapacityLiters;
+      if (effectiveType === "gauge" && !(Number(effectiveCapacity) > 0)) {
+        throw new BadRequestError("fuelTankCapacityLiters is required and must be greater than 0 when fuelMeasurementType is gauge");
+      }
+    }
+
     const generator = await generatorRepository.updateById(req.params.id, {
       ...req.body,
       updatedBy: req.userId,

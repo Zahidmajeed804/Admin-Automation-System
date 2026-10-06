@@ -12,6 +12,7 @@ import GeneratorForm, { extractErrorMessage } from "./GeneratorForm";
 import GeneratorDetails from "./GeneratorDetails";
 import { useAuth } from "../../context/AuthContext";
 import { generatorService } from "../../services/generatorService";
+import { formatHoursMinutes } from "../../utils/hoursMinutes";
 
 const PAGE_SIZE = 10;
 
@@ -34,7 +35,7 @@ function buildColumns({ onView, onEdit, onDelete }) {
     {
       key: "runningHoursTotal",
       header: "Running Hours",
-      render: (row) => row.runningHoursTotal.toFixed(1),
+      render: (row) => formatHoursMinutes(row.runningHoursTotal),
     },
     {
       key: "actions",

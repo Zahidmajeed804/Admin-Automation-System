@@ -4,13 +4,14 @@ import { asyncHandler } from "../middleware/asyncHandler.js";
 
 export const reportController = {
   runningHours: asyncHandler(async (req, res) => {
-    const report = await reportService.getRunningHoursReport({ generatorId: req.query.generatorId, month: req.query.month });
+    const { generatorId, from, to } = req.query;
+    const report = await reportService.getRunningHoursReport({ generatorId, from, to });
     sendSuccess(res, { data: report });
   }),
 
-  dieselConsumption: asyncHandler(async (req, res) => {
+  fuelConsumption: asyncHandler(async (req, res) => {
     const { generatorId, from, to } = req.query;
-    const report = await reportService.getDieselConsumptionReport({ generatorId, from, to });
+    const report = await reportService.getFuelConsumptionReport({ generatorId, from, to });
     sendSuccess(res, { data: report });
   }),
 

@@ -10,6 +10,10 @@ import Button from "./Button";
  * the Reset button all sit on the same line whether or not a filter has a label above it.
  */
 export default function FilterBar({ search, onSearchChange, searchPlaceholder, filters, onReset, actions }) {
+  // items-end, not items-center: filter controls that have a visible label above
+  // their input (e.g. DatePicker) are taller than a label-less one (e.g. a bare
+  // Select using only a placeholder) — centering the row left their input boxes
+  // sitting at different heights, so the bottom edge is what actually lines up.
   return (
     <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 flex-wrap">
       <div className="flex flex-col sm:flex-row sm:items-end gap-3 flex-wrap">

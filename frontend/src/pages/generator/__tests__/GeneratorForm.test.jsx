@@ -21,6 +21,7 @@ const FULL_GENERATOR = {
   serialNumber: "SN-1",
   capacityKVA: 0,
   fuelType: "petrol",
+  fuelMeasurementType: "digital",
   fuelTankCapacityLiters: 200,
   status: "faulty",
   installationDate: "2024-03-15T00:00:00.000Z",
@@ -38,6 +39,7 @@ describe("toFormValues", () => {
       serialNumber: "",
       capacityKVA: "",
       fuelType: "diesel",
+      fuelMeasurementType: "gauge",
       fuelTankCapacityLiters: "",
       status: "operational",
       installationDate: "",
@@ -53,7 +55,13 @@ describe("toFormValues", () => {
     // capacityKVA: 0 is a real reading, not "unset" — must stay "0", not "".
     expect(values.capacityKVA).toBe("0");
     expect(values.fuelTankCapacityLiters).toBe("200");
+    expect(values.fuelMeasurementType).toBe("digital");
     expect(values.status).toBe("faulty");
+  });
+
+  it("defaults fuelMeasurementType to gauge when a generator predates the field", () => {
+    const values = toFormValues({ ...FULL_GENERATOR, fuelMeasurementType: undefined });
+    expect(values.fuelMeasurementType).toBe("gauge");
   });
 });
 
@@ -71,9 +79,10 @@ describe("toPayload", () => {
       capacityKVA: "",
       fuelTankCapacityLiters: "",
       fuelType: "diesel",
+      fuelMeasurementType: "digital",
       status: "operational",
     });
-    expect(payload).toEqual({ tag: "GEN-02", name: "Backup", fuelType: "diesel", status: "operational" });
+    expect(payload).toEqual({ tag: "GEN-02", name: "Backup", fuelType: "diesel", fuelMeasurementType: "digital", status: "operational" });
   });
 
   it("includes numeric fields as numbers when present, including 0", () => {
@@ -89,10 +98,12 @@ describe("toPayload", () => {
       capacityKVA: "0",
       fuelTankCapacityLiters: "500",
       fuelType: "diesel",
+      fuelMeasurementType: "gauge",
       status: "operational",
     });
     expect(payload.capacityKVA).toBe(0);
     expect(payload.fuelTankCapacityLiters).toBe(500);
+    expect(payload.fuelMeasurementType).toBe("gauge");
   });
 });
 
@@ -154,14 +165,48 @@ describe("<GeneratorForm />", () => {
 
     await user.type(screen.getByLabelText("Tag", { exact: false }), "  GEN-09  ");
     await user.type(screen.getByLabelText("Name", { exact: false }), "  New Genset  ");
+    await user.type(screen.getByLabelText("Fuel Tank Capacity", { exact: false }), "150");
     await user.click(screen.getByRole("button", { name: "Add Generator" }));
 
     await waitFor(() =>
       expect(generatorService.createGenerator).toHaveBeenCalledWith(
-        expect.objectContaining({ tag: "GEN-09", name: "New Genset" })
+        expect.objectContaining({ tag: "GEN-09", name: "New Genset", fuelMeasurementType: "gauge", fuelTankCapacityLiters: 150 })
       )
     );
     expect(onSaved).toHaveBeenCalledWith({ _id: "new1", tag: "GEN-09" });
+  });
+
+  it("blocks submit with a field error when a gauge generator has no tank capacity", async () => {
+    const user = userEvent.setup();
+    const onSaved = vi.fn();
+    render(<GeneratorForm open onClose={vi.fn()} onSaved={onSaved} generator={null} />);
+
+    await user.type(screen.getByLabelText("Tag", { exact: false }), "GEN-10");
+    await user.type(screen.getByLabelText("Name", { exact: false }), "No Capacity");
+    await user.click(screen.getByRole("button", { name: "Add Generator" }));
+
+    expect(await screen.findByText(/required for a needle-gauge generator/i)).toBeInTheDocument();
+    expect(generatorService.createGenerator).not.toHaveBeenCalled();
+    expect(onSaved).not.toHaveBeenCalled();
+  });
+
+  it("does not require a tank capacity for a digital generator", async () => {
+    generatorService.createGenerator.mockResolvedValue({ _id: "new2", tag: "GEN-11" });
+    const user = userEvent.setup();
+    const onSaved = vi.fn();
+    render(<GeneratorForm open onClose={vi.fn()} onSaved={onSaved} generator={null} />);
+
+    await user.type(screen.getByLabelText("Tag", { exact: false }), "GEN-11");
+    await user.type(screen.getByLabelText("Name", { exact: false }), "Digital Genset");
+    await user.selectOptions(screen.getByLabelText("Fuel Measurement", { exact: false }), "digital");
+    await user.click(screen.getByRole("button", { name: "Add Generator" }));
+
+    await waitFor(() =>
+      expect(generatorService.createGenerator).toHaveBeenCalledWith(
+        expect.objectContaining({ tag: "GEN-11", name: "Digital Genset", fuelMeasurementType: "digital" })
+      )
+    );
+    expect(onSaved).toHaveBeenCalledWith({ _id: "new2", tag: "GEN-11" });
   });
 
   it("updates the existing generator by id in edit mode", async () => {
@@ -193,6 +238,7 @@ describe("<GeneratorForm />", () => {
 
     await user.type(screen.getByLabelText("Tag", { exact: false }), "GEN-01");
     await user.type(screen.getByLabelText("Name", { exact: false }), "Dup");
+    await user.type(screen.getByLabelText("Fuel Tank Capacity", { exact: false }), "100");
     await user.click(screen.getByRole("button", { name: "Add Generator" }));
 
     expect(await screen.findByText(/tag already in use/i)).toBeInTheDocument();

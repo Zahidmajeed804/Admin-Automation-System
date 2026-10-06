@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { vi } from "vitest";
 import GeneratorReportFuelCost from "../GeneratorReportFuelCost";
 import { generatorService } from "../../../services/generatorService";
+import { pickMonth } from "../../../test/monthPicker";
 
 vi.mock("../../../services/generatorService", () => ({
   generatorService: { getFuelCostReport: vi.fn() },
@@ -14,9 +15,9 @@ const REPORT = {
   month: 3,
   year: 2026,
   totalFuelCost: 90000,
-  averageCostPerLiter: 300,
+  averageCostPerHour: 3000,
   generators: [
-    { generator: { id: "g1", tag: "GEN-01" }, fuelCostTotal: 90000, fuelAddedLiters: 300, averageCostPerLiter: 300, logCount: 3 },
+    { generator: { id: "g1", tag: "GEN-01", fuelType: "diesel" }, fuelCostTotal: 90000, fuelAddedLiters: 300, hoursRun: 30, averageCostPerHour: 3000, logCount: 3 },
   ],
 };
 
@@ -26,11 +27,27 @@ beforeEach(() => {
 });
 
 describe("<GeneratorReportFuelCost />", () => {
-  it("shows the total-cost and average-cost stat cards and per-generator rows", async () => {
+  it("shows the total-cost and average-cost-per-hour stat cards and per-generator rows", async () => {
     render(<GeneratorReportFuelCost generatorOptions={GENERATOR_OPTIONS} />);
     expect(await screen.findByText("90,000", { selector: "div.text-2xl" })).toBeInTheDocument();
-    expect(screen.getByText("300", { selector: "div.text-2xl" })).toBeInTheDocument();
+    expect(screen.getByText("3,000", { selector: "div.text-2xl" })).toBeInTheDocument();
     expect(screen.getByText("GEN-01", { selector: "span.font-medium" })).toBeInTheDocument();
+  });
+
+  it("shows the correct unit per row for a mixed diesel+CNG fleet", async () => {
+    generatorService.getFuelCostReport.mockResolvedValue({
+      month: 3,
+      year: 2026,
+      totalFuelCost: 100000,
+      averageCostPerHour: 2500,
+      generators: [
+        { generator: { id: "g1", tag: "GEN-01", fuelType: "diesel" }, fuelCostTotal: 90000, fuelAddedLiters: 300, hoursRun: 30, averageCostPerHour: 3000, logCount: 3 },
+        { generator: { id: "g2", tag: "GEN-02", fuelType: "cng" }, fuelCostTotal: 10000, fuelAddedLiters: 80, hoursRun: 10, averageCostPerHour: 1000, logCount: 2 },
+      ],
+    });
+    render(<GeneratorReportFuelCost generatorOptions={GENERATOR_OPTIONS} />);
+    expect(await screen.findByText("300 L")).toBeInTheDocument();
+    expect(screen.getByText("80 kg")).toBeInTheDocument();
   });
 
   it("re-fetches when the month filter changes", async () => {
@@ -38,7 +55,7 @@ describe("<GeneratorReportFuelCost />", () => {
     render(<GeneratorReportFuelCost generatorOptions={GENERATOR_OPTIONS} />);
     await screen.findByText("GEN-01", { selector: "span.font-medium" });
 
-    await user.type(screen.getByLabelText("Month"), "2026-01");
+    await pickMonth(user, "Month", "2026-01");
     await waitFor(() =>
       expect(generatorService.getFuelCostReport).toHaveBeenLastCalledWith(expect.objectContaining({ month: "2026-01" }))
     );

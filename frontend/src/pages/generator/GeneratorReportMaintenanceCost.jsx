@@ -3,7 +3,7 @@ import { Wrench, Hash } from "lucide-react";
 import StatCard from "../../components/common/StatCard";
 import FilterBar from "../../components/common/FilterBar";
 import Select from "../../components/common/Select";
-import Input from "../../components/common/Input";
+import DatePicker from "../../components/common/DatePicker";
 import Table from "../../components/tables/Table";
 import { generatorService } from "../../services/generatorService";
 import { formatDate } from "../../utils/formatDate";
@@ -66,8 +66,8 @@ export default function GeneratorReportMaintenanceCost({ generatorOptions }) {
         filters={
           <>
             <Select value={generatorId} onChange={(e) => setGeneratorId(e.target.value)} options={generatorOptions} placeholder="All generators" />
-            <Input type="date" aria-label="From date" value={from} onChange={(e) => setFrom(e.target.value)} />
-            <Input type="date" aria-label="To date" value={to} onChange={(e) => setTo(e.target.value)} />
+            <DatePicker label="From" id="maintenance-cost-filter-from" className="sm:w-40" clearable value={from} max={to || undefined} onChange={setFrom} />
+            <DatePicker label="To" id="maintenance-cost-filter-to" className="sm:w-40" clearable value={to} min={from || undefined} onChange={setTo} />
           </>
         }
         onReset={generatorId || from || to ? handleReset : undefined}

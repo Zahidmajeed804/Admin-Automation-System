@@ -8,7 +8,7 @@ vi.mock("../../../services/generatorService", () => ({
   generatorService: {
     getOperatingCostReport: vi.fn(),
     getCostSummaryReport: vi.fn(),
-    getDieselConsumptionReport: vi.fn(),
+    getFuelConsumptionReport: vi.fn(),
   },
 }));
 
@@ -31,12 +31,12 @@ const OPERATING = {
   months: Array.from({ length: 12 }, (_, i) => ({ month: i + 1, fuelCost: 0, maintenanceCost: 0, operatingCost: 0 })),
 };
 const COST_SUMMARY = { generators: [{ generator: { tag: "GEN-01" }, fuelCost: 6000, maintenanceCost: 5000 }] };
-const DIESEL = { generators: [{ generator: { tag: "GEN-01" }, fuelAddedLiters: 100, fuelConsumedLiters: 80 }] };
+const FUEL_CONSUMPTION = { generators: [{ generator: { tag: "GEN-01" }, fuelAddedLiters: 100, fuelConsumedLiters: 80 }] };
 
 function mockAllReports() {
   generatorService.getOperatingCostReport.mockResolvedValue(OPERATING);
   generatorService.getCostSummaryReport.mockResolvedValue(COST_SUMMARY);
-  generatorService.getDieselConsumptionReport.mockResolvedValue(DIESEL);
+  generatorService.getFuelConsumptionReport.mockResolvedValue(FUEL_CONSUMPTION);
 }
 
 beforeEach(() => {
@@ -65,7 +65,7 @@ describe("<GeneratorReportCostAnalysis />", () => {
     await waitFor(() => expect(screen.queryByText(/loading cost analysis/i)).not.toBeInTheDocument());
   });
 
-  it("scopes the cost-summary and diesel-consumption fetches to the same calendar year as the operating-cost year", async () => {
+  it("scopes the cost-summary and fuel-consumption fetches to the same calendar year as the operating-cost year", async () => {
     render(<GeneratorReportCostAnalysis generatorOptions={GENERATOR_OPTIONS} />);
     await waitFor(() => expect(generatorService.getOperatingCostReport).toHaveBeenCalled());
 
@@ -73,7 +73,7 @@ describe("<GeneratorReportCostAnalysis />", () => {
     expect(generatorService.getCostSummaryReport).toHaveBeenCalledWith(
       expect.objectContaining({ from: `${currentYear}-01-01`, to: `${currentYear}-12-31T23:59:59.999Z` })
     );
-    expect(generatorService.getDieselConsumptionReport).toHaveBeenCalledWith(
+    expect(generatorService.getFuelConsumptionReport).toHaveBeenCalledWith(
       expect.objectContaining({ from: `${currentYear}-01-01`, to: `${currentYear}-12-31T23:59:59.999Z` })
     );
   });
@@ -92,7 +92,7 @@ describe("<GeneratorReportCostAnalysis />", () => {
       expect(generatorService.getCostSummaryReport).toHaveBeenLastCalledWith(
         expect.objectContaining({ generatorId: "g1", from: "2025-01-01", to: "2025-12-31T23:59:59.999Z" })
       );
-      expect(generatorService.getDieselConsumptionReport).toHaveBeenLastCalledWith(
+      expect(generatorService.getFuelConsumptionReport).toHaveBeenLastCalledWith(
         expect.objectContaining({ generatorId: "g1", from: "2025-01-01", to: "2025-12-31T23:59:59.999Z" })
       );
     });
@@ -123,12 +123,12 @@ describe("<GeneratorReportCostAnalysis />", () => {
     await waitFor(() => expect(screen.getByText("Monthly Cost Trend — 2026")).toBeInTheDocument());
   });
 
-  it("degrades only its own chart, not the whole page, when diesel-consumption fails alone", async () => {
-    generatorService.getDieselConsumptionReport.mockRejectedValueOnce(new Error("down"));
+  it("degrades only its own chart, not the whole page, when fuel-consumption fails alone", async () => {
+    generatorService.getFuelConsumptionReport.mockRejectedValueOnce(new Error("down"));
     render(<GeneratorReportCostAnalysis generatorOptions={GENERATOR_OPTIONS} />);
 
     // Totals, trend and the cost-by-generator chart (none of which depend on
-    // diesel-consumption) still render normally; no page-wide error banner.
+    // fuel-consumption) still render normally; no page-wide error banner.
     expect(await screen.findByText("11,000", { selector: "div.text-2xl" })).toBeInTheDocument();
     expect(screen.getByText("Cost by Generator — 2026")).toBeInTheDocument();
     expect(screen.getByText("Fuel Consumption by Generator — 2026")).toBeInTheDocument();

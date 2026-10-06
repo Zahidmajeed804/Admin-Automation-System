@@ -3,19 +3,28 @@
 // job — a generator with several jobs due doesn't spam the inbox, and the
 // counts match what the maintenance page's stat cards already show.
 
+import { formatHoursMinutes } from "../hoursMinutes.js";
+
 function formatDate(date) {
   return new Date(date).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
 }
 
 // Mirrors the frontend's dueInLine (DueInfo.jsx): negative means overdue.
-function dueInWords(value, unit) {
+function dueInDays(value) {
   if (value === undefined || value === null) return null;
   const rounded = Math.round(Math.abs(value));
-  return value < 0 ? `overdue by ${rounded}${unit}` : `due in ${rounded}${unit}`;
+  return value < 0 ? `overdue by ${rounded}d` : `due in ${rounded}d`;
+}
+
+// Same idea as dueInDays, but hours show as "Xh Ym" instead of a rounded integer.
+function dueInHours(value) {
+  if (value === undefined || value === null) return null;
+  const formatted = formatHoursMinutes(Math.abs(value));
+  return value < 0 ? `overdue by ${formatted}` : `due in ${formatted}`;
 }
 
 function dueSummary(job) {
-  const parts = [dueInWords(job.daysUntilDue, "d"), dueInWords(job.hoursUntilDue, "h")].filter(Boolean);
+  const parts = [dueInDays(job.daysUntilDue), dueInHours(job.hoursUntilDue)].filter(Boolean);
   return parts.length ? parts.join(", ") : "";
 }
 

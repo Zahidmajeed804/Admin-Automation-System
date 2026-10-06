@@ -3,6 +3,8 @@ import Modal from "../../components/modals/Modal";
 import Button from "../../components/common/Button";
 import Input from "../../components/common/Input";
 import Select from "../../components/common/Select";
+import HoursMinutesInput from "../../components/common/HoursMinutesInput";
+import DatePicker from "../../components/common/DatePicker";
 import { generatorService } from "../../services/generatorService";
 import { extractErrorMessage } from "./GeneratorForm";
 
@@ -202,10 +204,9 @@ export default function GeneratorMaintenanceForm({ open, onClose, onSaved, job, 
             error={fieldErrors.description}
             placeholder="e.g. Oil and filter change"
           />
-          <Input
+          <DatePicker
             id="maintenance-scheduledDate"
             label="Scheduled Date"
-            type="date"
             required
             value={values.scheduledDate}
             onChange={setField("scheduledDate")}
@@ -238,32 +239,25 @@ export default function GeneratorMaintenanceForm({ open, onClose, onSaved, job, 
             error={fieldErrors.alertThresholdDays}
             helperText="How many days before due to flag it as upcoming"
           />
-          <Input
+          <HoursMinutesInput
             id="maintenance-intervalHours"
             label="Repeat Every (running hours)"
-            type="number"
-            min="1"
             value={values.intervalHours}
             onChange={setField("intervalHours")}
             error={fieldErrors.intervalHours}
           />
-          <Input
+          <HoursMinutesInput
             id="maintenance-alertThresholdHours"
             label="Alert Lead Time (hours)"
-            type="number"
-            min="0"
-            placeholder="25"
             value={values.alertThresholdHours}
             onChange={setField("alertThresholdHours")}
             error={fieldErrors.alertThresholdHours}
             helperText="How many running hours before due to flag it as upcoming"
           />
           {values.intervalHours !== "" && (
-            <Input
+            <HoursMinutesInput
               id="maintenance-hoursAtScheduling"
               label="Starting Running Hours"
-              type="number"
-              min="0"
               value={values.hoursAtScheduling}
               onChange={setField("hoursAtScheduling")}
               error={fieldErrors.hoursAtScheduling}

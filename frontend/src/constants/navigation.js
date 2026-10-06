@@ -38,7 +38,7 @@ export const navSections = [
   },
   {
     items: [
-      { label: "Reports", to: "/reports", icon: FileBarChart },
+      { label: "Reports", to: "/reports", icon: FileBarChart, permission: "reports.read" },
       { label: "Notifications", to: "/notifications", icon: Bell },
       { label: "Settings", to: "/settings", icon: Settings },
     ],

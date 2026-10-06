@@ -5,12 +5,6 @@ import { runValidation } from "../middleware/runValidation.js";
 // one generator instead of the whole fleet.
 const generatorIdFilter = query("generatorId").optional().isMongoId().withMessage("generatorId must be a valid id");
 
-export const runningHoursReportValidator = [
-  generatorIdFilter,
-  query("month").optional().matches(/^\d{4}-\d{2}$/).withMessage("month must be in YYYY-MM format"),
-  runValidation,
-];
-
 // Shared by every report that takes an arbitrary from/to range instead of a
 // calendar month (the service resolves the default when either is absent).
 const dateRangeFilter = [
@@ -18,7 +12,9 @@ const dateRangeFilter = [
   query("to").optional().isISO8601().withMessage("to must be a valid date"),
 ];
 
-export const dieselConsumptionReportValidator = [generatorIdFilter, ...dateRangeFilter, runValidation];
+export const runningHoursReportValidator = [generatorIdFilter, ...dateRangeFilter, runValidation];
+
+export const fuelConsumptionReportValidator = [generatorIdFilter, ...dateRangeFilter, runValidation];
 
 export const fuelCostReportValidator = [
   generatorIdFilter,

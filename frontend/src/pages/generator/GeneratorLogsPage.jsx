@@ -3,7 +3,7 @@ import { Plus, Pencil, Trash2 } from "lucide-react";
 import clsx from "clsx";
 import FilterBar from "../../components/common/FilterBar";
 import Select from "../../components/common/Select";
-import Input from "../../components/common/Input";
+import DatePicker from "../../components/common/DatePicker";
 import Button from "../../components/common/Button";
 import ConfirmDialog from "../../components/modals/ConfirmDialog";
 import Table from "../../components/tables/Table";
@@ -13,6 +13,9 @@ import { useAuth } from "../../context/AuthContext";
 import { generatorService } from "../../services/generatorService";
 import { formatDate, formatDateNumeric } from "../../utils/formatDate";
 import { formatNumber } from "../../utils/formatNumber";
+import { fuelUnit } from "../../utils/fuelUnit";
+import { gaugeMarkSymbol } from "../../utils/fuelFigures";
+import { formatHoursMinutes } from "../../utils/hoursMinutes";
 
 const PAGE_SIZE = 10;
 
@@ -48,17 +51,18 @@ const COLUMNS = [
     render: (row) => <span className="font-medium text-ink">{row.generator?.tag ?? "—"}</span>,
   },
   { key: "date", header: "Date", render: (row) => formatDateNumeric(row.date) },
-  { key: "hoursRun", header: "Hours Run", render: (row) => row.hoursRun },
+  { key: "hoursRun", header: "Hours Run", render: (row) => formatHoursMinutes(row.hoursRun) },
   {
     key: "fuel",
     header: "Fuel Movement",
     render: (row) => {
+      const unit = fuelUnit(row.generator?.fuelType);
       const hasBothReadings = row.openingFuelLiters != null && row.closingFuelLiters != null;
       return (
         <LabelledLines
           lines={[
-            row.fuelAddedLiters > 0 && ["Added", `+${formatNumber(row.fuelAddedLiters)} L`, "text-green-700"],
-            (row.fuelConsumedLiters > 0 || hasBothReadings) && ["Used", `${formatNumber(row.fuelConsumedLiters)} L`, "text-amber-700"],
+            row.fuelAddedLiters > 0 && ["Added", `+${formatNumber(row.fuelAddedLiters)} ${unit}`, "text-green-700"],
+            (row.fuelConsumedLiters > 0 || hasBothReadings) && ["Used", `${formatNumber(row.fuelConsumedLiters)} ${unit}`, "text-amber-700"],
           ]}
         />
       );
@@ -67,14 +71,24 @@ const COLUMNS = [
   {
     key: "tank",
     header: "Tank Level",
-    render: (row) => (
-      <LabelledLines
-        lines={[
-          row.openingFuelLiters != null && ["Opening", `${formatNumber(row.openingFuelLiters)} L`],
-          row.closingFuelLiters != null && ["Closing", `${formatNumber(row.closingFuelLiters)} L`],
-        ]}
-      />
-    ),
+    render: (row) => {
+      const unit = fuelUnit(row.generator?.fuelType);
+      // A reading taken off a needle gauge shows the mark it was read at
+      // (e.g. "≈ 100 L (½)") alongside the amount converted from it; a
+      // precise digital/typed reading just shows the amount.
+      const tankValue = (amount, mark) => {
+        const symbol = gaugeMarkSymbol(mark);
+        return symbol ? `≈ ${formatNumber(amount)} ${unit} (${symbol})` : `${formatNumber(amount)} ${unit}`;
+      };
+      return (
+        <LabelledLines
+          lines={[
+            row.openingFuelLiters != null && ["Opening", tankValue(row.openingFuelLiters, row.openingFuelGaugeReading)],
+            row.closingFuelLiters != null && ["Closing", tankValue(row.closingFuelLiters, row.fuelGaugeReading)],
+          ]}
+        />
+      );
+    },
   },
   { key: "cost", header: "Fuel Cost", render: (row) => formatNumber(row.fuelCostTotal) },
   { key: "vendor", header: "Vendor", render: (row) => row.fuelVendor || "—" },
@@ -113,7 +127,17 @@ export default function GeneratorLogsPage() {
   useEffect(() => {
     generatorService
       .listGenerators({ pageSize: GENERATOR_OPTIONS_PAGE_SIZE })
-      .then(({ items }) => setGeneratorOptions(items.map((g) => ({ value: g._id, label: g.tag }))))
+      .then(({ items }) =>
+        setGeneratorOptions(
+          items.map((g) => ({
+            value: g._id,
+            label: g.tag,
+            fuelType: g.fuelType,
+            fuelMeasurementType: g.fuelMeasurementType,
+            fuelTankCapacityLiters: g.fuelTankCapacityLiters,
+          }))
+        )
+      )
       .catch(() => {
         // The filter dropdown just stays empty (only "All generators"); the
         // table load below has its own error handling.
@@ -233,7 +257,7 @@ export default function GeneratorLogsPage() {
   const deleteHours = Number(deleteTarget?.hoursRun) || 0;
   const deleteDescription = deleteTarget
     ? `This removes the ${deleteTarget.generator?.tag ?? "generator"} entry from ${formatDate(deleteTarget.date)}` +
-      `${deleteHours > 0 ? ` and takes its ${formatNumber(deleteHours)} h off the generator's running hours` : ""}. ` +
+      `${deleteHours > 0 ? ` and takes its ${formatHoursMinutes(deleteHours)} off the generator's running hours` : ""}. ` +
       "Entries recorded after it are not recalculated."
     : "";
 
@@ -248,8 +272,8 @@ export default function GeneratorLogsPage() {
               options={generatorOptions}
               placeholder="All generators"
             />
-            <Input type="date" aria-label="From date" value={from} onChange={(e) => handleFromChange(e.target.value)} />
-            <Input type="date" aria-label="To date" value={to} onChange={(e) => handleToChange(e.target.value)} />
+            <DatePicker label="From" id="logs-filter-from" className="sm:w-40" clearable value={from} max={to || undefined} onChange={handleFromChange} />
+            <DatePicker label="To" id="logs-filter-to" className="sm:w-40" clearable value={to} min={from || undefined} onChange={handleToChange} />
           </>
         }
         onReset={generatorId || from || to ? handleReset : undefined}

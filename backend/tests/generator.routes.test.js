@@ -27,7 +27,7 @@ describe("Generator registry API — /api/v1/generator", () => {
     it("a manager can create and update but not delete", async () => {
       const { manager } = await makeUsers();
 
-      const created = await as(manager).post("/", { tag: "M-1", name: "Managed" });
+      const created = await as(manager).post("/", { tag: "M-1", name: "Managed", fuelMeasurementType: "digital" });
       expect(created.status).toBe(201);
       const id = created.body.data._id;
       expect((await as(manager).patch(`/${id}`, { status: "under_maintenance" })).status).toBe(200);
@@ -39,7 +39,13 @@ describe("Generator registry API — /api/v1/generator", () => {
     it("creates a generator, applies the defaults and records who created it", async () => {
       const { admin } = await makeUsers();
 
-      const res = await as(admin).post("/", { tag: "GEN-01", name: "Main Hall", location: "Basement", capacityKVA: 50 });
+      const res = await as(admin).post("/", {
+        tag: "GEN-01",
+        name: "Main Hall",
+        location: "Basement",
+        capacityKVA: 50,
+        fuelMeasurementType: "digital",
+      });
 
       expect(res.status).toBe(201);
       expect(res.body).toMatchObject({ success: true, message: "Generator created" });
@@ -50,18 +56,30 @@ describe("Generator registry API — /api/v1/generator", () => {
         capacityKVA: 50,
         status: "operational",
         fuelType: "diesel",
+        fuelMeasurementType: "digital",
         runningHoursTotal: 0,
         isActive: true,
         createdBy: admin.user._id.toString(),
       });
     });
 
+    it("defaults fuelMeasurementType to gauge, which requires a tank capacity", async () => {
+      const { admin } = await makeUsers();
+
+      const rejected = await as(admin).post("/", { tag: "GEN-GAUGE-1", name: "No capacity" });
+      expect(rejected.status).toBe(400);
+
+      const accepted = await as(admin).post("/", { tag: "GEN-GAUGE-2", name: "With capacity", fuelTankCapacityLiters: 200 });
+      expect(accepted.status).toBe(201);
+      expect(accepted.body.data).toMatchObject({ fuelMeasurementType: "gauge", fuelTankCapacityLiters: 200 });
+    });
+
     it("rejects a duplicate tag with 409", async () => {
       const { admin } = await makeUsers();
       await Generator.init(); // make sure the unique index exists before relying on it
-      await as(admin).post("/", { tag: "DUP", name: "First" });
+      await as(admin).post("/", { tag: "DUP", name: "First", fuelMeasurementType: "digital" });
 
-      const res = await as(admin).post("/", { tag: "DUP", name: "Second" });
+      const res = await as(admin).post("/", { tag: "DUP", name: "Second", fuelMeasurementType: "digital" });
 
       expect(res.status).toBe(409);
     });
@@ -169,6 +187,37 @@ describe("Generator registry API — /api/v1/generator", () => {
       expect(after.name).toBe("Stable");
       expect(after.status).toBe("operational");
     });
+
+    it("leaves a legacy gauge generator with no capacity alone when the update doesn't touch fuel fields", async () => {
+      const { manager } = await makeUsers();
+      const gen = await createGenerator({ fuelMeasurementType: "gauge" }); // no fuelTankCapacityLiters
+
+      const res = await as(manager).patch(`/${gen._id}`, { status: "faulty" });
+
+      expect(res.status).toBe(200);
+    });
+
+    it("rejects switching to gauge without a capacity, and switching to digital needs none", async () => {
+      const { manager } = await makeUsers();
+      const digital = await createGenerator({ fuelMeasurementType: "digital" });
+      const gauge = await createGenerator({ fuelMeasurementType: "gauge", fuelTankCapacityLiters: 100 });
+
+      const toGauge = await as(manager).patch(`/${digital._id}`, { fuelMeasurementType: "gauge" });
+      expect(toGauge.status).toBe(400);
+
+      const toDigital = await as(manager).patch(`/${gauge._id}`, { fuelMeasurementType: "digital" });
+      expect(toDigital.status).toBe(200);
+      expect(toDigital.body.data.fuelMeasurementType).toBe("digital");
+    });
+
+    it("rejects clearing a gauge generator's tank capacity", async () => {
+      const { manager } = await makeUsers();
+      const gen = await createGenerator({ fuelMeasurementType: "gauge", fuelTankCapacityLiters: 100 });
+
+      const res = await as(manager).patch(`/${gen._id}`, { fuelTankCapacityLiters: null });
+
+      expect(res.status).toBe(400);
+    });
   });
 
   describe("delete (DELETE /:id)", () => {
@@ -222,7 +271,7 @@ describe("Generator registry API — /api/v1/generator", () => {
       const gen = await createGenerator({ tag: "GEN-REUSE" });
       await as(admin).delete(`/${gen._id}`);
 
-      const again = await as(admin).post("/", { tag: "GEN-REUSE", name: "Replacement" });
+      const again = await as(admin).post("/", { tag: "GEN-REUSE", name: "Replacement", fuelMeasurementType: "digital" });
 
       expect(again.status).toBe(201);
       expect(again.body.data.name).toBe("Replacement");

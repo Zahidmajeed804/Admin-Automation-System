@@ -57,7 +57,7 @@ export const generatorService = {
   // Service-history is the one exception: it's paginated the same way as the
   // other list endpoints, so it uses `list` instead.
   getRunningHoursReport: (params) => apiClient.get("/generator/reports/running-hours", { params }).then(one),
-  getDieselConsumptionReport: (params) => apiClient.get("/generator/reports/diesel-consumption", { params }).then(one),
+  getFuelConsumptionReport: (params) => apiClient.get("/generator/reports/fuel-consumption", { params }).then(one),
   getFuelCostReport: (params) => apiClient.get("/generator/reports/fuel-cost", { params }).then(one),
   getMaintenanceCostReport: (params) => apiClient.get("/generator/reports/maintenance-cost", { params }).then(one),
   getOperatingCostReport: (params) => apiClient.get("/generator/reports/operating-cost", { params }).then(one),

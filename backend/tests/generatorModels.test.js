@@ -12,16 +12,28 @@ describe("Generator model", () => {
   it("applies defaults", async () => {
     const gen = await Generator.create({ tag: "GEN-01", name: "Main" });
 
-    expect(gen).toMatchObject({ status: "operational", fuelType: "diesel", runningHoursTotal: 0, isActive: true });
+    expect(gen).toMatchObject({ status: "operational", fuelType: "diesel", fuelMeasurementType: "gauge", runningHoursTotal: 0, isActive: true });
     expect(gen.lastServiceDate).toBeUndefined();
   });
 
-  it("requires a tag and a name, and keeps tags unique", async () => {
+  it("rejects an unknown fuelMeasurementType, and accepts digital", async () => {
+    await expect(Generator.create({ tag: "A", name: "A", fuelMeasurementType: "sensor-beam" })).rejects.toThrow();
+    const gen = await Generator.create({ tag: "B", name: "B", fuelMeasurementType: "digital" });
+    expect(gen.fuelMeasurementType).toBe("digital");
+  });
+
+  it("requires a tag and a name, and keeps tags unique among active generators", async () => {
     await Generator.init();
     await expect(Generator.create({ name: "No tag" })).rejects.toThrow();
     await expect(Generator.create({ tag: "T" })).rejects.toThrow();
     await Generator.create({ tag: "SAME", name: "A" });
     await expect(Generator.create({ tag: "SAME", name: "B" })).rejects.toThrow();
+  });
+
+  it("lets a new generator reuse a tag held by a soft-deleted/leftover isActive:false document", async () => {
+    await Generator.init();
+    await Generator.create({ tag: "REUSE-ME", name: "Old", isActive: false });
+    await expect(Generator.create({ tag: "REUSE-ME", name: "New" })).resolves.toMatchObject({ tag: "REUSE-ME", isActive: true });
   });
 
   it("rejects values outside the status and fuel-type lists", async () => {
@@ -89,6 +101,20 @@ describe("GeneratorLog model", () => {
 
   it("is indexed by generator then date", async () => {
     expect(await hasIndex(GeneratorLog, { generator: 1, date: -1 })).toBe(true);
+  });
+
+  it("accepts a valid gauge mark on either reading, and rejects an unknown one", async () => {
+    const gen = await createGenerator();
+
+    const log = await GeneratorLog.create({
+      generator: gen._id, recordedBy: oid(), hoursRun: 1,
+      openingFuelGaugeReading: "1/4", fuelGaugeReading: "F",
+    });
+    expect(log).toMatchObject({ openingFuelGaugeReading: "1/4", fuelGaugeReading: "F" });
+
+    await expect(
+      GeneratorLog.create({ generator: gen._id, recordedBy: oid(), hoursRun: 1, fuelGaugeReading: "full" })
+    ).rejects.toThrow();
   });
 });
 
