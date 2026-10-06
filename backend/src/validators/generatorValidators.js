@@ -1,6 +1,6 @@
 import { body, query } from "express-validator";
 import { runValidation } from "../middleware/runValidation.js";
-import { FUEL_TYPES } from "../constants/generator.js";
+import { FUEL_TYPES, FUEL_MEASUREMENT_TYPES, DEFAULT_FUEL_MEASUREMENT_TYPE } from "../constants/generator.js";
 
 const STATUSES = ["operational", "under_maintenance", "faulty", "decommissioned", "maintenance_due"];
 
@@ -11,6 +11,10 @@ const optionalFields = [
   body("serialNumber").optional().trim(),
   body("capacityKVA").optional().isFloat({ min: 0 }).withMessage("capacityKVA must be a non-negative number"),
   body("fuelType").optional().isIn(FUEL_TYPES).withMessage(`fuelType must be one of: ${FUEL_TYPES.join(", ")}`),
+  body("fuelMeasurementType")
+    .optional()
+    .isIn(FUEL_MEASUREMENT_TYPES)
+    .withMessage(`fuelMeasurementType must be one of: ${FUEL_MEASUREMENT_TYPES.join(", ")}`),
   body("fuelTankCapacityLiters")
     .optional()
     .isFloat({ min: 0 })
@@ -28,6 +32,17 @@ export const createGeneratorValidator = [
   body("tag").trim().notEmpty().withMessage("tag is required"),
   body("name").trim().notEmpty().withMessage("name is required"),
   ...optionalFields,
+  // A gauge generator (the default) can only be read as a quarter mark, which
+  // needs a tank capacity to convert into liters — so capacity is required up
+  // front. A digital generator reports a precise number directly and needs no
+  // capacity.
+  body("fuelTankCapacityLiters").custom((value, { req }) => {
+    const effectiveType = req.body.fuelMeasurementType || DEFAULT_FUEL_MEASUREMENT_TYPE;
+    if (effectiveType === "gauge" && !(Number(value) > 0)) {
+      throw new Error("fuelTankCapacityLiters is required and must be greater than 0 when fuelMeasurementType is gauge");
+    }
+    return true;
+  }),
   runValidation,
 ];
 

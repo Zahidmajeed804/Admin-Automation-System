@@ -83,6 +83,18 @@ export async function migrateGasFuelTypeToCng() {
   return result.modifiedCount;
 }
 
+// Mongoose schema defaults don't apply to documents that already exist in
+// the database, so every generator created before fuelMeasurementType was
+// added needs it backfilled explicitly — defaulting to "gauge" since that's
+// what every real generator on site has.
+export async function migrateFuelMeasurementTypeDefault() {
+  const result = await Generator.updateMany({ fuelMeasurementType: { $exists: false } }, { $set: { fuelMeasurementType: "gauge" } });
+  if (result.modifiedCount > 0) {
+    logger.info(`Migrated ${result.modifiedCount} generator(s) to fuelMeasurementType "gauge"`);
+  }
+  return result.modifiedCount;
+}
+
 // The generator tag's unique index used to apply to every document, so a
 // soft-deleted/leftover isActive:false row (from before deletion became
 // permanent) could block a new generator from reusing its tag. The model
@@ -110,6 +122,7 @@ async function run() {
   await seedRbacCatalog();
   await seedDefaultAdmin();
   await migrateGasFuelTypeToCng();
+  await migrateFuelMeasurementTypeDefault();
   await migrateGeneratorTagPartialIndex();
   logger.info("RBAC seeding complete.");
   await disconnectDatabase();

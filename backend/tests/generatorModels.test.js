@@ -12,8 +12,14 @@ describe("Generator model", () => {
   it("applies defaults", async () => {
     const gen = await Generator.create({ tag: "GEN-01", name: "Main" });
 
-    expect(gen).toMatchObject({ status: "operational", fuelType: "diesel", runningHoursTotal: 0, isActive: true });
+    expect(gen).toMatchObject({ status: "operational", fuelType: "diesel", fuelMeasurementType: "gauge", runningHoursTotal: 0, isActive: true });
     expect(gen.lastServiceDate).toBeUndefined();
+  });
+
+  it("rejects an unknown fuelMeasurementType, and accepts digital", async () => {
+    await expect(Generator.create({ tag: "A", name: "A", fuelMeasurementType: "sensor-beam" })).rejects.toThrow();
+    const gen = await Generator.create({ tag: "B", name: "B", fuelMeasurementType: "digital" });
+    expect(gen.fuelMeasurementType).toBe("digital");
   });
 
   it("requires a tag and a name, and keeps tags unique among active generators", async () => {

@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import { FUEL_TYPES, DEFAULT_FUEL_TYPE } from "../constants/generator.js";
+import { FUEL_TYPES, DEFAULT_FUEL_TYPE, FUEL_MEASUREMENT_TYPES, DEFAULT_FUEL_MEASUREMENT_TYPE } from "../constants/generator.js";
 
 const generatorSchema = new mongoose.Schema(
   {
@@ -16,6 +16,14 @@ const generatorSchema = new mongoose.Schema(
       default: DEFAULT_FUEL_TYPE,
     },
     fuelTankCapacityLiters: { type: Number },
+    // How fuel level is read on this generator; "gauge" readings are entered
+    // as a quarter mark (see FUEL_GAUGE_MARKS) and converted using
+    // fuelTankCapacityLiters, "digital" readings stay precise numbers.
+    fuelMeasurementType: {
+      type: String,
+      enum: FUEL_MEASUREMENT_TYPES,
+      default: DEFAULT_FUEL_MEASUREMENT_TYPE,
+    },
     status: {
       type: String,
       enum: ["operational", "under_maintenance", "faulty", "decommissioned", "maintenance_due"],
