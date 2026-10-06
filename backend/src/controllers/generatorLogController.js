@@ -22,6 +22,7 @@ export const generatorLogController = {
     const {
       generatorId, date, hoursRun, meterReadingHours,
       fuelAddedLiters, fuelConsumedLiters, openingFuelLiters, closingFuelLiters,
+      openingFuelGaugeReading, fuelGaugeReading,
       fuelCostPerLiter, fuelCostTotal, fuelVendor, reason, notes,
     } = req.body;
     const result = await generatorService.recordLog({
@@ -34,6 +35,8 @@ export const generatorLogController = {
       fuelConsumedLiters,
       openingFuelLiters,
       closingFuelLiters,
+      openingFuelGaugeReading,
+      fuelGaugeReading,
       fuelCostPerLiter,
       fuelCostTotal,
       fuelVendor,
@@ -49,11 +52,13 @@ export const generatorLogController = {
     const {
       date, hoursRun, meterReadingHours,
       fuelAddedLiters, fuelConsumedLiters, openingFuelLiters, closingFuelLiters,
+      openingFuelGaugeReading, fuelGaugeReading,
       fuelCostPerLiter, fuelCostTotal, fuelVendor, reason, notes,
     } = req.body;
     const result = await generatorService.updateLog(req.params.logId, {
       date, hoursRun, meterReadingHours,
       fuelAddedLiters, fuelConsumedLiters, openingFuelLiters, closingFuelLiters,
+      openingFuelGaugeReading, fuelGaugeReading,
       fuelCostPerLiter, fuelCostTotal, fuelVendor, reason, notes,
     });
     sendSuccess(res, { message: "Log updated", data: result });

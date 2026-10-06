@@ -1,6 +1,6 @@
 import { body, query } from "express-validator";
 import { runValidation } from "../middleware/runValidation.js";
-import { FUEL_TYPES, FUEL_MEASUREMENT_TYPES, DEFAULT_FUEL_MEASUREMENT_TYPE } from "../constants/generator.js";
+import { FUEL_TYPES, FUEL_MEASUREMENT_TYPES, DEFAULT_FUEL_MEASUREMENT_TYPE, FUEL_GAUGE_MARK_KEYS } from "../constants/generator.js";
 
 const STATUSES = ["operational", "under_maintenance", "faulty", "decommissioned", "maintenance_due"];
 
@@ -54,6 +54,14 @@ export const createGeneratorLogValidator = [
   body("fuelAddedLiters").optional().isFloat({ min: 0 }).withMessage("fuelAddedLiters must be a non-negative number"),
   body("fuelConsumedLiters").optional().isFloat({ min: 0 }).withMessage("fuelConsumedLiters must be a non-negative number"),
   body("openingFuelLiters").optional().isFloat({ min: 0 }).withMessage("openingFuelLiters must be a non-negative number"),
+  body("openingFuelGaugeReading")
+    .optional()
+    .isIn(FUEL_GAUGE_MARK_KEYS)
+    .withMessage(`openingFuelGaugeReading must be one of: ${FUEL_GAUGE_MARK_KEYS.join(", ")}`),
+  body("fuelGaugeReading")
+    .optional()
+    .isIn(FUEL_GAUGE_MARK_KEYS)
+    .withMessage(`fuelGaugeReading must be one of: ${FUEL_GAUGE_MARK_KEYS.join(", ")}`),
   body("closingFuelLiters")
     .optional()
     .isFloat({ min: 0 })
@@ -96,6 +104,9 @@ export const updateGeneratorLogValidator = [
   body("date").optional().isISO8601().withMessage("date must be a valid date"),
   ...["meterReadingHours", "fuelAddedLiters", "fuelConsumedLiters", "openingFuelLiters", "closingFuelLiters", "fuelCostPerLiter", "fuelCostTotal"].map((field) =>
     body(field).optional({ nullable: true }).isFloat({ min: 0 }).withMessage(`${field} must be a non-negative number or null`)
+  ),
+  ...["openingFuelGaugeReading", "fuelGaugeReading"].map((field) =>
+    body(field).optional({ nullable: true }).isIn(FUEL_GAUGE_MARK_KEYS).withMessage(`${field} must be one of: ${FUEL_GAUGE_MARK_KEYS.join(", ")}, or null`)
   ),
   body("fuelVendor").optional({ nullable: true }).trim(),
   body("reason").optional({ nullable: true }).trim(),

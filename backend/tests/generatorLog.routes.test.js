@@ -200,6 +200,28 @@ describe("Generator usage logs API — /api/v1/generator/logs", () => {
       expect(await GeneratorLog.countDocuments()).toBe(0);
       expect(await hoursOf(gen._id)).toBe(0);
     });
+
+    it("accepts a gauge mark on a gauge generator, and rejects an unknown mark", async () => {
+      const { manager } = await makeUsers();
+      const gen = await createGenerator({ fuelMeasurementType: "gauge", fuelTankCapacityLiters: 200 });
+
+      const accepted = await as(manager).post("/logs", { generatorId: gen._id, hoursRun: 1, openingFuelGaugeReading: "1/2", fuelGaugeReading: "1/4" });
+      expect(accepted.status).toBe(201);
+      expect(accepted.body.data.log).toMatchObject({ openingFuelGaugeReading: "1/2", fuelGaugeReading: "1/4" });
+
+      const rejected = await as(manager).post("/logs", { generatorId: gen._id, hoursRun: 1, fuelGaugeReading: "half" });
+      expect(rejected.status).toBe(400);
+    });
+
+    it("rejects a gauge mark on a digital generator", async () => {
+      const { manager } = await makeUsers();
+      const gen = await createGenerator({ fuelMeasurementType: "digital" });
+
+      const res = await as(manager).post("/logs", { generatorId: gen._id, hoursRun: 1, fuelGaugeReading: "1/2" });
+
+      expect(res.status).toBe(400);
+      expect(await GeneratorLog.countDocuments()).toBe(0);
+    });
   });
 
   describe("listing logs (GET /logs)", () => {
@@ -281,6 +303,31 @@ describe("Generator usage logs API — /api/v1/generator/logs", () => {
       expect(res.body.data.log).toMatchObject({ reason: "power outage", fuelVendor: "Shell", notes: "keep me", hoursRun: 4 });
       expect(res.body.data.generator.runningHoursTotal).toBe(4);
       expect(await GeneratorLog.findById(log._id)).toMatchObject({ reason: "power outage", fuelVendor: "Shell" }); // persisted
+    });
+
+    it("accepts changing a gauge mark on a gauge generator, and clearing it with null", async () => {
+      const { manager } = await makeUsers();
+      const gen = await createGenerator({ fuelMeasurementType: "gauge", fuelTankCapacityLiters: 200 });
+      const log = await record(manager, gen, { fuelGaugeReading: "1/4" });
+
+      const changed = await as(manager).patch(`/logs/${log._id}`, { fuelGaugeReading: "3/4" });
+      expect(changed.status).toBe(200);
+      expect(changed.body.data.log.fuelGaugeReading).toBe("3/4");
+
+      const cleared = await as(manager).patch(`/logs/${log._id}`, { fuelGaugeReading: null });
+      expect(cleared.status).toBe(200);
+      expect(cleared.body.data.log.fuelGaugeReading).toBeUndefined();
+    });
+
+    it("rejects setting a gauge mark on a digital generator's log", async () => {
+      const { manager } = await makeUsers();
+      const gen = await createGenerator({ fuelMeasurementType: "digital" });
+      const log = await record(manager, gen, {});
+
+      const res = await as(manager).patch(`/logs/${log._id}`, { fuelGaugeReading: "1/2" });
+
+      expect(res.status).toBe(400);
+      expect(await GeneratorLog.findById(log._id)).toMatchObject({ fuelGaugeReading: undefined });
     });
 
     it("applies a change of hours run to the generator's running-hours total, up and down", async () => {

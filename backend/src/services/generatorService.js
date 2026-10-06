@@ -53,6 +53,16 @@ async function findActiveGenerator(id) {
   return generator;
 }
 
+// A needle-gauge mark only means something on a "gauge"-measurement
+// generator (see Generator.fuelMeasurementType); a digital generator reports
+// a precise number instead, so a gauge mark sent for one is rejected rather
+// than silently ignored.
+function rejectGaugeReadingOnDigital(generator, fields) {
+  if (generator.fuelMeasurementType !== "digital") return;
+  if (fields.openingFuelGaugeReading == null && fields.fuelGaugeReading == null) return;
+  throw new BadRequestError("This generator uses digital fuel readings — a gauge mark cannot be recorded for it");
+}
+
 /**
  * Checks a just-updated generator against its own maintenanceIntervalHours
  * (set at creation, independent of the per-job alert pipeline above) and, if
@@ -188,7 +198,7 @@ export const generatorService = {
    * generator's own maintenanceIntervalHours (see maybeFlagMaintenanceDue).
    */
   async recordLog({ generatorId, recordedBy, ...fields }) {
-    await findActiveGenerator(generatorId);
+    rejectGaugeReadingOnDigital(await findActiveGenerator(generatorId), fields);
 
     const log = await generatorLogRepository.create({
       ...fields,
@@ -266,6 +276,13 @@ export const generatorService = {
         merged[key] = value;
         $set[key] = value;
       }
+    }
+
+    // Only re-fetch the generator (an extra query) when a mark is actually
+    // being set — clearing one, or editing unrelated fields, needs no check.
+    if (changes.openingFuelGaugeReading || changes.fuelGaugeReading) {
+      const owningGenerator = await generatorRepository.findById(before.generator);
+      rejectGaugeReadingOnDigital(owningGenerator, changes);
     }
 
     const opening = isGiven(merged.openingFuelLiters) ? Number(merged.openingFuelLiters) : null;

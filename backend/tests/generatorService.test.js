@@ -8,7 +8,7 @@ import { generatorLogRepository } from "../src/repositories/generatorLogReposito
 import { generatorMaintenanceRepository } from "../src/repositories/generatorMaintenanceRepository.js";
 import { generatorService, computeAlertStatus, computeFuelFigures, daysUntilDue, hoursUntilDue, withAlertInfo } from "../src/services/generatorService.js";
 import { invoiceUploadDir } from "../src/middleware/uploadInvoice.js";
-import { NotFoundError, ConflictError } from "../src/errors/AppError.js";
+import { NotFoundError, ConflictError, BadRequestError } from "../src/errors/AppError.js";
 import { createGenerator, UNKNOWN_ID } from "./helpers/generatorTestUtils.js";
 
 // A fixed "now" mid-afternoon UTC, so "due at 00:00 today" is already in the past.
@@ -198,6 +198,19 @@ describe("recordLog / removeLog", () => {
     await expect(generatorService.recordLog({ generatorId: UNKNOWN_ID, recordedBy: userId(), hoursRun: 1 })).rejects.toBeInstanceOf(NotFoundError);
     await expect(generatorService.recordLog({ generatorId: deleted._id, recordedBy: userId(), hoursRun: 1 })).rejects.toBeInstanceOf(NotFoundError);
     expect(await GeneratorLog.countDocuments()).toBe(0);
+  });
+
+  it("rejects a gauge mark on a digital generator, but accepts it on a gauge generator", async () => {
+    const digital = await createGenerator({ fuelMeasurementType: "digital" });
+    const gauge = await createGenerator({ fuelMeasurementType: "gauge", fuelTankCapacityLiters: 200 });
+
+    await expect(
+      generatorService.recordLog({ generatorId: digital._id, recordedBy: userId(), hoursRun: 1, fuelGaugeReading: "1/2" })
+    ).rejects.toBeInstanceOf(BadRequestError);
+    expect(await GeneratorLog.countDocuments({ generator: digital._id })).toBe(0);
+
+    const { log } = await generatorService.recordLog({ generatorId: gauge._id, recordedBy: userId(), hoursRun: 1, fuelGaugeReading: "1/2" });
+    expect(log.fuelGaugeReading).toBe("1/2");
   });
 
   it("stores derived fuel consumption and cost, overriding client-sent values, and keeps the vendor", async () => {

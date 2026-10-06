@@ -102,6 +102,20 @@ describe("GeneratorLog model", () => {
   it("is indexed by generator then date", async () => {
     expect(await hasIndex(GeneratorLog, { generator: 1, date: -1 })).toBe(true);
   });
+
+  it("accepts a valid gauge mark on either reading, and rejects an unknown one", async () => {
+    const gen = await createGenerator();
+
+    const log = await GeneratorLog.create({
+      generator: gen._id, recordedBy: oid(), hoursRun: 1,
+      openingFuelGaugeReading: "1/4", fuelGaugeReading: "F",
+    });
+    expect(log).toMatchObject({ openingFuelGaugeReading: "1/4", fuelGaugeReading: "F" });
+
+    await expect(
+      GeneratorLog.create({ generator: gen._id, recordedBy: oid(), hoursRun: 1, fuelGaugeReading: "full" })
+    ).rejects.toThrow();
+  });
 });
 
 describe("GeneratorMaintenance model", () => {
