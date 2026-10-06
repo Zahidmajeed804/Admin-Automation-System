@@ -29,7 +29,8 @@ Enums: `constants/attendance.js` — `ATTENDANCE_STATUSES` (present, absent, hal
   Deactivated, never deleted.
 - **User.designation** — optional ref to `Designation`; populated (`name shiftHours isActive`) in staff lists and `/users/options`.
 - **OvertimeRequest** — `user`, `attendance` (unique), `date`, `overtimeMinutes`, `status`, `reviewedBy`, `reviewedAt`, `reviewNote`.
-- **LeaveRequest** — `user`, `leaveType`, `startDate`/`endDate` (midnight UTC, inclusive), `totalDays`, `reason` (≤500), `status`, review fields.
+- **LeaveRequest** — `user`, `leaveType`, `startDate`/`endDate` (midnight UTC, inclusive), `totalDays`, `reason` (≤500), `status`, review fields,
+  and after a reviewer edit: `originalStartDate`/`originalEndDate`/`originalTotalDays` (set on first edit, never overwritten), `editedBy`, `editedAt`.
 - **User.leaveAllocation** — `{ casual, sick, annual }` days per year (unpaid is unlimited).
 
 ### Endpoints (`/api/v1`, all `authenticate`)
@@ -47,6 +48,7 @@ Enums: `constants/attendance.js` — `ATTENDANCE_STATUSES` (present, absent, hal
 | `GET /leave/balance` `?userId&year` | `leave.read` | `userId` only for reviewers |
 | `POST /leave` `{ leaveType, startDate, endDate, reason }` | `leave.create` | |
 | `PATCH /leave/:id/review` | `leave.approve` to approve, `leave.reject` to reject | inline `requireDecisionPermission` in `leave.routes.js` |
+| `PATCH /leave/:id/dates` `{ startDate, endDate }` | `leave.approve` or `leave.reject` | pending requests applied for > 2 days (AAS-451) |
 | `GET /users/options` | `overtime.approve` or `leave.approve` | lightweight employee list |
 | `GET /users` `?search&status&page&pageSize`, `POST /users`, `PATCH /users/:id`, `PATCH /users/:id/status` | `users.manage` | staff directory |
 | `PUT /users/leave-allocation/all` `{ casual, sick, annual, overwrite, designationId? }` | `users.manage` | bulk allocation; `designationId` limits it to that designation (404 if unknown; inactive allowed) |
@@ -66,6 +68,9 @@ Enums: `constants/attendance.js` — `ATTENDANCE_STATUSES` (present, absent, hal
 - Designations: assigning one requires it to exist (404) and be active (400); a person keeps a designation
   that's deactivated later. `designationId: null` / `""` on `PATCH /users/:id` clears it.
 - Reviews are **decided once** (atomic `reviewIfPending`; second decision → 409) and **nobody reviews their own** request (403).
+- Editing dates (`leaveService.editDates`): only pending (409), not own (403), only if applied for more than
+  `LEAVE_DATES_EDITABLE_AFTER_DAYS` = 2 days, judged on `originalTotalDays ?? totalDays` (400); unchanged dates → 400.
+  Overlap and balance checks pass `excludeId` so the request doesn't count against itself; atomic `updateDatesIfPending`.
 - Leave can't overlap the same person's pending/approved leave (409); rejected leave frees the days.
 - Quotas (casual/sick/annual): `remaining = allocated − approved − pending`, checked **per calendar year**
   the request touches (`daysInYear`, `yearsTouched` in `leaveService.js`); over quota → 400 naming the year and days left.
@@ -81,7 +86,7 @@ Enums: `constants/attendance.js` — `ATTENDANCE_STATUSES` (present, absent, hal
 |---|---|---|
 | `/attendance` | `pages/attendance/AttendancePage.jsx` | Tabs "My attendance" / "Team" (`?tab=team`, needs `attendance.update`); `ClockWidget`, `AttendanceViewToggle` (List/Calendar), `AttendanceHistoryTable`, `AttendanceCalendarContainer` → `AttendanceCalendar`, `TeamAttendanceTable`, `EditAttendanceModal` (DateTimePicker) |
 | `/attendance/overtime` | `pages/overtime/OvertimePage.jsx` | Pending / Team (`?view=team`) for `overtime.approve`: `PendingOvertimeTable`, `TeamOvertimeTable`, `ReviewOvertimeDialog`; "My overtime" `OvertimeHistoryTable` |
-| `/attendance/leave` | `pages/leave/LeavePage.jsx` | `LeaveBalanceCards`, `RequestLeaveModal` (shows remaining, blocks over-balance), `LeaveHistoryTable`, Pending/Team for approvers: `PendingLeaveTable`, `TeamLeaveTable`, `ReviewLeaveDialog` |
+| `/attendance/leave` | `pages/leave/LeavePage.jsx` | `LeaveBalanceCards`, `RequestLeaveModal` (shows remaining, blocks over-balance), `LeaveHistoryTable`, Pending/Team for approvers: `PendingLeaveTable`, `TeamLeaveTable`, `ReviewLeaveDialog`, `EditLeaveDatesDialog` (Edit dates on pending rows > 2 days); `LeaveDaysCell` adds the "Edited · was N days" badge (`theme.statusStyles.edited`) in all three tables |
 | `/attendance/staff` | `pages/attendance/StaffPage.jsx` | `FilterBar` + `Table` (Designation column), `StaffFormModal` (Employee ID, temp password with show/hide, Designation select of active ones), `ConfirmDialog` (activate/deactivate), `AssignLeaveAllocationDialog` ("Apply to": all active staff or a designation), `StaffLeaveAllocationDialog` (row **Leave** action, prefilled, sends only changed types), `DesignationsDialog` (add/edit/(de)activate) |
 
 Services: `attendanceService`, `overtimeService`, `leaveService`, `userService` — all return `{ items, pagination }`;
@@ -102,7 +107,7 @@ Shared columns/formatting: `components/attendance/attendanceColumns.jsx`, `utils
 AAS-91 clock in/out · AAS-96 list & edit · early-departure · AAS-280 overtime auto-trigger · AAS-290 leave
 · AAS-302 end-to-end · AAS-383–388 staff · AAS-390–392 hide self-service · AAS-394–398 team overtime/leave
 · AAS-400–406 leave quotas · AAS-408–412 date/time picker · AAS-414–420 calendar
-· AAS-430–434 shift by designation · AAS-447–450 leave allocation by designation / per person.
+· AAS-430–434 shift by designation · AAS-447–450 leave allocation by designation / per person · AAS-452–456 edit long leave dates.
 
 ## Not built yet
 

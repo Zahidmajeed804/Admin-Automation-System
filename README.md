@@ -51,6 +51,7 @@ the Module 1 layering.
 | | `PATCH /overtime/:id/review` (approve or reject) | `overtime.approve` |
 | Leave | `POST /leave`, `GET /leave` (filters, paging) | `leave.create`, `leave.read`; approvers see everyone |
 | | `PATCH /leave/:id/review` | `leave.approve` to approve, `leave.reject` to reject |
+| | `PATCH /leave/:id/dates` | `leave.approve` or `leave.reject` |
 | Staff | `GET /users` (search, status filter, paging), `POST /users` (create a login) | `users.manage` |
 | | `PATCH /users/:id` (edit), `PATCH /users/:id/status` (activate/deactivate) | `users.manage` |
 | | `GET /users/options` (lightweight employee list for the Team Overtime/Leave filters) | `overtime.approve` or `leave.approve` |
@@ -78,6 +79,9 @@ Rules the API enforces:
 - Leave cannot overlap the same person's pending or approved leave. A rejected
   request frees its days again.
 - Approving and rejecting leave are separate permissions.
+- A reviewer can change the dates of a **pending** request that was applied for **more than 2 days**
+  before deciding it (not their own). The new dates get the same overlap and balance checks, with
+  the request itself left out; the applied dates are kept and shown as "Edited · was N days".
 - An admin (`users.manage`) creates a staff login with a name, email, a unique
   **Employee ID** they type themselves, and a temporary password; the account gets the
   `staff` role by default. Employee ID is case-insensitive (`emp-001` and `EMP-001`
@@ -152,6 +156,7 @@ data removed afterwards. Each guide can be repeated by hand:
 - [`docs/verification/AAS-414-420-attendance-calendar.md`](docs/verification/AAS-414-420-attendance-calendar.md) — the monthly attendance calendar: grid, real data, summary/legend, sample preview, mobile, and the List/Calendar toggle
 - [`docs/verification/AAS-430-434-shift-by-designation.md`](docs/verification/AAS-430-434-shift-by-designation.md) — designations with shift hours, 8h vs 9h overtime and early departure, Designations dialog and staff form field
 - [`docs/verification/AAS-447-450-leave-allocation-by-designation.md`](docs/verification/AAS-447-450-leave-allocation-by-designation.md) — bulk leave allocation by designation ("Apply to") and per-person allocation from the staff row
+- [`docs/verification/AAS-452-456-edit-long-leave-dates.md`](docs/verification/AAS-452-456-edit-long-leave-dates.md) — reviewers change the dates of pending requests over 2 days, checks, and the "Edited" badge
 
 **After pulling this module, run `npm run seed` in `backend`.** It adds
 `overtime.read` to the staff role so staff can see their own overtime. It only adds
