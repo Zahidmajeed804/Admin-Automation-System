@@ -1,5 +1,76 @@
-import ComingSoon from "../../components/common/ComingSoon";
+import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
+import { useSelfServiceVisible } from "../../config/featureVisibility";
+import PageHeader from "../../components/common/PageHeader";
+import AttendanceSectionNav from "../../components/attendance/AttendanceSectionNav";
+import Tabs from "../../components/common/Tabs";
+import ClockWidget from "../../components/attendance/ClockWidget";
+import AttendanceHistoryTable from "../../components/attendance/AttendanceHistoryTable";
+import TeamAttendanceTable from "../../components/attendance/TeamAttendanceTable";
+import AttendanceCalendarContainer from "../../components/attendance/AttendanceCalendarContainer";
+import AttendanceViewToggle from "../../components/attendance/AttendanceViewToggle";
+
+const tabs = [
+  { id: "mine", label: "My attendance" },
+  { id: "team", label: "Team" },
+];
 
 export default function AttendancePage() {
-  return <ComingSoon title="Attendance & Overtime" moduleLabel="Module 5 — Attendance & Overtime" />;
+  const { hasPermission } = useAuth();
+  const selfServiceVisible = useSelfServiceVisible();
+  const [searchParams, setSearchParams] = useSearchParams();
+  // Bumped after every clock-in/out so the history table re-fetches.
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [mineView, setMineView] = useState("list");
+
+  // Team view is for users who can edit attendance; everyone else only sees
+  // their own records (the API enforces the same rule independently).
+  const canViewTeam = hasPermission("attendance.update");
+  // Admin doesn't clock in, so "My attendance" is hidden for them and Team is the
+  // only view — no tabs needed. If they somehow can't view Team either (misconfigured
+  // roles), fall back to the normal self-service view rather than showing nothing.
+  const showMine = selfServiceVisible || !canViewTeam;
+  const showTabs = canViewTeam && showMine;
+  const activeTab = showMine ? (canViewTeam && searchParams.get("tab") === "team" ? "team" : "mine") : "team";
+  const selectTab = (id) => setSearchParams(id === "team" ? { tab: "team" } : {}, { replace: true });
+
+  const panelProps = showTabs
+    ? { role: "tabpanel", id: `panel-${activeTab}`, "aria-labelledby": `tab-${activeTab}` }
+    : {};
+
+  return (
+    <>
+      <PageHeader
+        title="Attendance"
+        description={
+          showMine
+            ? "Clock in and out, and review your attendance history."
+            : "Review everyone's attendance and correct records."
+        }
+      />
+      <AttendanceSectionNav />
+      {showTabs && <Tabs tabs={tabs} value={activeTab} onChange={selectTab} label="Attendance views" />}
+      <div className="flex flex-col gap-6" {...panelProps}>
+        {activeTab === "team" ? (
+          <TeamAttendanceTable />
+        ) : (
+          <>
+            <ClockWidget onChange={() => setRefreshKey((k) => k + 1)} />
+            <section className="flex flex-col gap-3">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-section-heading text-ink">My attendance history</h2>
+                <AttendanceViewToggle value={mineView} onChange={setMineView} />
+              </div>
+              {mineView === "calendar" ? (
+                <AttendanceCalendarContainer />
+              ) : (
+                <AttendanceHistoryTable refreshKey={refreshKey} />
+              )}
+            </section>
+          </>
+        )}
+      </div>
+    </>
+  );
 }

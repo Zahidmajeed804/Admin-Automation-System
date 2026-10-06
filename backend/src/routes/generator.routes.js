@@ -1,0 +1,77 @@
+import { Router } from "express";
+import { generatorController } from "../controllers/generatorController.js";
+import { generatorLogController } from "../controllers/generatorLogController.js";
+import { generatorMaintenanceController } from "../controllers/generatorMaintenanceController.js";
+import { reportController } from "../controllers/reportController.js";
+import { authenticate } from "../middleware/authenticate.js";
+import { uploadInvoice } from "../middleware/uploadInvoice.js";
+import { requirePermission } from "../authorization/requirePermission.js";
+import {
+  createGeneratorValidator,
+  updateGeneratorValidator,
+  createGeneratorLogValidator,
+  updateGeneratorLogValidator,
+  createMaintenanceValidator,
+  updateMaintenanceValidator,
+  maintenanceAlertsValidator,
+} from "../validators/generatorValidators.js";
+import {
+  runningHoursReportValidator,
+  dieselConsumptionReportValidator,
+  fuelCostReportValidator,
+  maintenanceCostReportValidator,
+  operatingCostReportValidator,
+  serviceHistoryReportValidator,
+  costSummaryReportValidator,
+} from "../validators/reportValidators.js";
+
+const router = Router();
+
+// Every route here requires authentication + the database-resolved
+// "generator.*" permission — never a hardcoded role check.
+router.use(authenticate);
+
+// Logs — must be declared BEFORE the "/:id" routes below, otherwise
+// GET /generator/logs is captured by "/:id" with id = "logs".
+router.get("/logs", requirePermission("generator.read"), generatorLogController.list);
+router.post("/logs", requirePermission("generator_log.create"), createGeneratorLogValidator, generatorLogController.create);
+router.patch("/logs/:logId", requirePermission("generator_log.update"), updateGeneratorLogValidator, generatorLogController.update);
+router.delete("/logs/:logId", requirePermission("generator_log.delete"), generatorLogController.remove);
+
+// Maintenance — same reason as logs: "/maintenance" must be declared before
+// "/:id" (and "/maintenance/alerts" before "/maintenance/:id").
+router.get("/maintenance/alerts", requirePermission("generator.read"), maintenanceAlertsValidator, generatorMaintenanceController.alerts);
+router.get("/maintenance", requirePermission("generator.read"), generatorMaintenanceController.list);
+router.post("/maintenance", requirePermission("generator.create"), createMaintenanceValidator, generatorMaintenanceController.create);
+router.patch("/maintenance/:id", requirePermission("generator.update"), updateMaintenanceValidator, generatorMaintenanceController.update);
+router.delete("/maintenance/:id", requirePermission("generator.delete"), generatorMaintenanceController.remove);
+// Uploading, replacing or removing an invoice is treated as editing the job
+// (same permission as PATCH); downloading it only needs read access.
+router.post("/maintenance/:id/invoice", requirePermission("generator.update"), uploadInvoice, generatorMaintenanceController.uploadInvoice);
+router.get("/maintenance/:id/invoice", requirePermission("generator.read"), generatorMaintenanceController.downloadInvoice);
+router.delete("/maintenance/:id/invoice", requirePermission("generator.update"), generatorMaintenanceController.removeInvoice);
+
+// Reports — gated on the dedicated reports.read permission (admin + manager
+// by default, not staff), not generator.read, since a report is a different
+// kind of access than day-to-day operation. Must be declared before "/:id"
+// like the other fixed sub-paths above.
+router.get("/reports/running-hours", requirePermission("reports.read"), runningHoursReportValidator, reportController.runningHours);
+router.get("/reports/diesel-consumption", requirePermission("reports.read"), dieselConsumptionReportValidator, reportController.dieselConsumption);
+router.get("/reports/fuel-cost", requirePermission("reports.read"), fuelCostReportValidator, reportController.fuelCost);
+router.get("/reports/maintenance-cost", requirePermission("reports.read"), maintenanceCostReportValidator, reportController.maintenanceCost);
+router.get("/reports/operating-cost", requirePermission("reports.read"), operatingCostReportValidator, reportController.operatingCost);
+router.get("/reports/service-history", requirePermission("reports.read"), serviceHistoryReportValidator, reportController.serviceHistory);
+router.get("/reports/cost-summary", requirePermission("reports.read"), costSummaryReportValidator, reportController.costSummary);
+
+router.get("/", requirePermission("generator.read"), generatorController.list);
+router.post("/", requirePermission("generator.create"), createGeneratorValidator, generatorController.create);
+router.get("/:id", requirePermission("generator.read"), generatorController.getById);
+router.patch(
+  "/:id",
+  requirePermission("generator.update"),
+  updateGeneratorValidator,
+  generatorController.update
+);
+router.delete("/:id", requirePermission("generator.delete"), generatorController.remove);
+
+export default router;

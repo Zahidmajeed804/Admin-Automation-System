@@ -17,7 +17,7 @@ export const rbacRepository = {
     UserRole.findOneAndUpdate(
       { user: userId, role: roleId },
       { user: userId, role: roleId },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: "after" }
     ),
   removeRoleFromUser: (userId, roleId) => UserRole.deleteOne({ user: userId, role: roleId }),
   findRolesForUser: async (userId) => {
@@ -30,7 +30,7 @@ export const rbacRepository = {
     RolePermission.findOneAndUpdate(
       { role: roleId, permission: permissionId },
       { role: roleId, permission: permissionId },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: "after" }
     ),
   removePermissionFromRole: (roleId, permissionId) =>
     RolePermission.deleteOne({ role: roleId, permission: permissionId }),
@@ -52,5 +52,30 @@ export const rbacRepository = {
     const permissions = await rbacRepository.findPermissionsForRoleIds(roleIds);
     const names = new Set(permissions.map((p) => p.name));
     return { roleNames: roles.map((r) => r.name), permissionNames: Array.from(names) };
+  },
+
+  /**
+   * The reverse of resolvePermissionNamesForUser: every user who holds a
+   * given permission, through any role. De-duplicated, since a user could
+   * hold it via more than one role. Used to find who should be emailed
+   * about things gated on that permission (see notificationRecipients.js).
+   */
+  findUsersWithPermission: async (permissionName) => {
+    const permission = await rbacRepository.findPermissionByName(permissionName);
+    if (!permission) return [];
+
+    const rolePermissions = await RolePermission.find({ permission: permission._id });
+    const roleIds = rolePermissions.map((rp) => rp.role);
+    if (!roleIds.length) return [];
+
+    const userRoles = await UserRole.find({ role: { $in: roleIds } }).populate("user");
+    const seen = new Set();
+    const users = [];
+    for (const { user } of userRoles) {
+      if (!user || seen.has(String(user._id))) continue;
+      seen.add(String(user._id));
+      users.push(user);
+    }
+    return users;
   },
 };

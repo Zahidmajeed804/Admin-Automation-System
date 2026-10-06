@@ -14,6 +14,7 @@ export default function Table({
   data = [],
   loading = false,
   error = false,
+  errorDescription,
   onRetry,
   emptyTitle,
   emptyDescription,
@@ -57,7 +58,7 @@ export default function Table({
         </table>
         {loading && <TableSkeleton columns={columns.length} />}
         {!loading && error && (
-          <ErrorState onRetry={onRetry} description="We couldn't load this data. Please try again." />
+          <ErrorState onRetry={onRetry} description={errorDescription || "We couldn't load this data. Please try again."} />
         )}
         {!loading && !error && data.length === 0 && (
           <EmptyState

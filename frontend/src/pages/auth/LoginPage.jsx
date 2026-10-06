@@ -1,20 +1,34 @@
 import { useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { ShieldCheck, Mail, Lock } from "lucide-react";
+import { UserRound, Lock } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import Input from "../../components/common/Input";
 import Button from "../../components/common/Button";
+import LogoLoader from "../../components/common/LogoLoader";
+
+// A warmer line under the welcome headline, varied by time of day rather than a static caption.
+function greetingSubtitle() {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning — let's get things done.";
+  if (hour < 18) return "Good afternoon — good to see you.";
+  return "Good evening — nice to have you back.";
+}
 
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { login, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const redirectTo = location.state?.from?.pathname || "/dashboard";
 
-  const [form, setForm] = useState({ email: "", password: "" });
+  // `identifier` is a phone number, Employee ID or email — the API works out which.
+  const [form, setForm] = useState({ identifier: "", password: "" });
   const [remember, setRemember] = useState(true);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  // Plays the Folio3 welcome animation once, then navigates on - rather than navigating
+  // immediately, so a successful login always gets this moment instead of just a blank beat
+  // while the next page's own data loads.
+  const [showWelcome, setShowWelcome] = useState(false);
 
   const handleChange = (e) => setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
 
@@ -22,26 +36,31 @@ export default function LoginPage() {
     e.preventDefault();
     setError("");
     setLoading(true);
-    const result = await login(form.email, form.password);
+    const result = await login(form.identifier, form.password);
     setLoading(false);
     if (result.success) {
-      navigate(redirectTo, { replace: true });
+      setShowWelcome(true);
     } else {
       setError(result.message);
     }
   };
 
+  if (showWelcome) {
+    return (
+      <LogoLoader
+        label={user?.name ? `Welcome, ${user.name}!` : "Welcome!"}
+        subtitle={greetingSubtitle()}
+        onComplete={() => navigate(redirectTo, { replace: true })}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-surface-subtle px-4">
       <div className="w-full max-w-sm flex flex-col gap-6">
         <div className="flex flex-col items-center gap-3 text-center">
-          <span className="h-11 w-11 rounded-md bg-primary flex items-center justify-center">
-            <ShieldCheck className="h-6 w-6 text-white" />
-          </span>
-          <div>
-            <p className="text-page-title text-ink">Admin Automation System</p>
-            <p className="text-body text-ink-muted mt-1">Sign in to manage administrative operations</p>
-          </div>
+          <img src="/folio3-logo.png" alt="Folio3" className="h-20 w-auto" />
+          <p className="text-body text-ink-muted">Sign in to manage administrative operations</p>
         </div>
 
         <form
@@ -49,21 +68,26 @@ export default function LoginPage() {
           className="bg-white border border-border rounded-card shadow-card p-6 flex flex-col gap-4"
         >
           {error && (
-            <div className="bg-status-errorBg border border-red-200 text-status-error text-body rounded-md px-3 py-2">
+            <div
+              role="alert"
+              className="bg-status-errorBg border border-red-200 text-status-error text-body rounded-md px-3 py-2"
+            >
               {error}
             </div>
           )}
 
           <Input
-            label="Email"
-            name="email"
-            type="email"
-            icon={Mail}
-            placeholder="you@company.com"
-            value={form.email}
+            label="Phone, Employee ID or email"
+            name="identifier"
+            id="login-identifier"
+            type="text"
+            icon={UserRound}
+            placeholder="0300 1234567"
+            value={form.identifier}
             onChange={handleChange}
             required
-            autoComplete="email"
+            autoComplete="username"
+            helperText="Use whichever you have — email is optional."
           />
           <Input
             label="Password"

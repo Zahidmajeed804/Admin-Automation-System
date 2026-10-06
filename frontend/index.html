@@ -4,10 +4,73 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>frontend</title>
+    <title>Admin Automation</title>
+    <!--
+      Inlined and self-contained on purpose: this is what a slow connection sees before the JS
+      bundle (and its stylesheet) has even finished downloading, so it can't depend on either.
+      React's createRoot(...).render(...) in main.jsx replaces #root's children wholesale the
+      instant it mounts, so this disappears on its own — nothing needs to remove it.
+
+      Deliberately static (no animation) — the full animated Folio3 wordmark
+      (frontend/src/components/common/FolioLogo.jsx) is reserved for the one-time post-login
+      welcome moment. Ordinary loading states (this bootstrap, and ProtectedRoute's session
+      check — see frontend/src/components/common/PageLoader.jsx, which mirrors these same
+      classes) just show the static mark and a spinner.
+    -->
+    <style>
+      #root:empty {
+        display: none;
+      }
+      .aas-bootloader {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 20px;
+        background: #ffffff;
+        font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+      }
+      .aas-bootloader-logo {
+        height: 72px;
+        width: auto;
+        display: block;
+      }
+      .aas-spinner {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        border: 2.5px solid #e2e8f0;
+        border-top-color: #dc3237;
+        animation: aas-spin 0.7s linear infinite;
+      }
+      @keyframes aas-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .aas-bootloader-label {
+        font-size: 14px;
+        font-weight: 500;
+        color: #0f172a;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .aas-spinner {
+          animation: none;
+        }
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="aas-bootloader">
+        <img class="aas-bootloader-logo" src="/folio3-logo.png" alt="Folio3" />
+        <div class="aas-spinner" aria-hidden="true"></div>
+        <p class="aas-bootloader-label">Loading Admin Automation&hellip;</p>
+      </div>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

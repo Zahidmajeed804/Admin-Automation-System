@@ -4,7 +4,9 @@ import Button from "../common/Button";
 /**
  * Confirmation dialog for destructive or irreversible actions
  * (delete, reject, deactivate). Always route these actions through here
- * instead of acting immediately on click.
+ * instead of acting immediately on click. `children` renders under the
+ * description (e.g. an optional note field); `error` shows a failed confirm
+ * without closing the dialog.
  */
 export default function ConfirmDialog({
   open,
@@ -16,6 +18,8 @@ export default function ConfirmDialog({
   cancelLabel = "Cancel",
   variant = "danger",
   loading = false,
+  error,
+  children,
 }) {
   return (
     <Modal
@@ -34,7 +38,18 @@ export default function ConfirmDialog({
         </>
       }
     >
-      <p className="text-body text-ink-secondary">{description}</p>
+      <div className="flex flex-col gap-4">
+        {error && (
+          <div
+            role="alert"
+            className="bg-status-errorBg border border-red-200 text-status-error text-body rounded-md px-3 py-2"
+          >
+            {error}
+          </div>
+        )}
+        <p className="text-body text-ink-secondary">{description}</p>
+        {children}
+      </div>
     </Modal>
   );
 }

@@ -1,6 +1,7 @@
 import { NavLink } from "react-router-dom";
-import { ShieldCheck, X } from "lucide-react";
+import { X } from "lucide-react";
 import clsx from "clsx";
+import { useAuth } from "../../context/AuthContext";
 import { navSections } from "../../constants/navigation";
 
 /**
@@ -8,16 +9,11 @@ import { navSections } from "../../constants/navigation";
  * Same component renders both — only the wrapping classes differ by breakpoint.
  */
 export default function Sidebar({ open, onClose }) {
+  const { hasPermission } = useAuth();
   const content = (
     <div className="flex h-full flex-col bg-white">
-      <div className="flex items-center gap-2.5 px-5 h-16 border-b border-border flex-shrink-0">
-        <span className="h-9 w-9 rounded-md bg-primary flex items-center justify-center flex-shrink-0">
-          <ShieldCheck className="h-5 w-5 text-white" />
-        </span>
-        <div className="leading-tight">
-          <p className="text-card-heading text-ink">Admin Automation</p>
-          <p className="text-helper text-ink-muted">System</p>
-        </div>
+      <div className="flex items-center px-5 h-16 border-b border-border flex-shrink-0">
+        <img src="/folio3-logo.png" alt="Folio3" className="h-12 w-auto flex-shrink-0" />
         <button
           onClick={onClose}
           className="ml-auto lg:hidden h-8 w-8 rounded-md flex items-center justify-center text-ink-muted hover:bg-surface-subtle"
@@ -35,10 +31,11 @@ export default function Sidebar({ open, onClose }) {
                 {section.label}
               </p>
             )}
-            {section.items.map((item) => (
+            {section.items.filter((item) => !item.permission || hasPermission(item.permission)).map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}
+                end={item.end}
                 onClick={onClose}
                 className={({ isActive }) =>
                   clsx(

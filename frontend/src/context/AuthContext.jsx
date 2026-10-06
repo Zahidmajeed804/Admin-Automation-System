@@ -40,10 +40,11 @@ export function AuthProvider({ children }) {
       .finally(() => setLoading(false));
   }, []);
 
-  const login = useCallback(async (email, password) => {
+  // `identifier`: phone number, Employee ID or email.
+  const login = useCallback(async (identifier, password) => {
     setAuthError(null);
     try {
-      const data = await authService.login({ email, password });
+      const data = await authService.login({ identifier, password });
       applySession(data);
       return { success: true };
     } catch (err) {

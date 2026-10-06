@@ -23,8 +23,15 @@ export const authenticate = asyncHandler(async (req, res, next) => {
   }
 
   const user = await userRepository.findById(payload.sub);
-  if (!user || !user.isActive) {
-    throw new UnauthorizedError("User not found or inactive");
+  if (!user) {
+    throw new UnauthorizedError("User not found");
+  }
+  // The token itself is still valid, but the account was deactivated after it was
+  // issued (see userService.setActive). There is no server-side token revocation
+  // list — this per-request check is what makes deactivation take effect immediately,
+  // on the very next call, instead of waiting for the token to expire.
+  if (!user.isActive) {
+    throw new UnauthorizedError("Your account has been deactivated. Contact an administrator.");
   }
 
   req.user = user;

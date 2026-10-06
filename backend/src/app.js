@@ -18,13 +18,20 @@ app.use(
   cors({
     origin: env.clientOrigin,
     credentials: true,
+    // Response headers are hidden from browser JS by default on a
+    // cross-origin request unless explicitly exposed. Content-Disposition
+    // carries the invoice's original filename for the frontend to save it
+    // under (see generatorService.downloadInvoice) — without this, every
+    // browser download falls back to a generic name.
+    exposedHeaders: ["Content-Disposition"],
   })
 );
 app.use(compression());
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
-app.use(morgan(isProduction ? "combined" : "dev"));
+// Jest sets NODE_ENV=test; skip the per-request access log so test output stays readable.
+if (env.nodeEnv !== "test") app.use(morgan(isProduction ? "combined" : "dev"));
 
 // Basic rate limiting on the whole API surface; stricter limits (e.g. on
 // /auth/login) get layered on in the module that owns that route.

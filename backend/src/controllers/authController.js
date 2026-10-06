@@ -4,12 +4,13 @@ import { asyncHandler } from "../middleware/asyncHandler.js";
 
 export const authController = {
   register: asyncHandler(async (req, res) => {
-    const { name, email, password, phone, department } = req.body;
+    const { name, email, password, phone, employeeId, department } = req.body;
     const { user, token, roles, permissions } = await authService.register({
       name,
       email,
       password,
       phone,
+      employeeId,
       department,
     });
     sendSuccess(res, {
@@ -20,8 +21,9 @@ export const authController = {
   }),
 
   login: asyncHandler(async (req, res) => {
-    const { email, password } = req.body;
-    const { user, token, roles, permissions } = await authService.login({ email, password });
+    // `email` is the field older clients send; loginValidator copies it into `identifier`.
+    const { identifier, password } = req.body;
+    const { user, token, roles, permissions } = await authService.login({ identifier, password });
     sendSuccess(res, {
       message: "Logged in successfully",
       data: { user, token, roles, permissions },

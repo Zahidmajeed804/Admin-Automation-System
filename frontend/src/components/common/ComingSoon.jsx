@@ -16,7 +16,7 @@ export default function ComingSoon({ title, moduleLabel }) {
         <span className="h-12 w-12 rounded-full bg-surface-blue flex items-center justify-center">
           <Construction className="h-6 w-6 text-primary" />
         </span>
-        <p className="text-card-heading text-ink">Coming</p>
+        <p className="text-card-heading text-ink"></p>
         <p className="text-body text-ink-muted max-w-sm">
           The layout, navigation, and design system are ready. This screen will be built out in {moduleLabel}.
         </p>

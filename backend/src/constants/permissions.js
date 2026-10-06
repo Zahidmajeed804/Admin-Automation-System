@@ -32,6 +32,11 @@ export const permissionsCatalog = [
   { resource: "generator", action: "create", description: "Add generators/logs/maintenance records" },
   { resource: "generator", action: "update", description: "Edit generator records" },
   { resource: "generator", action: "delete", description: "Delete generator records" },
+  // Fuel/usage log entries have their own permissions so day-to-day operators can
+  // record them without being able to change generators, or correct old entries.
+  { resource: "generator_log", action: "create", description: "Record fuel and usage log entries" },
+  { resource: "generator_log", action: "update", description: "Correct fuel and usage log entries" },
+  { resource: "generator_log", action: "delete", description: "Delete fuel and usage log entries" },
 
   // Attendance / Overtime / Leave (Module 5)
   { resource: "attendance", action: "read", description: "View attendance records" },
@@ -68,6 +73,7 @@ export const defaultRoles = [
       "giveaways.read", "giveaways.create", "giveaways.update", "giveaways.issue",
       "inventory.read", "inventory.create", "inventory.update", "inventory.purchase",
       "generator.read", "generator.create", "generator.update",
+      "generator_log.create", "generator_log.update", "generator_log.delete",
       "attendance.read", "attendance.create", "attendance.update", "attendance.approve",
       "overtime.read", "overtime.approve",
       "leave.read", "leave.approve", "leave.reject",
@@ -81,8 +87,9 @@ export const defaultRoles = [
     permissions: [
       "giveaways.read",
       "inventory.read",
-      "generator.read",
+      "generator.read", "generator_log.create",
       "attendance.read", "attendance.create",
+      "overtime.read",
       "leave.read", "leave.create",
       "dashboard.read",
     ],
