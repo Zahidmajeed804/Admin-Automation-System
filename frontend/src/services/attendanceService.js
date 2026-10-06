@@ -15,4 +15,10 @@ export const attendanceService = {
     apiClient
       .get("/attendance", { params: cleanParams(params) })
       .then((r) => ({ items: r.data.data.attendance, pagination: r.data.meta })),
+  // params: { month?: "YYYY-MM", userId?, designationId? } (filters only apply for
+  // attendance.update; everyone else gets their own row). Resolves to
+  // { month, workingDays, totals: { staffCount, approvedOvertimeMinutes,
+  //   pendingOvertimeMinutes, averageAttendancePercent }, staff: [...] }.
+  monthlySummary: (params) =>
+    apiClient.get("/attendance/summary", { params: cleanParams(params) }).then((r) => r.data.data.summary),
 };

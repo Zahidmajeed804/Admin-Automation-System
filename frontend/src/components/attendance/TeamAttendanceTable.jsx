@@ -11,6 +11,7 @@ import EditAttendanceModal from "./EditAttendanceModal";
 import AttendanceCalendarContainer from "./AttendanceCalendarContainer";
 import AttendanceViewToggle from "./AttendanceViewToggle";
 import { formatDate } from "../../utils/attendanceFormat";
+import { describeError } from "../../utils/errorMessage";
 
 const PAGE_SIZE = 10;
 
@@ -74,8 +75,8 @@ export default function TeamAttendanceTable() {
       .then(({ items, pagination }) => {
         if (!cancelled) setResult({ key: requestKey, items, pagination, failed: false });
       })
-      .catch(() => {
-        if (!cancelled) setResult({ key: requestKey, items: [], pagination: null, failed: true });
+      .catch((err) => {
+        if (!cancelled) setResult({ key: requestKey, items: [], pagination: null, failed: err });
       });
     return () => {
       cancelled = true;
@@ -186,7 +187,8 @@ export default function TeamAttendanceTable() {
           data={result.items}
           keyField="_id"
           loading={loading}
-          error={!loading && result.failed}
+          error={!loading && !!result.failed}
+          errorDescription={!loading && result.failed ? describeError(result.failed) : undefined}
           onRetry={() => setAttempt((a) => a + 1)}
           emptyTitle={hasFilters ? "No matching records" : "No attendance records yet"}
           emptyDescription={

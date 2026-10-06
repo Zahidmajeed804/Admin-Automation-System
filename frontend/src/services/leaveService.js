@@ -13,6 +13,10 @@ export const leaveService = {
   // Reviewer-only. payload is { decision: "approved" | "rejected", note? }.
   review: (id, payload) =>
     apiClient.patch(`/leave/${id}/review`, payload).then((r) => r.data.data.leave),
+  // Reviewer-only, pending requests applied for more than 2 days. payload is
+  // { startDate, endDate } as "YYYY-MM-DD". Resolves to the updated request.
+  editDates: (id, payload) =>
+    apiClient.patch(`/leave/${id}/dates`, payload).then((r) => r.data.data.leave),
   // Own balance by default; params can add { userId, year } — reviewers only for userId.
   // Resolves to { userId, year, balances: { casual, sick, annual } }, each
   // { allocated, used, pending, remaining }. Unpaid leave isn't included (no limit).

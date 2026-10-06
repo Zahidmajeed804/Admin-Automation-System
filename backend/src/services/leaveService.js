@@ -1,6 +1,6 @@
 import { leaveRepository } from "../repositories/leaveRepository.js";
 import { userRepository } from "../repositories/userRepository.js";
-import { LEAVE_TYPES, REVIEW_DECISIONS } from "../constants/attendance.js";
+import { LEAVE_TYPES, REVIEW_DECISIONS, LEAVE_DATES_EDITABLE_AFTER_DAYS } from "../constants/attendance.js";
 import { startOfDay } from "../utils/dates.js";
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from "../errors/AppError.js";
 
@@ -22,6 +22,22 @@ const daysInYear = (start, end, year) => {
   const clampedEnd = end < yearEnd ? end : yearEnd;
   if (clampedEnd < clampedStart) return 0;
   return Math.round((clampedEnd - clampedStart) / MS_PER_DAY) + 1;
+};
+
+// Calendar days from start to end inclusive.
+const computeTotalDays = (start, end) => Math.round((end - start) / MS_PER_DAY) + 1;
+
+// Both dates normalised to midnight UTC; throws 400 if either is invalid or end < start.
+const parseRange = (startDate, endDate) => {
+  const start = startOfDay(startDate);
+  const end = startOfDay(endDate);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    throw new BadRequestError("startDate and endDate must be valid dates");
+  }
+  if (end < start) {
+    throw new BadRequestError("endDate must not be before startDate");
+  }
+  return { start, end };
 };
 
 // Every calendar year a [start, end] range touches, in order.
@@ -67,14 +83,7 @@ export const leaveService = {
       throw new BadRequestError(`leaveType must be one of: ${LEAVE_TYPES.join(", ")}`);
     }
 
-    const start = startOfDay(startDate);
-    const end = startOfDay(endDate);
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-      throw new BadRequestError("startDate and endDate must be valid dates");
-    }
-    if (end < start) {
-      throw new BadRequestError("endDate must not be before startDate");
-    }
+    const { start, end } = parseRange(startDate, endDate);
 
     const clash = await leaveRepository.findOverlapping(userId, start, end);
     if (clash) {
@@ -91,7 +100,7 @@ export const leaveService = {
       leaveType,
       startDate: start,
       endDate: end,
-      totalDays: Math.round((end - start) / MS_PER_DAY) + 1,
+      totalDays: computeTotalDays(start, end),
       reason,
     });
   },
@@ -100,7 +109,9 @@ export const leaveService = {
   // allocation, checking each calendar year the range touches independently — a
   // request spanning New Year's only draws against each year for the days it
   // actually falls on. Unpaid leave never reaches this (see QUOTA_LEAVE_TYPES).
-  async assertWithinBalance(userId, leaveType, start, end) {
+  // `excludeId` leaves out a request being re-dated, so its current days don't
+  // count against its own new ones.
+  async assertWithinBalance(userId, leaveType, start, end, excludeId) {
     const user = await userRepository.findById(userId);
     const allocated = user?.leaveAllocation?.[leaveType] || 0;
 
@@ -108,7 +119,7 @@ export const leaveService = {
       const requestedInYear = daysInYear(start, end, year);
       if (requestedInYear === 0) continue;
 
-      const { remaining } = await leaveService.getBalanceForYear(userId, leaveType, year, allocated);
+      const { remaining } = await leaveService.getBalanceForYear(userId, leaveType, year, allocated, excludeId);
       if (requestedInYear > remaining) {
         throw new BadRequestError(`Only ${remaining} ${leaveType} day${remaining === 1 ? "" : "s"} left for ${year}`);
       }
@@ -119,8 +130,8 @@ export const leaveService = {
   // (approved) and pending, clipped per request the same way assertWithinBalance
   // clips the incoming one. Shared by the quota check above and the balance
   // endpoint (leaveController.balance), so both agree on the same numbers.
-  async getBalanceForYear(userId, leaveType, year, allocated) {
-    const existing = await leaveRepository.findActiveByTypeAndYear(userId, leaveType, year);
+  async getBalanceForYear(userId, leaveType, year, allocated, excludeId) {
+    const existing = await leaveRepository.findActiveByTypeAndYear(userId, leaveType, year, excludeId);
     let used = 0;
     let pending = 0;
     for (const request of existing) {
@@ -171,5 +182,59 @@ export const leaveService = {
       throw new ConflictError(`Leave request is already ${request.status === "pending" ? "reviewed" : request.status}`);
     }
     return reviewed;
+  },
+
+  // A reviewer changes the dates of a long pending request before deciding it. Only
+  // requests originally longer than LEAVE_DATES_EDITABLE_AFTER_DAYS qualify, judged on
+  // what was applied for, so a request shortened once can still be adjusted again.
+  // The new range gets the same overlap and balance checks as a new request, with
+  // this request itself left out of both. The applied dates are kept on first edit.
+  async editDates(id, { editorId, startDate, endDate }) {
+    const request = await leaveRepository.findById(id);
+    if (!request) {
+      throw new NotFoundError("Leave request not found");
+    }
+    if (String(request.user) === String(editorId)) {
+      throw new ForbiddenError("You cannot change the dates of your own leave request");
+    }
+    if (request.status !== "pending") {
+      throw new ConflictError(`Leave request is already ${request.status}`);
+    }
+    const appliedDays = request.originalTotalDays ?? request.totalDays;
+    if (appliedDays <= LEAVE_DATES_EDITABLE_AFTER_DAYS) {
+      throw new BadRequestError(
+        `Only requests longer than ${LEAVE_DATES_EDITABLE_AFTER_DAYS} days can have their dates changed`
+      );
+    }
+
+    const { start, end } = parseRange(startDate, endDate);
+    if (start.getTime() === request.startDate.getTime() && end.getTime() === request.endDate.getTime()) {
+      throw new BadRequestError("These are already the request's dates");
+    }
+
+    const clash = await leaveRepository.findOverlapping(request.user, start, end, request._id);
+    if (clash) {
+      const article = clash.status === "approved" ? "an" : "a";
+      throw new ConflictError(`These dates overlap ${article} ${clash.status} leave request of the same person`);
+    }
+    if (QUOTA_LEAVE_TYPES.includes(request.leaveType)) {
+      await leaveService.assertWithinBalance(request.user, request.leaveType, start, end, request._id);
+    }
+
+    const updated = await leaveRepository.updateDatesIfPending(id, {
+      startDate: start,
+      endDate: end,
+      totalDays: computeTotalDays(start, end),
+      originalStartDate: request.originalStartDate ?? request.startDate,
+      originalEndDate: request.originalEndDate ?? request.endDate,
+      originalTotalDays: appliedDays,
+      editedBy: editorId,
+      editedAt: new Date(),
+    });
+    if (!updated) {
+      // Decided between our read and the write.
+      throw new ConflictError("Leave request was reviewed in the meantime");
+    }
+    return updated;
   },
 };

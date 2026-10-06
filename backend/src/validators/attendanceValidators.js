@@ -36,6 +36,16 @@ export const updateAttendanceValidator = [
   runValidation,
 ];
 
+export const attendanceSummaryValidator = [
+  query("month")
+    .optional()
+    .matches(/^\d{4}-(0[1-9]|1[0-2])$/)
+    .withMessage("month must be in YYYY-MM format"),
+  query("userId").optional().isMongoId().withMessage("userId must be a valid id"),
+  query("designationId").optional().isMongoId().withMessage("designationId must be a valid id"),
+  runValidation,
+];
+
 export const listAttendanceValidator = [
   query("page").optional().isInt({ min: 1 }).withMessage("page must be a positive integer"),
   query("pageSize")

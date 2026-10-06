@@ -24,6 +24,15 @@ const leaveRequestSchema = new mongoose.Schema(
     reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     reviewedAt: { type: Date },
     reviewNote: { type: String, trim: true },
+    // What the person originally applied for, kept when a reviewer changes the dates
+    // of a long request before deciding it (AAS-451). Set on the first edit only and
+    // never overwritten, so they always show the applied dates. Absent = never edited.
+    originalStartDate: { type: Date },
+    originalEndDate: { type: Date },
+    originalTotalDays: { type: Number, min: 1 },
+    // Who changed the dates last, and when.
+    editedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    editedAt: { type: Date },
   },
   { timestamps: true }
 );

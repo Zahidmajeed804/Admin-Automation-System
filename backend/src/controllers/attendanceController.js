@@ -1,4 +1,5 @@
 import { attendanceService } from "../services/attendanceService.js";
+import { attendanceSummaryService } from "../services/attendanceSummaryService.js";
 import { sendSuccess } from "../utils/apiResponse.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 
@@ -36,6 +37,20 @@ export const attendanceController = {
       data: { attendance: items },
       meta: pagination,
     });
+  }),
+
+  // Monthly overtime / attendance / leave per person. attendance.update sees everyone
+  // and can filter; others get only their own row (filters ignored).
+  summary: asyncHandler(async (req, res) => {
+    const { month, userId, designationId } = req.query;
+    const summary = await attendanceSummaryService.getMonthly({
+      requesterId: req.userId,
+      canViewAll: req.permissions.includes("attendance.update"),
+      month,
+      userId,
+      designationId,
+    });
+    sendSuccess(res, { message: "Monthly summary", data: { summary } });
   }),
 
   update: asyncHandler(async (req, res) => {

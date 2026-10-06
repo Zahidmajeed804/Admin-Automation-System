@@ -62,6 +62,25 @@ export const leaveBalanceValidator = [
   runValidation,
 ];
 
+export const editLeaveDatesValidator = [
+  param("id").isMongoId().withMessage("id must be a valid leave request id"),
+  body("startDate").exists({ checkNull: true }).withMessage("startDate is required").bail().isISO8601().withMessage("startDate must be a valid date"),
+  body("endDate")
+    .exists({ checkNull: true })
+    .withMessage("endDate is required")
+    .bail()
+    .isISO8601()
+    .withMessage("endDate must be a valid date")
+    .bail()
+    .custom((value, { req }) => {
+      if (req.body.startDate && new Date(value) < new Date(req.body.startDate)) {
+        throw new Error("endDate must not be before startDate");
+      }
+      return true;
+    }),
+  runValidation,
+];
+
 export const reviewLeaveValidator = [
   param("id").isMongoId().withMessage("id must be a valid leave request id"),
   body("decision")

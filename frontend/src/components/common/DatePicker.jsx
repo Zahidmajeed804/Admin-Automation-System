@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, X } from "lucide-react";
 import clsx from "clsx";
+import PickerPopover from "./PickerPopover";
 
 export const WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
@@ -20,9 +21,13 @@ export const parseDateStr = (s) => {
 export const monthLabel = (year, month) =>
   new Date(year, month, 1).toLocaleDateString([], { month: "long", year: "numeric" });
 
+// Deliberately "DD/MM/YYYY" via manual padding rather than toLocaleDateString: a locale-dependent
+// month name (e.g. "16 Sept 2026") is long enough to get clipped by the trigger's fixed width in
+// every place it's used at a narrow size (filter bars' `sm:w-40`), especially once the clear
+// button's reserved space is added on top - this stays compact and predictable at any width.
 const displayLabel = (s) => {
   const d = parseDateStr(s);
-  return d ? d.toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" }) : "";
+  return d ? `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()}` : "";
 };
 
 export const addDays = (d, n) => {
@@ -107,7 +112,8 @@ export default function DatePicker({
   useEffect(() => {
     if (!open) return;
     const onDocMouseDown = (e) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) close();
+      // The popover is portalled to <body>, so it isn't inside the wrapper.
+      if (!wrapperRef.current?.contains(e.target) && !popoverRef.current?.contains(e.target)) close();
     };
     document.addEventListener("mousedown", onDocMouseDown);
     return () => document.removeEventListener("mousedown", onDocMouseDown);
@@ -280,14 +286,7 @@ export default function DatePicker({
       ) : null}
 
       {open && view && (
-        <div
-          ref={popoverRef}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Choose a date"
-          onKeyDown={onPopoverKeyDown}
-          className="absolute z-20 top-full mt-1 left-0 w-72 max-w-[calc(100vw-2rem)] bg-white rounded-card border border-border shadow-elevated p-3 flex flex-col gap-3"
-        >
+        <PickerPopover anchorRef={triggerRef} popoverRef={popoverRef} label="Choose a date" onKeyDown={onPopoverKeyDown}>
           <div className="flex items-center justify-between">
             <button
               type="button"
@@ -379,7 +378,7 @@ export default function DatePicker({
               OK
             </button>
           </div>
-        </div>
+        </PickerPopover>
       )}
     </div>
   );

@@ -7,6 +7,7 @@ import generatorRoutes from "./generator.routes.js";
 import attendanceRoutes from "./attendance.routes.js";
 import overtimeRoutes from "./overtime.routes.js";
 import leaveRoutes from "./leave.routes.js";
+import designationRoutes from "./designation.routes.js";
 
 // Module route files get mounted here as they're built.
 const router = Router();
@@ -19,5 +20,6 @@ router.use("/generator", generatorRoutes);
 router.use("/attendance", attendanceRoutes);
 router.use("/overtime", overtimeRoutes);
 router.use("/leave", leaveRoutes);
+router.use("/designations", designationRoutes);
 
 export default router;

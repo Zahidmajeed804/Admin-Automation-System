@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react";
 import clsx from "clsx";
+import PickerPopover from "./PickerPopover";
 import { toDateStr, parseDateStr, buildMonthGrid, monthLabel, addDays, addMonthsClamped, addYears, WEEKDAYS } from "./DatePicker";
 
 const pad2 = (n) => String(n).padStart(2, "0");
@@ -67,7 +68,8 @@ export default function DateTimePicker({ label, id, value, onChange, min, max, e
   useEffect(() => {
     if (!open) return;
     const onDocMouseDown = (e) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) close();
+      // The popover is portalled to <body>, so it isn't inside the wrapper.
+      if (!wrapperRef.current?.contains(e.target) && !popoverRef.current?.contains(e.target)) close();
     };
     document.addEventListener("mousedown", onDocMouseDown);
     return () => document.removeEventListener("mousedown", onDocMouseDown);
@@ -234,13 +236,11 @@ export default function DateTimePicker({ label, id, value, onChange, min, max, e
       ) : null}
 
       {open && view && (
-        <div
-          ref={popoverRef}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Choose a date and time"
+        <PickerPopover
+          anchorRef={triggerRef}
+          popoverRef={popoverRef}
+          label="Choose a date and time"
           onKeyDown={onPopoverKeyDown}
-          className="absolute z-20 top-full mt-1 left-0 w-72 max-w-[calc(100vw-2rem)] bg-white rounded-card border border-border shadow-elevated p-3 flex flex-col gap-3"
         >
           <div className="flex items-center justify-between">
             <button
@@ -363,7 +363,7 @@ export default function DateTimePicker({ label, id, value, onChange, min, max, e
               OK
             </button>
           </div>
-        </div>
+        </PickerPopover>
       )}
     </div>
   );

@@ -47,10 +47,12 @@ the Module 1 layering.
 | Attendance | `POST /attendance/clock-in`, `POST /attendance/clock-out`, `GET /attendance/me/today` | `attendance.create`, `attendance.read` |
 | | `GET /attendance` (filters, paging) | `attendance.read` (own records); `attendance.update` sees everyone |
 | | `GET /attendance/employees` (for the Team filter), `PATCH /attendance/:id` (manager correction) | `attendance.update` |
+| | `GET /attendance/summary?month&userId&designationId` (monthly summary) | `attendance.read`; filters and everyone need `attendance.update` |
 | Overtime | `GET /overtime` (filters, paging) | `overtime.read`; `overtime.approve` sees everyone |
 | | `PATCH /overtime/:id/review` (approve or reject) | `overtime.approve` |
 | Leave | `POST /leave`, `GET /leave` (filters, paging) | `leave.create`, `leave.read`; approvers see everyone |
 | | `PATCH /leave/:id/review` | `leave.approve` to approve, `leave.reject` to reject |
+| | `PATCH /leave/:id/dates` | `leave.approve` or `leave.reject` |
 | Staff | `GET /users` (search, status filter, paging), `POST /users` (create a login) | `users.manage` |
 | | `PATCH /users/:id` (edit), `PATCH /users/:id/status` (activate/deactivate) | `users.manage` |
 | | `GET /users/options` (lightweight employee list for the Team Overtime/Leave filters) | `overtime.approve` or `leave.approve` |
@@ -63,30 +65,41 @@ index), `OvertimeRequest` (one per attendance record) and `LeaveRequest`
 
 Rules the API enforces:
 - Worked time is computed on clock-out; under 4 hours is a **half-day**.
-- The shift starts at clock-in and lasts as long as the overtime threshold (10 hours).
-  Clocking out before that records an **early departure** (`earlyDepartureMinutes`, 0 for
-  a full shift). It is recalculated when a manager corrects the times. Records from before
-  this was added have no value and show "—".
-- When worked time passes the daily threshold, a **pending overtime request** for the
-  excess is created automatically. The threshold defaults to 10 hours and is set
-  with `OVERTIME_THRESHOLD_MINUTES` (600 by default).
+- The shift starts at clock-in and lasts as long as the person's **designation** says
+  (e.g. Office Boy 9h, Engineer 8h). Admins manage designations from **Staff →
+  Designations**; staff without one use the default from `OVERTIME_THRESHOLD_MINUTES`
+  (600 = 10 hours). The shift is stored on each day at clock-out (`shiftMinutes`), so
+  editing a designation later doesn't change past days.
+- Clocking out before the shift ends records an **early departure** (`earlyDepartureMinutes`,
+  0 for a full shift). It is recalculated when a manager corrects the times. Records from
+  before this was added have no value and show "—".
+- When worked time passes the shift, a **pending overtime request** for the excess is
+  created automatically.
 - A request is decided **once** (a second decision returns 409), and nobody can
   review **their own** overtime or leave request.
 - Leave cannot overlap the same person's pending or approved leave. A rejected
   request frees its days again.
 - Approving and rejecting leave are separate permissions.
-- An admin (`users.manage`) creates a staff login with a name, email, a unique
-  **Employee ID** they type themselves, and a temporary password; the account gets the
+- A reviewer can change the dates of a **pending** request that was applied for **more than 2 days**
+  before deciding it (not their own). The new dates get the same overlap and balance checks, with
+  the request itself left out; the applied dates are kept and shown as "Edited · was N days".
+- **Login** takes one field: phone number, Employee ID or email (`POST /auth/login
+  { identifier, password }`; older clients sending `email` still work). Registering needs a
+  name, phone and password; email and Employee ID are optional. Phones are stored in one form
+  (`+92 300-1234567` = `0300 1234567` = `03001234567`).
+- An admin (`users.manage`) creates a staff login with a name, a unique **Employee ID** they
+  type themselves, a phone, an optional email, and a temporary password; the account gets the
   `staff` role by default. Employee ID is case-insensitive (`emp-001` and `EMP-001`
-  collide) and duplicate emails/IDs return 409.
+  collide) and a duplicate phone, email or ID returns 409 naming the field.
 - **Deactivating** a staff member blocks new logins immediately, and any token they
   already hold stops working on its very next request — there is no separate
   revocation list; `authenticate` re-checks `isActive` on every call. Their attendance,
   overtime and leave history is kept, and the account can be re-activated. An admin
   cannot deactivate their own account.
 - Each user has a **yearly leave allocation** per type (`casual`, `sick`, `annual` —
-  unpaid has none and is unlimited), set individually via `PATCH /users/:id` or for
-  every active account at once via `PUT /users/leave-allocation/all`. Requesting leave
+  unpaid has none and is unlimited), set individually via `PATCH /users/:id` or in bulk
+  via `PUT /users/leave-allocation/all` — for every active account, or only active staff
+  with one designation (`designationId`). Requesting leave
   checks the pending-plus-approved days already used against the allocation for **each**
   calendar year the request touches independently, so a request spanning New Year's is
   checked against both years on their own terms, and refuses with a 400 naming the
@@ -113,8 +126,13 @@ Rules the API enforces:
   who can approve or reject leave (Team adds a leave-type filter).
 - `/attendance/staff` — admin-only staff directory: search, filter by status, add a
   staff login (Employee ID + temporary password), edit details, activate/deactivate,
-  and **Assign leaves to all**: set casual/sick/annual days for every active account
-  at once, either filling only accounts with no allocation yet or overwriting everyone.
+  manage **Designations** (shift hours), **Assign leaves**: set casual/sick/annual days
+  for all active staff or one designation at once, either filling only accounts with no
+  allocation yet or overwriting, and a per-row **Leave** action to set one person's days.
+- `/attendance/summary` — a month of overtime (approved and pending, per person and in
+  total) and attendance % per person, with month/employee/designation filters, stat cards,
+  an overtime-share pie, an attendance-breakdown pie for one employee, and a table. Managers
+  see everyone; staff see only themselves.
 - A single Attendance entry in the sidebar, and a page switcher at the top of the
   four pages (Attendance, Overtime, Leave, Staff), each link shown only to users who
   hold that page's permission.
@@ -145,11 +163,17 @@ data removed afterwards. Each guide can be repeated by hand:
 - [`docs/verification/AAS-400-406-leave-quotas.md`](docs/verification/AAS-400-406-leave-quotas.md) — leave balances, quota enforcement, assign-to-all, full staff→approve→balance loop
 - [`docs/verification/AAS-408-412-date-time-picker.md`](docs/verification/AAS-408-412-date-time-picker.md) — the custom date/date-time picker: mouse, keyboard, ARIA, and mobile
 - [`docs/verification/AAS-414-420-attendance-calendar.md`](docs/verification/AAS-414-420-attendance-calendar.md) — the monthly attendance calendar: grid, real data, summary/legend, sample preview, mobile, and the List/Calendar toggle
+- [`docs/verification/AAS-430-434-shift-by-designation.md`](docs/verification/AAS-430-434-shift-by-designation.md) — designations with shift hours, 8h vs 9h overtime and early departure, Designations dialog and staff form field
+- [`docs/verification/AAS-447-450-leave-allocation-by-designation.md`](docs/verification/AAS-447-450-leave-allocation-by-designation.md) — bulk leave allocation by designation ("Apply to") and per-person allocation from the staff row
+- [`docs/verification/AAS-452-456-edit-long-leave-dates.md`](docs/verification/AAS-452-456-edit-long-leave-dates.md) — reviewers change the dates of pending requests over 2 days, checks, and the "Edited" badge
+- [`docs/verification/AAS-458-463-monthly-summary.md`](docs/verification/AAS-458-463-monthly-summary.md) — monthly overtime and attendance % per person, filters and pie charts
+- [`docs/verification/AAS-469-473-phone-employee-id-login.md`](docs/verification/AAS-469-473-phone-employee-id-login.md) — log in with phone, Employee ID or email; register and create staff without email; the seed migration
 
 **After pulling this module, run `npm run seed` in `backend`.** It adds
-`overtime.read` to the staff role so staff can see their own overtime. It only adds
-permissions and is safe to repeat. Until then, staff are sent to "Unauthorized"
-when they open the Overtime page.
+`overtime.read` to the staff role so staff can see their own overtime, and migrates user
+indexes so email is optional and phone numbers are unique (AAS-469). It is safe to repeat.
+Until then, staff are sent to "Unauthorized" when they open the Overtime page, and only one
+account can be created without an email.
 
 **Not built yet** (in the requirements, outside the planned scope):
 - Late-arrival tracking. Skipped on purpose: the shift starts at clock-in, so there is no
@@ -158,11 +182,8 @@ when they open the Overtime page.
   doesn't create an attendance record, and there's no configurable public-holiday list. The new
   monthly calendar (above) shows leave and weekends visually by merging leave requests and
   the calendar grid at display time, without changing what's stored.
-- Setting an individual's leave allocation from the **Add/edit staff** form. The backend
-  fully supports it (`PATCH /users/:id` with a `leaveAllocation` object); only **Assign
-  leaves to all** is wired into the UI, not a per-person field on that form.
-- Reports (daily and monthly attendance, monthly overtime, leave, individual
-  employee, attendance percentage) and the overtime sheet export.
+- Reports beyond the monthly summary (daily attendance, leave, individual employee history)
+  and the overtime sheet export.
 
 No other business modules (giveaways, inventory, generator, reports) are
 implemented on this branch yet.
@@ -208,8 +229,9 @@ Runs on http://localhost:5000. Health check:
 `GET http://localhost:5000/api/v1/health`
 
 Optional setting: `OVERTIME_THRESHOLD_MINUTES` (default 600, i.e. 10 hours) is the
-worked time per day after which the excess counts as overtime. Set it to 1 to
-try overtime without working a full day.
+default shift for staff **without a designation**; worked time beyond it counts as
+overtime. Staff with a designation use its shift hours instead. Set it to 1 to try
+overtime without working a full day (for staff with no designation).
 
 ## Project structure
 

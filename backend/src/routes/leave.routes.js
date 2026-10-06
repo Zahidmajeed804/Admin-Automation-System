@@ -5,6 +5,7 @@ import {
   listLeaveValidator,
   leaveBalanceValidator,
   reviewLeaveValidator,
+  editLeaveDatesValidator,
 } from "../validators/leaveValidators.js";
 import { authenticate } from "../middleware/authenticate.js";
 import { requirePermission, requireAnyPermission } from "../authorization/requirePermission.js";
@@ -29,6 +30,13 @@ const requireDecisionPermission = (req, res, next) => {
 router.get("/", requirePermission("leave.read"), listLeaveValidator, leaveController.list);
 router.get("/balance", requirePermission("leave.read"), leaveBalanceValidator, leaveController.balance);
 router.post("/", requirePermission("leave.create"), createLeaveValidator, leaveController.create);
+// Anyone who can decide leave may adjust a long request's dates before deciding it.
+router.patch(
+  "/:id/dates",
+  requireAnyPermission(["leave.approve", "leave.reject"]),
+  editLeaveDatesValidator,
+  leaveController.editDates
+);
 router.patch(
   "/:id/review",
   requireAnyPermission(["leave.approve", "leave.reject"]),

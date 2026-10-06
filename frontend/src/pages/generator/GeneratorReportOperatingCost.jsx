@@ -6,6 +6,7 @@ import Select from "../../components/common/Select";
 import Table from "../../components/tables/Table";
 import { generatorService } from "../../services/generatorService";
 import { formatNumber } from "../../utils/formatNumber";
+import { describeError } from "../../utils/errorMessage";
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -36,19 +37,19 @@ export default function GeneratorReportOperatingCost({ generatorOptions }) {
 
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError(false);
+    setError(null);
     try {
       const data = await generatorService.getOperatingCostReport({
         ...(generatorId ? { generatorId } : {}),
         ...(year ? { year } : {}),
       });
       setReport(data);
-    } catch {
-      setError(true);
+    } catch (err) {
+      setError(err);
     } finally {
       setLoading(false);
     }
@@ -86,6 +87,7 @@ export default function GeneratorReportOperatingCost({ generatorOptions }) {
         data={(report?.months ?? []).map((row) => ({ ...row, id: row.month }))}
         loading={loading}
         error={error}
+        errorDescription={error ? describeError(error) : undefined}
         onRetry={load}
         emptyTitle="No data for this year"
         emptyDescription="There is no fuel or maintenance activity for this filter."

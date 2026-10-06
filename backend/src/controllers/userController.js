@@ -23,8 +23,17 @@ export const userController = {
   }),
 
   create: asyncHandler(async (req, res) => {
-    const { name, email, employeeId, password, phone, department, leaveAllocation } = req.body;
-    const user = await userService.create({ name, email, employeeId, password, phone, department, leaveAllocation });
+    const { name, email, employeeId, password, phone, department, designationId, leaveAllocation } = req.body;
+    const user = await userService.create({
+      name,
+      email,
+      employeeId,
+      password,
+      phone,
+      department,
+      designationId,
+      leaveAllocation,
+    });
     sendSuccess(res, {
       statusCode: 201,
       message: "Staff member created",
@@ -33,13 +42,14 @@ export const userController = {
   }),
 
   update: asyncHandler(async (req, res) => {
-    const { name, email, employeeId, phone, department, leaveAllocation } = req.body;
+    const { name, email, employeeId, phone, department, designationId, leaveAllocation } = req.body;
     const user = await userService.update(req.params.id, {
       name,
       email,
       employeeId,
       phone,
       department,
+      designationId,
       leaveAllocation,
     });
     sendSuccess(res, {
@@ -57,12 +67,13 @@ export const userController = {
   }),
 
   assignLeaveAllocationToAll: asyncHandler(async (req, res) => {
-    const { casual, sick, annual, overwrite } = req.body;
+    const { casual, sick, annual, overwrite, designationId } = req.body;
     const result = await userService.assignLeaveAllocationToAll({
       casual,
       sick,
       annual,
       overwrite: Boolean(overwrite),
+      designationId,
     });
     sendSuccess(res, {
       message: `Leave allocation applied to ${result.modified} of ${result.matched} matching staff member(s)`,
