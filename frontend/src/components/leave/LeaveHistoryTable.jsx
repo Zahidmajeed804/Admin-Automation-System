@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { leaveService } from "../../services/leaveService";
 import Table from "../tables/Table";
+import LeaveDaysCell from "./LeaveDaysCell";
 import Badge from "../common/Badge";
 import { formatLeaveDate, leaveTypeLabel } from "../../utils/leaveFormat";
 
@@ -18,7 +19,7 @@ const columns = [
       return row.totalDays > 1 ? `${start} – ${formatLeaveDate(row.endDate)}` : start;
     },
   },
-  { key: "totalDays", header: "Days", render: (row) => row.totalDays },
+  { key: "totalDays", header: "Days", render: (row) => <LeaveDaysCell request={row} /> },
   { key: "status", header: "Status", render: (row) => <Badge status={row.status} /> },
   { key: "reviewedBy", header: "Reviewed by", render: (row) => row.reviewedBy?.name ?? "—" },
   {

@@ -55,6 +55,8 @@ export const statusStyles = {
   inactive: { label: "Inactive", color: colors.error, bg: "#FEF2F2" },
 
   info: { label: "Info", color: colors.info, bg: "#F0F9FF" },
+  // A leave request whose dates a reviewer changed (AAS-451).
+  edited: { label: "Edited", color: colors.info, bg: "#F0F9FF" },
   weekend: { label: "Weekend", color: colors.textMuted, bg: "#F8FAFC" },
   holiday: { label: "Holiday", color: colors.info, bg: "#F0F9FF" },
 

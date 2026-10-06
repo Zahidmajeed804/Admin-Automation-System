@@ -3,6 +3,7 @@ import { CalendarClock, Check, X } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { leaveService } from "../../services/leaveService";
 import Table from "../tables/Table";
+import LeaveDaysCell from "./LeaveDaysCell";
 import Button from "../common/Button";
 import ReviewLeaveDialog from "./ReviewLeaveDialog";
 import EditLeaveDatesDialog from "./EditLeaveDatesDialog";
@@ -74,7 +75,7 @@ export default function PendingLeaveTable({ canApprove, canReject, refreshKey: e
           ? `${formatLeaveDate(row.startDate)} – ${formatLeaveDate(row.endDate)}`
           : formatLeaveDate(row.startDate),
     },
-    { key: "totalDays", header: "Days", render: (row) => row.totalDays },
+    { key: "totalDays", header: "Days", render: (row) => <LeaveDaysCell request={row} /> },
     {
       key: "reason",
       header: "Reason",

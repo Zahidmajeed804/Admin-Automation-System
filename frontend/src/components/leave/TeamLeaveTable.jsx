@@ -9,6 +9,7 @@ import DatePicker from "../common/DatePicker";
 import Button from "../common/Button";
 import Badge from "../common/Badge";
 import Table from "../tables/Table";
+import LeaveDaysCell from "./LeaveDaysCell";
 import ReviewLeaveDialog from "./ReviewLeaveDialog";
 import EditLeaveDatesDialog from "./EditLeaveDatesDialog";
 import {
@@ -129,7 +130,7 @@ export default function TeamLeaveTable({ canApprove, canReject, refreshKey: exte
           ? `${formatLeaveDate(row.startDate)} – ${formatLeaveDate(row.endDate)}`
           : formatLeaveDate(row.startDate),
     },
-    { key: "totalDays", header: "Days", render: (row) => row.totalDays },
+    { key: "totalDays", header: "Days", render: (row) => <LeaveDaysCell request={row} /> },
     { key: "status", header: "Status", render: (row) => <Badge status={row.status} /> },
     { key: "reviewedBy", header: "Reviewed by", render: (row) => row.reviewedBy?.name ?? "—" },
     {
