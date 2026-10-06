@@ -30,6 +30,15 @@ export const chartPalette = [
   colors.error,
 ];
 
+// Fixed-order palette for "which one is it" charts (e.g. each person's share of
+// overtime). Brand blue first; checked with the dataviz palette validator for
+// lightness, colour-blind separation and normal-vision separation of neighbours,
+// including the last slice next to the first in a pie. Use slots in order, never
+// cycle: fold anything past the last slot into an "Others" slice (otherSliceColor).
+// Some slots are light against white, so always pair them with text labels.
+export const categoricalPalette = ["#2563EB", "#EB6834", "#1BAF7A", "#EDA100", "#E87BA4"];
+export const otherSliceColor = "#94A3B8";
+
 // Canonical status -> visual style mapping used by the Badge component.
 // Add new statuses here rather than inline in a page.
 export const statusStyles = {

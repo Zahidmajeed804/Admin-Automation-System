@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { attendanceService } from "../../services/attendanceService";
 import { designationService } from "../../services/designationService";
@@ -9,7 +9,11 @@ import Select from "../../components/common/Select";
 import MonthlySummaryStats from "../../components/attendance/summary/MonthlySummaryStats";
 import MonthlySummaryTable from "../../components/attendance/summary/MonthlySummaryTable";
 import useMonthlySummary from "../../components/attendance/summary/useMonthlySummary";
+import { LoadingSpinner } from "../../components/common/Loading";
 import { currentMonthKey, monthLabel, monthOptions } from "../../utils/summaryFormat";
+
+// recharts only loads once the page needs a chart.
+const SummaryCharts = lazy(() => import("../../components/attendance/summary/SummaryCharts"));
 
 const noFilters = { month: currentMonthKey(), userId: "", designationId: "" };
 
@@ -113,6 +117,15 @@ export default function AttendanceSummaryPage() {
             {monthLabel(summary.month)}: {summary.workingDays} working day(s) counted so far (Mon–Fri). Attendance % =
             (present + late + ½ half-day) ÷ (working days − approved leave days).
           </p>
+        )}
+        {summary && !loading && (
+          <Suspense fallback={<LoadingSpinner label="Loading charts…" />}>
+            <SummaryCharts
+              staff={summary.staff}
+              // The breakdown pie is for one person: an employee filter, or a staff member's own view.
+              singleRow={(!canViewAll || filters.userId) && summary.staff.length === 1 ? summary.staff[0] : null}
+            />
+          </Suspense>
         )}
         <MonthlySummaryTable
           staff={summary?.staff}
