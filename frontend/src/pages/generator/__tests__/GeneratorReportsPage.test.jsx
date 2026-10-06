@@ -15,8 +15,8 @@ vi.mock("../../../services/generatorService", () => ({
 vi.mock("../GeneratorReportRunningHours", () => ({
   default: ({ generatorOptions }) => <div>Running Hours view ({generatorOptions.length} generators)</div>,
 }));
-vi.mock("../GeneratorReportDieselConsumption", () => ({
-  default: () => <div>Diesel Consumption view</div>,
+vi.mock("../GeneratorReportFuelConsumption", () => ({
+  default: () => <div>Fuel Consumption view</div>,
 }));
 vi.mock("../GeneratorReportFuelCost", () => ({ default: () => <div>Fuel Cost view</div> }));
 vi.mock("../GeneratorReportMaintenanceCost", () => ({ default: () => <div>Maintenance Cost view</div> }));
@@ -38,7 +38,7 @@ describe("GeneratorReportsPage", () => {
     const tabs = screen.getAllByRole("tab").map((t) => t.textContent);
     expect(tabs).toEqual([
       "Running Hours",
-      "Diesel Consumption",
+      "Fuel Consumption",
       "Fuel Cost",
       "Maintenance Cost",
       "Operating Cost",

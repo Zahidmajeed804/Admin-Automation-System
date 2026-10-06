@@ -7,24 +7,27 @@ import { Generator, GeneratorLog, GeneratorMaintenance } from "../models/index.j
 // generator, for a fleet-wide report.
 async function resolveGenerators(generatorId) {
   if (generatorId) {
-    const generator = await Generator.findOne({ _id: generatorId, isActive: true }).select("tag name");
+    const generator = await Generator.findOne({ _id: generatorId, isActive: true }).select("tag name fuelType");
     return generator ? [generator] : [];
   }
-  return Generator.find({ isActive: true }).select("tag name").sort({ tag: 1 });
+  return Generator.find({ isActive: true }).select("tag name fuelType").sort({ tag: 1 });
 }
 
 export const reportRepository = {
   resolveGenerators,
 
-  // Total hours run per generator within [from, to), from the usage logs.
+  // Total hours run per generator within [from, to] (inclusive both ends —
+  // paired with resolveDateRange, same convention as fuelConsumptionByGenerator,
+  // so a single day can be queried with from === to).
   runningHoursByGenerator: (generatorIds, from, to) =>
     GeneratorLog.aggregate([
-      { $match: { generator: { $in: generatorIds }, date: { $gte: from, $lt: to } } },
+      { $match: { generator: { $in: generatorIds }, date: { $gte: from, $lte: to } } },
       { $group: { _id: "$generator", hoursRun: { $sum: "$hoursRun" }, logCount: { $sum: 1 } } },
     ]),
 
-  // Fuel cost and litres bought per generator within [from, to), used to work
-  // out an average cost per litre.
+  // Fuel cost, litres bought and hours run per generator within [from, to),
+  // used to work out an average cost per running hour (hours run is a
+  // shared unit across fuel types, unlike litres/kg).
   fuelCostByGenerator: (generatorIds, from, to) =>
     GeneratorLog.aggregate([
       { $match: { generator: { $in: generatorIds }, date: { $gte: from, $lt: to } } },
@@ -33,6 +36,7 @@ export const reportRepository = {
           _id: "$generator",
           fuelCostTotal: { $sum: "$fuelCostTotal" },
           fuelAddedLiters: { $sum: "$fuelAddedLiters" },
+          hoursRun: { $sum: "$hoursRun" },
           logCount: { $sum: 1 },
         },
       },
@@ -47,9 +51,11 @@ export const reportRepository = {
       { $group: { _id: "$generator", fuelCostTotal: { $sum: "$fuelCostTotal" } } },
     ]),
 
-  // Diesel added/consumed per generator within [from, to] (inclusive both
-  // ends — same convention as generatorLogRepository.list's from/to).
-  fuelByGenerator: (generatorIds, from, to) =>
+  // Fuel added/consumed per generator within [from, to] (inclusive both
+  // ends — same convention as generatorLogRepository.list's from/to). Litres
+  // vs kg isn't decided here: the caller splits by each row's generator's
+  // fuelType (resolveGenerators already carries it).
+  fuelConsumptionByGenerator: (generatorIds, from, to) =>
     GeneratorLog.aggregate([
       { $match: { generator: { $in: generatorIds }, date: { $gte: from, $lte: to } } },
       {

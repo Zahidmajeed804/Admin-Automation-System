@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { vi } from "vitest";
 import GeneratorMaintenanceForm, { toEditValues, toPayload, toUpdatePayload } from "../GeneratorMaintenanceForm";
 import { generatorService } from "../../../services/generatorService";
+import { pickDate } from "../../../test/datePicker";
 
 vi.mock("../../../services/generatorService", () => ({
   generatorService: {
@@ -129,9 +130,9 @@ describe("<GeneratorMaintenanceForm /> (create)", () => {
     const user = userEvent.setup();
     render(<GeneratorMaintenanceForm open onClose={vi.fn()} onSaved={vi.fn()} generatorOptions={GENERATOR_OPTIONS} />);
 
-    expect(screen.queryByLabelText("Starting Running Hours", { exact: false })).not.toBeInTheDocument();
-    await user.type(screen.getByLabelText("Repeat Every (running hours)", { exact: false }), "250");
-    expect(screen.getByLabelText("Starting Running Hours", { exact: false })).toBeInTheDocument();
+    expect(screen.queryAllByLabelText("Starting Running Hours", { exact: false })).toHaveLength(0);
+    await user.type(screen.getByLabelText("Repeat Every (running hours) — hours", { exact: false }), "250");
+    expect(screen.queryAllByLabelText("Starting Running Hours", { exact: false }).length).toBeGreaterThan(0);
   });
 
   it("creates a job with the entered fields", async () => {
@@ -142,7 +143,7 @@ describe("<GeneratorMaintenanceForm /> (create)", () => {
 
     await user.selectOptions(screen.getByLabelText("Generator", { exact: false }), "g1");
     await user.type(screen.getByLabelText("Description", { exact: false }), "Oil change");
-    await user.type(screen.getByLabelText("Scheduled Date", { exact: false }), "2026-03-01");
+    await pickDate(user, "Scheduled Date", "2026-03-01");
     await user.type(screen.getByLabelText("Vendor", { exact: false }), "AutoServ");
 
     await user.click(screen.getByRole("button", { name: "Schedule" }));
@@ -169,7 +170,7 @@ describe("<GeneratorMaintenanceForm /> (create)", () => {
 
     await user.selectOptions(screen.getByLabelText("Generator", { exact: false }), "g1");
     await user.type(screen.getByLabelText("Description", { exact: false }), "Oil change");
-    await user.type(screen.getByLabelText("Scheduled Date", { exact: false }), "2026-03-01");
+    await pickDate(user, "Scheduled Date", "2026-03-01");
     await user.click(screen.getByRole("button", { name: "Schedule" }));
 
     expect(await screen.findByText("Conflict")).toBeInTheDocument();

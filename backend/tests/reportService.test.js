@@ -49,6 +49,11 @@ describe("resolveDateRange (pure)", () => {
   it("rejects a from after to", () => {
     expect(() => resolveDateRange({ from: "2026-05-01", to: "2026-01-01" })).toThrow(/from/i);
   });
+
+  it("widens an explicit to to the end of that UTC day, so from === to covers the whole day", () => {
+    const r = resolveDateRange({ from: "2026-03-15", to: "2026-03-15" });
+    expect(r.to.toISOString()).toBe("2026-03-15T23:59:59.999Z");
+  });
 });
 
 describe("resolveYearRange (pure)", () => {
@@ -64,7 +69,7 @@ describe("resolveYearRange (pure)", () => {
 });
 
 describe("reportService.getRunningHoursReport", () => {
-  it("sums hoursRun per active generator for the given month, excluding other months and soft-deleted generators", async () => {
+  it("sums hoursRun per active generator for the default range (this month so far), excluding other months and soft-deleted generators", async () => {
     const gen1 = await createGenerator();
     const gen2 = await createGenerator();
     const inactive = await createGenerator({ isActive: false });
@@ -91,7 +96,7 @@ describe("reportService.getRunningHoursReport", () => {
   it("still lists a generator with no logs this month, at 0", async () => {
     const gen = await createGenerator();
     const report = await reportService.getRunningHoursReport({});
-    expect(report.generators).toEqual([{ generator: { id: gen._id, tag: gen.tag, name: gen.name }, hoursRun: 0, logCount: 0 }]);
+    expect(report.generators).toEqual([{ generator: { id: gen._id, tag: gen.tag, name: gen.name, fuelType: gen.fuelType }, hoursRun: 0, logCount: 0 }]);
   });
 
   it("scopes to one generator via generatorId", async () => {
@@ -109,9 +114,20 @@ describe("reportService.getRunningHoursReport", () => {
     await expect(reportService.getRunningHoursReport({ generatorId: String(inactive._id) })).rejects.toMatchObject({ statusCode: 404 });
     await expect(reportService.getRunningHoursReport({ generatorId: UNKNOWN_ID })).rejects.toMatchObject({ statusCode: 404 });
   });
+
+  it("can be scoped to a single day via from === to", async () => {
+    const gen = await createGenerator();
+    await insertLog(gen, { date: new Date("2026-03-15T08:00:00.000Z"), hoursRun: 6 });
+    await insertLog(gen, { date: new Date("2026-03-15T20:00:00.000Z"), hoursRun: 2 });
+    await insertLog(gen, { date: new Date("2026-03-16T00:00:00.000Z"), hoursRun: 999 });
+    await insertLog(gen, { date: new Date("2026-03-14T23:59:00.000Z"), hoursRun: 999 });
+
+    const report = await reportService.getRunningHoursReport({ from: "2026-03-15", to: "2026-03-15" });
+    expect(report.totalHoursRun).toBe(8);
+  });
 });
 
-describe("reportService.getDieselConsumptionReport", () => {
+describe("reportService.getFuelConsumptionReport", () => {
   it("sums fuel added/consumed per generator within an arbitrary inclusive range", async () => {
     const gen1 = await createGenerator();
     const gen2 = await createGenerator();
@@ -120,32 +136,64 @@ describe("reportService.getDieselConsumptionReport", () => {
     await insertLog(gen2, { date: new Date("2026-03-15"), fuelAddedLiters: 20, fuelConsumedLiters: 15 });
     await insertLog(gen1, { date: new Date("2026-01-01"), fuelAddedLiters: 999, fuelConsumedLiters: 999 });
 
-    const report = await reportService.getDieselConsumptionReport({ from: "2026-03-01", to: "2026-03-31" });
+    const report = await reportService.getFuelConsumptionReport({ from: "2026-03-01", to: "2026-03-31" });
 
     const a = report.generators.find((g) => String(g.generator.id) === String(gen1._id));
     expect(a).toMatchObject({ fuelAddedLiters: 50, fuelConsumedLiters: 50, logCount: 2 });
     expect(report.totalFuelAddedLiters).toBe(70);
     expect(report.totalFuelConsumedLiters).toBe(65);
+    expect(report.totalFuelAddedKg).toBe(0);
+    expect(report.totalFuelConsumedKg).toBe(0);
+  });
+
+  it("keeps litres and kg totals separate, never summed together", async () => {
+    const dieselGen = await createGenerator({ fuelType: "diesel" });
+    const cngGen = await createGenerator({ fuelType: "cng" });
+    await insertLog(dieselGen, { date: new Date("2026-03-15"), fuelAddedLiters: 50, fuelConsumedLiters: 40 });
+    await insertLog(cngGen, { date: new Date("2026-03-15"), fuelAddedLiters: 30, fuelConsumedLiters: 25 });
+
+    const report = await reportService.getFuelConsumptionReport({ from: "2026-03-01", to: "2026-03-31" });
+
+    expect(report.totalFuelAddedLiters).toBe(50);
+    expect(report.totalFuelConsumedLiters).toBe(40);
+    expect(report.totalFuelAddedKg).toBe(30);
+    expect(report.totalFuelConsumedKg).toBe(25);
   });
 });
 
 describe("reportService.getFuelCostReport", () => {
-  it("sums fuel cost per generator for the given month and computes an average cost per litre", async () => {
+  it("sums fuel cost per generator for the given month and computes an average cost per running hour", async () => {
     const gen1 = await createGenerator();
     const gen2 = await createGenerator(); // no logs -> zeros, not an error
     const thisMonth = new Date(resolveMonthRange().from.getTime() + 86400000);
 
-    await insertLog(gen1, { date: thisMonth, fuelAddedLiters: 100, fuelCostTotal: 200 });
-    await insertLog(gen1, { date: thisMonth, fuelAddedLiters: 50, fuelCostTotal: 120 });
+    await insertLog(gen1, { date: thisMonth, hoursRun: 5, fuelAddedLiters: 100, fuelCostTotal: 200 });
+    await insertLog(gen1, { date: thisMonth, hoursRun: 3, fuelAddedLiters: 50, fuelCostTotal: 120 });
 
     const report = await reportService.getFuelCostReport({});
     const a = report.generators.find((g) => String(g.generator.id) === String(gen1._id));
     const b = report.generators.find((g) => String(g.generator.id) === String(gen2._id));
 
     expect(a.fuelCostTotal).toBe(320);
-    expect(a.averageCostPerLiter).toBe(Math.round((320 / 150) * 100) / 100);
-    expect(b).toMatchObject({ fuelCostTotal: 0, averageCostPerLiter: 0 }); // no division-by-zero NaN
+    expect(a.hoursRun).toBe(8);
+    expect(a.averageCostPerHour).toBe(Math.round((320 / 8) * 100) / 100);
+    expect(b).toMatchObject({ fuelCostTotal: 0, averageCostPerHour: 0 }); // no division-by-zero NaN
     expect(report.totalFuelCost).toBe(320);
+    expect(report.averageCostPerHour).toBe(Math.round((320 / 8) * 100) / 100);
+  });
+
+  it("averages across diesel and CNG generators the same way, since hours run (not litres/kg) is the basis", async () => {
+    const dieselGen = await createGenerator({ fuelType: "diesel" });
+    const cngGen = await createGenerator({ fuelType: "cng" });
+    const thisMonth = new Date(resolveMonthRange().from.getTime() + 86400000);
+
+    await insertLog(dieselGen, { date: thisMonth, hoursRun: 4, fuelAddedLiters: 40, fuelCostTotal: 400 });
+    await insertLog(cngGen, { date: thisMonth, hoursRun: 6, fuelAddedLiters: 30, fuelCostTotal: 600 });
+
+    const report = await reportService.getFuelCostReport({});
+
+    expect(report.totalFuelCost).toBe(1000);
+    expect(report.averageCostPerHour).toBe(100); // 1000 / (4 + 6) hours, unaffected by the litres/kg split
   });
 });
 

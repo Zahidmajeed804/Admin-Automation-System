@@ -74,7 +74,9 @@ export default function AppRoutes() {
             <Route element={<ProtectedRoute permission="users.manage" />}>
               <Route path="/attendance/staff" element={<StaffPage />} />
             </Route>
-            <Route path="/reports" element={<ReportsPage />} />
+            <Route element={<ProtectedRoute permission="reports.read" />}>
+              <Route path="/reports" element={<ReportsPage />} />
+            </Route>
             <Route path="/notifications" element={<NotificationsPage />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/settings" element={<SettingsPage />} />

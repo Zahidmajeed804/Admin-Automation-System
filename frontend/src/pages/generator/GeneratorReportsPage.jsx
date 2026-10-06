@@ -8,7 +8,7 @@ import { generatorService } from "../../services/generatorService";
 // up front made this page's chunk ~400KB even though only one tab is ever
 // visible at a time. Each one now loads only when its tab is opened.
 const GeneratorReportRunningHours = lazy(() => import("./GeneratorReportRunningHours"));
-const GeneratorReportDieselConsumption = lazy(() => import("./GeneratorReportDieselConsumption"));
+const GeneratorReportFuelConsumption = lazy(() => import("./GeneratorReportFuelConsumption"));
 const GeneratorReportFuelCost = lazy(() => import("./GeneratorReportFuelCost"));
 const GeneratorReportMaintenanceCost = lazy(() => import("./GeneratorReportMaintenanceCost"));
 const GeneratorReportOperatingCost = lazy(() => import("./GeneratorReportOperatingCost"));
@@ -22,7 +22,7 @@ const GeneratorReportCostAnalysis = lazy(() => import("./GeneratorReportCostAnal
 // charted, S2.13 (its endpoint shipped back in S2.11).
 const REPORT_TABS = [
   { id: "running-hours", label: "Running Hours" },
-  { id: "diesel-consumption", label: "Diesel Consumption" },
+  { id: "fuel-consumption", label: "Fuel Consumption" },
   { id: "fuel-cost", label: "Fuel Cost" },
   { id: "maintenance-cost", label: "Maintenance Cost" },
   { id: "operating-cost", label: "Operating Cost" },
@@ -33,7 +33,7 @@ const REPORT_TABS = [
 // One component per REPORT_TABS entry.
 const REPORT_VIEWS = {
   "running-hours": GeneratorReportRunningHours,
-  "diesel-consumption": GeneratorReportDieselConsumption,
+  "fuel-consumption": GeneratorReportFuelConsumption,
   "fuel-cost": GeneratorReportFuelCost,
   "maintenance-cost": GeneratorReportMaintenanceCost,
   "operating-cost": GeneratorReportOperatingCost,

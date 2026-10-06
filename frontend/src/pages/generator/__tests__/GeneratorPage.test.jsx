@@ -65,7 +65,7 @@ describe("GeneratorPage (Registry)", () => {
     await waitFor(() => expect(screen.getByText("GEN-01")).toBeInTheDocument());
     expect(screen.getByText("GEN-02")).toBeInTheDocument();
     expect(screen.getByText("Main Hall Generator")).toBeInTheDocument();
-    expect(screen.getByText("120.5")).toBeInTheDocument();
+    expect(screen.getByText("120h 30m")).toBeInTheDocument();
   });
 
   it("renders the three status stat cards from separate pageSize:1 requests", async () => {

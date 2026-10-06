@@ -4,6 +4,7 @@ import { vi } from "vitest";
 import GeneratorLogsPage from "../GeneratorLogsPage";
 import { generatorService } from "../../../services/generatorService";
 import { useAuth } from "../../../context/AuthContext";
+import { pickDate } from "../../../test/datePicker";
 
 vi.mock("../../../services/generatorService", () => ({
   generatorService: {
@@ -97,6 +98,17 @@ describe("GeneratorLogsPage", () => {
     expect(dashes.length).toBeGreaterThan(0);
   });
 
+  it("shows the gauge mark alongside the converted amount for a needle-gauge reading", async () => {
+    mockLogs({
+      items: [{ ...LOG_1, openingFuelGaugeReading: "1/2", fuelGaugeReading: "1/4" }],
+      meta: { page: 1, totalPages: 1, totalItems: 1, pageSize: 10 },
+    });
+    render(<GeneratorLogsPage />);
+    await waitFor(() => expect(screen.getByText("GEN-01", { selector: "span.font-medium" })).toBeInTheDocument());
+    expect(screen.getByText("≈ 100 L (½)")).toBeInTheDocument();
+    expect(screen.getByText("≈ 115 L (¼)")).toBeInTheDocument();
+  });
+
   it("hides Add/Edit/Delete without the matching generator_log permissions", async () => {
     mockAuth([]);
     render(<GeneratorLogsPage />);
@@ -139,7 +151,7 @@ describe("GeneratorLogsPage", () => {
       expect(generatorService.listLogs).toHaveBeenCalledWith(expect.objectContaining({ generatorId: "g2", page: 1 }))
     );
 
-    await user.type(screen.getByLabelText("From date"), "2026-01-01");
+    await pickDate(user, "From", "2026-01-01");
     await waitFor(() =>
       expect(generatorService.listLogs).toHaveBeenCalledWith(expect.objectContaining({ from: "2026-01-01", page: 1 }))
     );
@@ -164,7 +176,7 @@ describe("GeneratorLogsPage", () => {
     await waitFor(() => expect(screen.getByText("GEN-01", { selector: "span.font-medium" })).toBeInTheDocument());
 
     await user.click(screen.getByRole("button", { name: /delete gen-01 log/i }));
-    expect(screen.getByText(/takes its 8 h off the generator's running hours/i)).toBeInTheDocument();
+    expect(screen.getByText(/takes its 8h 0m off the generator's running hours/i)).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Delete" }));
     await waitFor(() => expect(generatorService.deleteLog).toHaveBeenCalledWith("l1"));

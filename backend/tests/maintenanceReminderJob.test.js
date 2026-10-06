@@ -150,4 +150,13 @@ describe("buildMaintenanceReminderEmail", () => {
     expect(email.html).toContain("GEN-01");
     expect(email.text).toContain("Oil change");
   });
+
+  it("formats hoursUntilDue as 'Xh Ym', not a rounded integer", () => {
+    const email = buildMaintenanceReminderEmail({
+      overdue: [],
+      upcoming: [{ generator: { tag: "GEN-02" }, description: "Filter change", scheduledDate: new Date(), hoursUntilDue: 2 + 20 / 60 }],
+    });
+    expect(email.text).toContain("due in 2h 20m");
+    expect(email.html).toContain("due in 2h 20m");
+  });
 });

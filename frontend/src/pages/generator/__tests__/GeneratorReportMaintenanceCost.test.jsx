@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { vi } from "vitest";
 import GeneratorReportMaintenanceCost from "../GeneratorReportMaintenanceCost";
 import { generatorService } from "../../../services/generatorService";
+import { pickDate } from "../../../test/datePicker";
 
 vi.mock("../../../services/generatorService", () => ({
   generatorService: { getMaintenanceCostReport: vi.fn() },
@@ -36,7 +37,7 @@ describe("<GeneratorReportMaintenanceCost />", () => {
     render(<GeneratorReportMaintenanceCost generatorOptions={GENERATOR_OPTIONS} />);
     await screen.findByText("GEN-01", { selector: "span.font-medium" });
 
-    await user.type(screen.getByLabelText("From date"), "2026-01-01");
+    await pickDate(user, "From", "2026-01-01");
     await waitFor(() =>
       expect(generatorService.getMaintenanceCostReport).toHaveBeenLastCalledWith(expect.objectContaining({ from: "2026-01-01" }))
     );

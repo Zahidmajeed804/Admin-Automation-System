@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import Modal from "../../components/modals/Modal";
 import Button from "../../components/common/Button";
 import Input from "../../components/common/Input";
+import HoursMinutesInput from "../../components/common/HoursMinutesInput";
+import DatePicker from "../../components/common/DatePicker";
 import { generatorService } from "../../services/generatorService";
 import { extractErrorMessage } from "./GeneratorForm";
 
@@ -109,12 +111,10 @@ export default function GeneratorMaintenanceCompleteForm({ open, onClose, onSave
         )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Input id="complete-completedDate" label="Completed Date" type="date" value={values.completedDate} onChange={setField("completedDate")} />
-          <Input
+          <DatePicker id="complete-completedDate" label="Completed Date" value={values.completedDate} onChange={setField("completedDate")} />
+          <HoursMinutesInput
             id="complete-hoursAtService"
             label="Generator's Running Hours"
-            type="number"
-            min="0"
             value={values.hoursAtService}
             onChange={setField("hoursAtService")}
             error={fieldErrors.hoursAtService}

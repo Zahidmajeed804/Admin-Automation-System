@@ -1,8 +1,9 @@
 import mongoose from "mongoose";
+import { FUEL_TYPES, DEFAULT_FUEL_TYPE, FUEL_MEASUREMENT_TYPES, DEFAULT_FUEL_MEASUREMENT_TYPE } from "../constants/generator.js";
 
 const generatorSchema = new mongoose.Schema(
   {
-    tag: { type: String, required: true, unique: true, trim: true }, // asset tag, e.g. "GEN-01"
+    tag: { type: String, required: true, trim: true }, // asset tag, e.g. "GEN-01"; uniqueness is a partial index below
     name: { type: String, required: true, trim: true },
     location: { type: String, trim: true, index: true },
     make: { type: String, trim: true },
@@ -11,10 +12,18 @@ const generatorSchema = new mongoose.Schema(
     capacityKVA: { type: Number },
     fuelType: {
       type: String,
-      enum: ["diesel", "petrol", "gas"],
-      default: "diesel",
+      enum: FUEL_TYPES,
+      default: DEFAULT_FUEL_TYPE,
     },
     fuelTankCapacityLiters: { type: Number },
+    // How fuel level is read on this generator; "gauge" readings are entered
+    // as a quarter mark (see FUEL_GAUGE_MARKS) and converted using
+    // fuelTankCapacityLiters, "digital" readings stay precise numbers.
+    fuelMeasurementType: {
+      type: String,
+      enum: FUEL_MEASUREMENT_TYPES,
+      default: DEFAULT_FUEL_MEASUREMENT_TYPE,
+    },
     status: {
       type: String,
       enum: ["operational", "under_maintenance", "faulty", "decommissioned", "maintenance_due"],
@@ -42,5 +51,10 @@ const generatorSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+// Only active generators compete for a tag: a soft-deleted/leftover
+// isActive:false document (e.g. a legacy record from before deletion became
+// permanent) must never block a new generator from reusing its tag.
+generatorSchema.index({ tag: 1 }, { unique: true, partialFilterExpression: { isActive: true } });
 
 export default mongoose.model("Generator", generatorSchema);

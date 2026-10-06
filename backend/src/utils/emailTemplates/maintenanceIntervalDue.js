@@ -6,21 +6,24 @@
 // generatorService.completeMaintenance() resetting the interval lets it
 // fire again next time.
 
+import { formatHoursMinutes } from "../hoursMinutes.js";
+
 function generatorLabel(generator) {
   return generator.name ? `${generator.tag} — ${generator.name}` : generator.tag;
 }
 
 export function buildMaintenanceIntervalDueEmail(generator) {
-  const hoursSinceReset = Math.round((generator.runningHoursTotal - (generator.hoursAtLastMaintenanceReset || 0)) * 10) / 10;
+  const hoursSinceReset = formatHoursMinutes(generator.runningHoursTotal - (generator.hoursAtLastMaintenanceReset || 0));
+  const interval = formatHoursMinutes(generator.maintenanceIntervalHours);
   const label = generatorLabel(generator);
   const subject = `Generator maintenance due: ${label}`;
 
-  const text = `${label} has run ${hoursSinceReset}h since its last service, reaching its ${generator.maintenanceIntervalHours}h maintenance interval. Schedule a service to clear this.`;
+  const text = `${label} has run ${hoursSinceReset} since its last service, reaching its ${interval} maintenance interval. Schedule a service to clear this.`;
 
   const html = `
     <div style="font-family:Arial,sans-serif;color:#111827;">
       <h2 style="margin:0 0 4px;">Generator maintenance due</h2>
-      <p style="margin:0 0 12px;"><strong>${label}</strong> has run <strong>${hoursSinceReset}h</strong> since its last service, reaching its <strong>${generator.maintenanceIntervalHours}h</strong> maintenance interval.</p>
+      <p style="margin:0 0 12px;"><strong>${label}</strong> has run <strong>${hoursSinceReset}</strong> since its last service, reaching its <strong>${interval}</strong> maintenance interval.</p>
       <p style="color:#6b7280;margin:0;">Schedule a service for this generator to clear the alert.</p>
     </div>`;
 

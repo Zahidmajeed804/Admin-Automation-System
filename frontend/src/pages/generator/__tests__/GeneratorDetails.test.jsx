@@ -48,11 +48,29 @@ describe("<GeneratorDetails />", () => {
     render(<GeneratorDetails open onClose={vi.fn()} generator={GENERATOR} />);
 
     expect(screen.getByText("Main Hall Generator")).toBeInTheDocument();
-    expect(screen.getByText("320.4")).toBeInTheDocument();
+    expect(screen.getByText("320h 24m")).toBeInTheDocument();
     expect(screen.getByText(/loading recent activity/i)).toBeInTheDocument();
 
     resolveLogs({ items: [] });
     await waitFor(() => expect(screen.queryByText(/loading recent activity/i)).not.toBeInTheDocument());
+  });
+
+  it("shows the fuel summary without a measurement type when the generator predates the field", async () => {
+    generatorService.listLogs.mockResolvedValue({ items: [] });
+    generatorService.listMaintenance.mockResolvedValue({ items: [] });
+
+    render(<GeneratorDetails open onClose={vi.fn()} generator={GENERATOR} />);
+
+    expect(await screen.findByText("Diesel · 500 L tank")).toBeInTheDocument();
+  });
+
+  it("appends the measurement type to the fuel summary when set", async () => {
+    generatorService.listLogs.mockResolvedValue({ items: [] });
+    generatorService.listMaintenance.mockResolvedValue({ items: [] });
+
+    render(<GeneratorDetails open onClose={vi.fn()} generator={{ ...GENERATOR, fuelMeasurementType: "gauge" }} />);
+
+    expect(await screen.findByText("Diesel · 500 L tank · Needle Gauge")).toBeInTheDocument();
   });
 
   it("shows the next scheduled maintenance and recent logs once loaded", async () => {
@@ -62,7 +80,7 @@ describe("<GeneratorDetails />", () => {
     render(<GeneratorDetails open onClose={vi.fn()} generator={GENERATOR} />);
 
     expect(await screen.findByText("Oil change")).toBeInTheDocument();
-    expect(screen.getByText(/8h — Power outage/)).toBeInTheDocument();
+    expect(screen.getByText(/8h 0m — Power outage/)).toBeInTheDocument();
     expect(screen.getByText("+20 L")).toBeInTheDocument();
   });
 

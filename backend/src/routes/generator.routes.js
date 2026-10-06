@@ -17,7 +17,7 @@ import {
 } from "../validators/generatorValidators.js";
 import {
   runningHoursReportValidator,
-  dieselConsumptionReportValidator,
+  fuelConsumptionReportValidator,
   fuelCostReportValidator,
   maintenanceCostReportValidator,
   operatingCostReportValidator,
@@ -56,7 +56,7 @@ router.delete("/maintenance/:id/invoice", requirePermission("generator.update"),
 // kind of access than day-to-day operation. Must be declared before "/:id"
 // like the other fixed sub-paths above.
 router.get("/reports/running-hours", requirePermission("reports.read"), runningHoursReportValidator, reportController.runningHours);
-router.get("/reports/diesel-consumption", requirePermission("reports.read"), dieselConsumptionReportValidator, reportController.dieselConsumption);
+router.get("/reports/fuel-consumption", requirePermission("reports.read"), fuelConsumptionReportValidator, reportController.fuelConsumption);
 router.get("/reports/fuel-cost", requirePermission("reports.read"), fuelCostReportValidator, reportController.fuelCost);
 router.get("/reports/maintenance-cost", requirePermission("reports.read"), maintenanceCostReportValidator, reportController.maintenanceCost);
 router.get("/reports/operating-cost", requirePermission("reports.read"), operatingCostReportValidator, reportController.operatingCost);

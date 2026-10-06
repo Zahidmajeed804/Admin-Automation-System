@@ -5,7 +5,7 @@ import { connectDatabase, disconnectDatabase } from "../config/database.js";
 import { rbacRepository } from "../repositories/rbacRepository.js";
 import { permissionsCatalog, defaultRoles } from "../constants/permissions.js";
 import { hashPassword } from "../utils/password.js";
-import { User } from "../models/index.js";
+import { User, Generator } from "../models/index.js";
 import { logger } from "../utils/logger.js";
 import { runDataMigrations } from "./migrations.js";
 
@@ -74,6 +74,45 @@ export async function seedRbacCatalog() {
   return permissionIdByName;
 }
 
+// "gas" was renamed to "cng" when CNG support (measured in kg) was added.
+// Idempotent: a second run matches zero documents once migrated.
+export async function migrateGasFuelTypeToCng() {
+  const result = await Generator.updateMany({ fuelType: "gas" }, { $set: { fuelType: "cng" } });
+  if (result.modifiedCount > 0) {
+    logger.info(`Migrated ${result.modifiedCount} generator(s) from fuelType "gas" to "cng"`);
+  }
+  return result.modifiedCount;
+}
+
+// Mongoose schema defaults don't apply to documents that already exist in
+// the database, so every generator created before fuelMeasurementType was
+// added needs it backfilled explicitly — defaulting to "gauge" since that's
+// what every real generator on site has.
+export async function migrateFuelMeasurementTypeDefault() {
+  const result = await Generator.updateMany({ fuelMeasurementType: { $exists: false } }, { $set: { fuelMeasurementType: "gauge" } });
+  if (result.modifiedCount > 0) {
+    logger.info(`Migrated ${result.modifiedCount} generator(s) to fuelMeasurementType "gauge"`);
+  }
+  return result.modifiedCount;
+}
+
+// The generator tag's unique index used to apply to every document, so a
+// soft-deleted/leftover isActive:false row (from before deletion became
+// permanent) could block a new generator from reusing its tag. The model
+// now declares a partial unique index (isActive:true only) instead, but
+// Mongoose's autoIndex never drops/replaces an existing index of the same
+// name with different options — it has to be dropped explicitly first.
+// Idempotent: a second run finds no plain "tag_1" index left to drop.
+export async function migrateGeneratorTagPartialIndex() {
+  const indexes = await Generator.collection.indexes();
+  const oldIndex = indexes.find((i) => i.name === "tag_1" && !i.partialFilterExpression);
+  if (oldIndex) {
+    await Generator.collection.dropIndex("tag_1");
+    logger.info('Dropped the non-partial "tag_1" unique index on generators');
+  }
+  await Generator.collection.createIndex({ tag: 1 }, { unique: true, partialFilterExpression: { isActive: true } });
+}
+
 async function run() {
   // Same resolver override as server.js, so mongodb+srv:// Atlas URIs resolve
   // on networks whose default DNS refuses SRV lookups. Kept inside run() (not
@@ -83,6 +122,9 @@ async function run() {
   logger.info("Seeding RBAC data...");
   await seedRbacCatalog();
   await seedDefaultAdmin();
+  await migrateGasFuelTypeToCng();
+  await migrateFuelMeasurementTypeDefault();
+  await migrateGeneratorTagPartialIndex();
   logger.info("RBAC seeding complete.");
   await runDataMigrations();
   await disconnectDatabase();
