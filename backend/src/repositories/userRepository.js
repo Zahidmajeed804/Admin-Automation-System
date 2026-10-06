@@ -22,6 +22,18 @@ export const userRepository = {
     const query = User.findOne({ phone: normalized });
     return withPassword ? query.select("+passwordHash") : query;
   },
+  // One login field for everyone: anything with "@" is an email; otherwise an
+  // Employee ID, then a phone number (Employee IDs are letters/digits/hyphens and
+  // admin-assigned, so they're tried first).
+  findByIdentifier: async (identifier, withPassword = false) => {
+    const value = String(identifier ?? "").trim();
+    if (!value) return null;
+    if (value.includes("@")) return userRepository.findByEmail(value, withPassword);
+    return (
+      (await userRepository.findByEmployeeId(value, withPassword)) ||
+      (await userRepository.findByPhone(value, withPassword))
+    );
+  },
   findById: (id) => User.findById(id),
   findByIdWithDesignation: (id) => User.findById(id).populate("designation", DESIGNATION_FIELDS),
   listAll: () =>

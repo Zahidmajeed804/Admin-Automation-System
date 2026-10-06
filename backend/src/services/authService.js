@@ -4,6 +4,8 @@ import { hashPassword, comparePassword } from "../utils/password.js";
 import { signToken } from "../utils/jwt.js";
 import { ConflictError, UnauthorizedError } from "../errors/AppError.js";
 
+const INVALID_LOGIN = "Invalid phone, Employee ID, email or password";
+
 export const authService = {
   async register({ name, email, password, phone, department }) {
     const existing = await userRepository.findByEmail(email);
@@ -27,15 +29,17 @@ export const authService = {
     return { user, token, roles: roleNames, permissions: permissionNames };
   },
 
-  async login({ email, password }) {
-    const user = await userRepository.findByEmail(email, true);
+  // `identifier` is a phone number, Employee ID or email (userRepository.findByIdentifier).
+  // One message for every failure, so it never reveals which accounts exist.
+  async login({ identifier, password }) {
+    const user = await userRepository.findByIdentifier(identifier, true);
     if (!user || !user.isActive) {
-      throw new UnauthorizedError("Invalid email or password");
+      throw new UnauthorizedError(INVALID_LOGIN);
     }
 
     const isMatch = await comparePassword(password, user.passwordHash);
     if (!isMatch) {
-      throw new UnauthorizedError("Invalid email or password");
+      throw new UnauthorizedError(INVALID_LOGIN);
     }
 
     await userRepository.touchLastLogin(user._id);

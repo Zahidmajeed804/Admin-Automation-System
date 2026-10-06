@@ -18,8 +18,11 @@ export const registerValidator = [
   runValidation,
 ];
 
+// One field: phone number, Employee ID or email. Older clients still send `email`,
+// which is accepted as the identifier.
 export const loginValidator = [
-  body("email").trim().isEmail().withMessage("A valid email is required").normalizeEmail(),
+  body("identifier").customSanitizer((value, { req }) => String(value ?? req.body.email ?? "").trim()),
+  body("identifier").notEmpty().withMessage("Phone, Employee ID or email is required"),
   body("password").notEmpty().withMessage("Password is required"),
   runValidation,
 ];
