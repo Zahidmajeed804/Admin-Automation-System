@@ -88,8 +88,9 @@ Rules the API enforces:
   overtime and leave history is kept, and the account can be re-activated. An admin
   cannot deactivate their own account.
 - Each user has a **yearly leave allocation** per type (`casual`, `sick`, `annual` —
-  unpaid has none and is unlimited), set individually via `PATCH /users/:id` or for
-  every active account at once via `PUT /users/leave-allocation/all`. Requesting leave
+  unpaid has none and is unlimited), set individually via `PATCH /users/:id` or in bulk
+  via `PUT /users/leave-allocation/all` — for every active account, or only active staff
+  with one designation (`designationId`). Requesting leave
   checks the pending-plus-approved days already used against the allocation for **each**
   calendar year the request touches independently, so a request spanning New Year's is
   checked against both years on their own terms, and refuses with a 400 naming the
@@ -116,8 +117,9 @@ Rules the API enforces:
   who can approve or reject leave (Team adds a leave-type filter).
 - `/attendance/staff` — admin-only staff directory: search, filter by status, add a
   staff login (Employee ID + temporary password), edit details, activate/deactivate,
-  and **Assign leaves to all**: set casual/sick/annual days for every active account
-  at once, either filling only accounts with no allocation yet or overwriting everyone.
+  manage **Designations** (shift hours), **Assign leaves**: set casual/sick/annual days
+  for all active staff or one designation at once, either filling only accounts with no
+  allocation yet or overwriting, and a per-row **Leave** action to set one person's days.
 - A single Attendance entry in the sidebar, and a page switcher at the top of the
   four pages (Attendance, Overtime, Leave, Staff), each link shown only to users who
   hold that page's permission.
@@ -149,6 +151,7 @@ data removed afterwards. Each guide can be repeated by hand:
 - [`docs/verification/AAS-408-412-date-time-picker.md`](docs/verification/AAS-408-412-date-time-picker.md) — the custom date/date-time picker: mouse, keyboard, ARIA, and mobile
 - [`docs/verification/AAS-414-420-attendance-calendar.md`](docs/verification/AAS-414-420-attendance-calendar.md) — the monthly attendance calendar: grid, real data, summary/legend, sample preview, mobile, and the List/Calendar toggle
 - [`docs/verification/AAS-430-434-shift-by-designation.md`](docs/verification/AAS-430-434-shift-by-designation.md) — designations with shift hours, 8h vs 9h overtime and early departure, Designations dialog and staff form field
+- [`docs/verification/AAS-447-450-leave-allocation-by-designation.md`](docs/verification/AAS-447-450-leave-allocation-by-designation.md) — bulk leave allocation by designation ("Apply to") and per-person allocation from the staff row
 
 **After pulling this module, run `npm run seed` in `backend`.** It adds
 `overtime.read` to the staff role so staff can see their own overtime. It only adds
@@ -162,9 +165,6 @@ when they open the Overtime page.
   doesn't create an attendance record, and there's no configurable public-holiday list. The new
   monthly calendar (above) shows leave and weekends visually by merging leave requests and
   the calendar grid at display time, without changing what's stored.
-- Setting an individual's leave allocation from the **Add/edit staff** form. The backend
-  fully supports it (`PATCH /users/:id` with a `leaveAllocation` object); only **Assign
-  leaves to all** is wired into the UI, not a per-person field on that form.
 - Reports (daily and monthly attendance, monthly overtime, leave, individual
   employee, attendance percentage) and the overtime sheet export.
 

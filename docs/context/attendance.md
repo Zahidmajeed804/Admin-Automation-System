@@ -49,7 +49,7 @@ Enums: `constants/attendance.js` — `ATTENDANCE_STATUSES` (present, absent, hal
 | `PATCH /leave/:id/review` | `leave.approve` to approve, `leave.reject` to reject | inline `requireDecisionPermission` in `leave.routes.js` |
 | `GET /users/options` | `overtime.approve` or `leave.approve` | lightweight employee list |
 | `GET /users` `?search&status&page&pageSize`, `POST /users`, `PATCH /users/:id`, `PATCH /users/:id/status` | `users.manage` | staff directory |
-| `PUT /users/leave-allocation/all` `{ casual, sick, annual, overwrite }` | `users.manage` | bulk allocation |
+| `PUT /users/leave-allocation/all` `{ casual, sick, annual, overwrite, designationId? }` | `users.manage` | bulk allocation; `designationId` limits it to that designation (404 if unknown; inactive allowed) |
 | `GET /designations` `?status` | `users.manage` or `attendance.update` | sorted by name, `data: { designations }` |
 | `POST /designations` `{ name, shiftHours }`, `PATCH /designations/:id` `{ name, shiftHours, isActive }` | `users.manage` | duplicate name → 409 |
 
@@ -71,7 +71,8 @@ Enums: `constants/attendance.js` — `ATTENDANCE_STATUSES` (present, absent, hal
   the request touches (`daysInYear`, `yearsTouched` in `leaveService.js`); over quota → 400 naming the year and days left.
 - Staff accounts: admin types a unique **Employee ID** (case-insensitive) + temp password; new users get `staff`;
   duplicate email/ID → 409. Leave allocation updates use dot-paths so other types aren't reset.
-- Bulk allocation touches active users only; without `overwrite` it fills only accounts with no allocation.
+- Bulk allocation touches active users only (optionally only one designation); without `overwrite` it fills only
+  accounts with no allocation. Per-person changes send only the changed types (dot-path update).
 - Deactivation blocks login and invalidates existing tokens on the next request; history is kept; you can't deactivate yourself.
 
 ## Frontend
@@ -81,7 +82,7 @@ Enums: `constants/attendance.js` — `ATTENDANCE_STATUSES` (present, absent, hal
 | `/attendance` | `pages/attendance/AttendancePage.jsx` | Tabs "My attendance" / "Team" (`?tab=team`, needs `attendance.update`); `ClockWidget`, `AttendanceViewToggle` (List/Calendar), `AttendanceHistoryTable`, `AttendanceCalendarContainer` → `AttendanceCalendar`, `TeamAttendanceTable`, `EditAttendanceModal` (DateTimePicker) |
 | `/attendance/overtime` | `pages/overtime/OvertimePage.jsx` | Pending / Team (`?view=team`) for `overtime.approve`: `PendingOvertimeTable`, `TeamOvertimeTable`, `ReviewOvertimeDialog`; "My overtime" `OvertimeHistoryTable` |
 | `/attendance/leave` | `pages/leave/LeavePage.jsx` | `LeaveBalanceCards`, `RequestLeaveModal` (shows remaining, blocks over-balance), `LeaveHistoryTable`, Pending/Team for approvers: `PendingLeaveTable`, `TeamLeaveTable`, `ReviewLeaveDialog` |
-| `/attendance/staff` | `pages/attendance/StaffPage.jsx` | `FilterBar` + `Table` (Designation column), `StaffFormModal` (Employee ID, temp password with show/hide, Designation select of active ones), `ConfirmDialog` (activate/deactivate), `AssignLeaveAllocationDialog`, `DesignationsDialog` (add/edit/(de)activate) |
+| `/attendance/staff` | `pages/attendance/StaffPage.jsx` | `FilterBar` + `Table` (Designation column), `StaffFormModal` (Employee ID, temp password with show/hide, Designation select of active ones), `ConfirmDialog` (activate/deactivate), `AssignLeaveAllocationDialog` ("Apply to": all active staff or a designation), `StaffLeaveAllocationDialog` (row **Leave** action, prefilled, sends only changed types), `DesignationsDialog` (add/edit/(de)activate) |
 
 Services: `attendanceService`, `overtimeService`, `leaveService`, `userService` — all return `{ items, pagination }`;
 `designationService.list` returns a plain array (not paginated). Shift labels: `utils/designationFormat.js`
@@ -101,13 +102,12 @@ Shared columns/formatting: `components/attendance/attendanceColumns.jsx`, `utils
 AAS-91 clock in/out · AAS-96 list & edit · early-departure · AAS-280 overtime auto-trigger · AAS-290 leave
 · AAS-302 end-to-end · AAS-383–388 staff · AAS-390–392 hide self-service · AAS-394–398 team overtime/leave
 · AAS-400–406 leave quotas · AAS-408–412 date/time picker · AAS-414–420 calendar
-· AAS-430–434 shift by designation.
+· AAS-430–434 shift by designation · AAS-447–450 leave allocation by designation / per person.
 
 ## Not built yet
 
 - Late-arrival tracking (no fixed shift start, by design).
 - Leave/Holiday/Weekend as stored attendance statuses; configurable public-holiday list.
-- Per-person leave allocation field in `StaffFormModal` (backend supports `PATCH /users/:id { leaveAllocation }`).
 - Attendance / overtime / leave reports and the overtime sheet export (→ Module 7).
 - Backend tests for this module (verified manually via the guides above).
 - After pulling, run `npm run seed` (adds `overtime.read` to staff).
