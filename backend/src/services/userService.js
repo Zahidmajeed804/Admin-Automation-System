@@ -2,6 +2,7 @@ import { userRepository, DESIGNATION_FIELDS } from "../repositories/userReposito
 import { rbacRepository } from "../repositories/rbacRepository.js";
 import { designationRepository } from "../repositories/designationRepository.js";
 import { hashPassword } from "../utils/password.js";
+import { normalizePhone } from "../utils/phone.js";
 import { BadRequestError, ConflictError, NotFoundError } from "../errors/AppError.js";
 
 const DEFAULT_PAGE_SIZE = 20;
@@ -17,6 +18,21 @@ async function assertAssignableDesignation(designationId) {
   if (!designation.isActive) {
     throw new BadRequestError("This designation is inactive and can't be assigned");
   }
+}
+
+// Throws 409 naming the field if another account already uses this email, phone or
+// Employee ID. Empty values are skipped (they're optional), and so is `exceptId`, the
+// account being edited. Shared with self-registration (authService.register).
+export async function assertContactsAvailable({ email, phone, employeeId }, exceptId) {
+  const [byEmail, byPhone, byEmployeeId] = await Promise.all([
+    userRepository.findByEmail(email),
+    userRepository.findByPhone(phone),
+    userRepository.findByEmployeeId(employeeId),
+  ]);
+  const taken = (user) => user && String(user._id) !== String(exceptId);
+  if (taken(byPhone)) throw new ConflictError("An account with this phone number already exists");
+  if (taken(byEmail)) throw new ConflictError("An account with this email already exists");
+  if (taken(byEmployeeId)) throw new ConflictError("An account with this Employee ID already exists");
 }
 
 export const userService = {
@@ -47,17 +63,9 @@ export const userService = {
   // Creates a staff login and assigns the default "staff" role, the same way
   // self-registration does (authService.register). The admin can change roles
   // afterwards via the roles API.
+  // Email is optional (AAS-468); phone and Employee ID are required by the validator.
   async create({ name, email, employeeId, password, phone, department, designationId, leaveAllocation }) {
-    const [existingEmail, existingEmployeeId] = await Promise.all([
-      userRepository.findByEmail(email),
-      userRepository.findByEmployeeId(employeeId),
-    ]);
-    if (existingEmail) {
-      throw new ConflictError("An account with this email already exists");
-    }
-    if (existingEmployeeId) {
-      throw new ConflictError("An account with this Employee ID already exists");
-    }
+    await assertContactsAvailable({ email, phone, employeeId });
     if (designationId) {
       await assertAssignableDesignation(designationId);
     }
@@ -84,32 +92,30 @@ export const userService = {
   },
 
   // `designationId: null` (or "") removes the designation; undefined leaves it alone.
+  // Same for email and phone: "" removes it.
   async update(id, { name, email, employeeId, phone, department, designationId, leaveAllocation }) {
     const existing = await userRepository.findById(id);
     if (!existing) {
       throw new NotFoundError("Staff member not found");
     }
 
-    if (email && email.toLowerCase() !== existing.email) {
-      const clash = await userRepository.findByEmail(email);
-      if (clash) throw new ConflictError("An account with this email already exists");
-    }
-    if (employeeId && employeeId.toUpperCase() !== existing.employeeId) {
-      const clash = await userRepository.findByEmployeeId(employeeId);
-      if (clash) throw new ConflictError("An account with this Employee ID already exists");
-    }
+    await assertContactsAvailable({ email, phone, employeeId }, id);
     if (designationId && String(designationId) !== String(existing.designation)) {
       await assertAssignableDesignation(designationId);
     }
 
     const changes = {};
+    const unset = {};
     if (name !== undefined) changes.name = name;
-    if (email !== undefined) changes.email = email;
+    if (email) changes.email = email;
+    else if (email !== undefined) unset.email = 1;
     if (employeeId !== undefined) changes.employeeId = employeeId;
-    if (phone !== undefined) changes.phone = phone;
+    if (phone) changes.phone = normalizePhone(phone);
+    else if (phone !== undefined) unset.phone = 1;
     if (department !== undefined) changes.department = department;
     if (designationId) changes.designation = designationId;
-    else if (designationId !== undefined) changes.$unset = { designation: 1 };
+    else if (designationId !== undefined) unset.designation = 1;
+    if (Object.keys(unset).length) changes.$unset = unset;
     // Dot-path keys so an update to one leave type merges instead of replacing
     // the whole subdocument (and resetting the other two types to 0).
     if (leaveAllocation?.casual !== undefined) changes["leaveAllocation.casual"] = leaveAllocation.casual;

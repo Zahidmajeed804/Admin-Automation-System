@@ -2,19 +2,26 @@ import { userRepository } from "../repositories/userRepository.js";
 import { rbacRepository } from "../repositories/rbacRepository.js";
 import { hashPassword, comparePassword } from "../utils/password.js";
 import { signToken } from "../utils/jwt.js";
-import { ConflictError, UnauthorizedError } from "../errors/AppError.js";
+import { UnauthorizedError } from "../errors/AppError.js";
+import { assertContactsAvailable } from "./userService.js";
 
 const INVALID_LOGIN = "Invalid phone, Employee ID, email or password";
 
 export const authService = {
-  async register({ name, email, password, phone, department }) {
-    const existing = await userRepository.findByEmail(email);
-    if (existing) {
-      throw new ConflictError("An account with this email already exists");
-    }
+  // Phone is required; email and Employee ID are optional (AAS-468). A taken phone,
+  // email or Employee ID is a 409 naming the field.
+  async register({ name, email, password, phone, employeeId, department }) {
+    await assertContactsAvailable({ email, phone, employeeId });
 
     const passwordHash = await hashPassword(password);
-    const user = await userRepository.create({ name, email, passwordHash, phone, department });
+    const user = await userRepository.create({
+      name,
+      email: email || undefined,
+      employeeId: employeeId || undefined,
+      passwordHash,
+      phone,
+      department,
+    });
 
     // Every new user gets the "staff" role by default so they have some
     // baseline access. Admins can add/remove roles later via the roles API.

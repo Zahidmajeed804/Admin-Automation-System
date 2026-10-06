@@ -4,12 +4,13 @@ import { asyncHandler } from "../middleware/asyncHandler.js";
 
 export const authController = {
   register: asyncHandler(async (req, res) => {
-    const { name, email, password, phone, department } = req.body;
+    const { name, email, password, phone, employeeId, department } = req.body;
     const { user, token, roles, permissions } = await authService.register({
       name,
       email,
       password,
       phone,
+      employeeId,
       department,
     });
     sendSuccess(res, {
