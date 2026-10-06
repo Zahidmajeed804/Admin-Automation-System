@@ -15,3 +15,12 @@ const dateRangeFilter = [
 ];
 
 export const attendanceSummaryReportValidator = [employeeIdFilter, ...dateRangeFilter, runValidation];
+
+// Same filters as the view, plus the export format (defaults to csv in the
+// controller when omitted).
+export const attendanceSummaryExportValidator = [
+  employeeIdFilter,
+  ...dateRangeFilter,
+  query("format").optional().isIn(["csv", "pdf"]).withMessage("format must be one of: csv, pdf"),
+  runValidation,
+];
