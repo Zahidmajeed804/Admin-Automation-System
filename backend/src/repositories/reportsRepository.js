@@ -1,4 +1,4 @@
-import { User, Attendance } from "../models/index.js";
+import { User, Attendance, OvertimeRequest } from "../models/index.js";
 
 // Every attendance-summary report is scoped to employees who still exist in
 // the system (deactivated staff included — same convention as
@@ -32,6 +32,25 @@ export const reportsRepository = {
           late: { $sum: { $cond: [{ $eq: ["$status", "late"] }, 1, 0] } },
           workedMinutes: { $sum: "$workedMinutes" },
           recordCount: { $sum: 1 },
+        },
+      },
+    ]),
+
+  // Per-status request counts and approved overtime minutes per employee
+  // within [from, to] (inclusive both ends, matching overtimeRepository.list's
+  // own startDate/endDate convention — ranged on the request's `date`, which
+  // is copied from its attendance record).
+  overtimeSummaryByEmployee: (userIds, from, to) =>
+    OvertimeRequest.aggregate([
+      { $match: { user: { $in: userIds }, date: { $gte: from, $lte: to } } },
+      {
+        $group: {
+          _id: "$user",
+          pending: { $sum: { $cond: [{ $eq: ["$status", "pending"] }, 1, 0] } },
+          approved: { $sum: { $cond: [{ $eq: ["$status", "approved"] }, 1, 0] } },
+          rejected: { $sum: { $cond: [{ $eq: ["$status", "rejected"] }, 1, 0] } },
+          approvedMinutes: { $sum: { $cond: [{ $eq: ["$status", "approved"] }, "$overtimeMinutes", 0] } },
+          totalRequests: { $sum: 1 },
         },
       },
     ]),
