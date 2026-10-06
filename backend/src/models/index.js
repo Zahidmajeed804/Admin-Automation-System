@@ -12,3 +12,4 @@ export { default as LeaveRequest } from "./LeaveRequest.js";
 export { default as GiveawayItem } from "./GiveawayItem.js";
 export { default as GiveawayInventoryTransaction } from "./GiveawayInventoryTransaction.js";
 export { default as GiveawayIssue } from "./GiveawayIssue.js";
+export { default as Designation } from "./Designation.js";

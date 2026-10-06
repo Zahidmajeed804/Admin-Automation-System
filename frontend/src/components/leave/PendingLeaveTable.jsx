@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
-import { Check, X } from "lucide-react";
+import { CalendarClock, Check, X } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { leaveService } from "../../services/leaveService";
 import Table from "../tables/Table";
+import LeaveDaysCell from "./LeaveDaysCell";
 import Button from "../common/Button";
 import ReviewLeaveDialog from "./ReviewLeaveDialog";
-import { formatLeaveDate, leaveTypeLabel } from "../../utils/leaveFormat";
+import EditLeaveDatesDialog from "./EditLeaveDatesDialog";
+import { canEditLeaveDates, editedNotice, formatLeaveDate, leaveTypeLabel } from "../../utils/leaveFormat";
 
 const PAGE_SIZE = 10;
 
@@ -24,6 +26,8 @@ export default function PendingLeaveTable({ canApprove, canReject, refreshKey: e
   // Bumped after a decision to re-fetch in place, without the loading skeleton.
   const [refreshKey, setRefreshKey] = useState(0);
   const [review, setReview] = useState(null); // { request, decision }
+  const [editing, setEditing] = useState(null); // request whose dates are being changed
+  const [notice, setNotice] = useState("");
   // `page` here is the page the data belongs to; loading = requested page hasn't arrived yet.
   const [result, setResult] = useState({ page: null, items: [], pagination: null, failed: false });
   const loading = result.page !== page;
@@ -71,7 +75,7 @@ export default function PendingLeaveTable({ canApprove, canReject, refreshKey: e
           ? `${formatLeaveDate(row.startDate)} – ${formatLeaveDate(row.endDate)}`
           : formatLeaveDate(row.startDate),
     },
-    { key: "totalDays", header: "Days", render: (row) => row.totalDays },
+    { key: "totalDays", header: "Days", render: (row) => <LeaveDaysCell request={row} /> },
     {
       key: "reason",
       header: "Reason",
@@ -95,6 +99,22 @@ export default function PendingLeaveTable({ canApprove, canReject, refreshKey: e
         const hint = own ? "You can't review your own leave request" : undefined;
         return (
           <div className="flex items-center gap-2">
+            {canEditLeaveDates(row) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={CalendarClock}
+                disabled={own}
+                title={own ? "You can't change the dates of your own leave request" : undefined}
+                aria-label={`Edit dates of leave for ${who} starting ${when}`}
+                onClick={() => {
+                  setNotice("");
+                  setEditing(row);
+                }}
+              >
+                Edit dates
+              </Button>
+            )}
             {canApprove && (
               <Button
                 variant="secondary"
@@ -131,6 +151,14 @@ export default function PendingLeaveTable({ canApprove, canReject, refreshKey: e
 
   return (
     <>
+      {notice && (
+        <div
+          role="status"
+          className="bg-status-successBg border border-green-200 text-status-success text-body rounded-md px-3 py-2 mb-4"
+        >
+          {notice}
+        </div>
+      )}
       <Table
         columns={columns}
         data={result.items}
@@ -156,6 +184,16 @@ export default function PendingLeaveTable({ canApprove, canReject, refreshKey: e
         onClose={() => setReview(null)}
         onDone={() => {
           setReview(null);
+          setNotice("");
+          setRefreshKey((k) => k + 1);
+        }}
+      />
+      <EditLeaveDatesDialog
+        request={editing}
+        onClose={() => setEditing(null)}
+        onSaved={(updated) => {
+          setEditing(null);
+          setNotice(editedNotice(updated));
           setRefreshKey((k) => k + 1);
         }}
       />

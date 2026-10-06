@@ -1,5 +1,6 @@
 import { Attendance } from "../models/index.js";
 import { startOfDay } from "../utils/dates.js";
+import { toObjectIds } from "../utils/objectIds.js";
 
 export const attendanceRepository = {
   create: (data) => Attendance.create(data),
@@ -28,5 +29,17 @@ export const attendanceRepository = {
       Attendance.countDocuments(query),
     ]);
     return { items, totalItems };
+  },
+
+  // Days per user per status with `date` in [from, to) — `to` exclusive, like
+  // reportService.resolveMonthRange. `userIds` limits it to those people.
+  // Resolves to [{ _id: { user, status }, days }].
+  countByUserAndStatus: ({ from, to, userIds }) => {
+    const match = { date: { $gte: from, $lt: to } };
+    if (userIds) match.user = { $in: toObjectIds(userIds) };
+    return Attendance.aggregate([
+      { $match: match },
+      { $group: { _id: { user: "$user", status: "$status" }, days: { $sum: 1 } } },
+    ]);
   },
 };

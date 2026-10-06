@@ -16,9 +16,18 @@ const minutesBetween = (from, to) => Math.max(0, Math.round((to - from) / 60000)
 const statusForWorkedMinutes = (minutes) =>
   minutes < HALF_DAY_THRESHOLD_MINUTES ? "half-day" : "present";
 
-// The shift starts at clock-in and lasts as long as the overtime threshold, so overtime
-// starts exactly where the shift ends. Leaving before that is an early departure.
-const earlyDepartureFor = (minutes) => Math.max(0, env.overtimeThresholdMinutes - minutes);
+// The shift starts at clock-in and lasts shiftMinutes, so overtime starts exactly
+// where the shift ends. Leaving before that is an early departure.
+const earlyDepartureFor = (workedMinutes, shiftMinutes) => Math.max(0, shiftMinutes - workedMinutes);
+
+// A person's shift comes from their designation (8h, 9h, ...). Someone with no
+// designation gets the default shift from OVERTIME_THRESHOLD_MINUTES. A designation
+// that was deactivated still applies to the people who hold it.
+async function resolveShiftMinutes(userId) {
+  const user = await userRepository.findByIdWithDesignation(userId);
+  const shiftHours = user?.designation?.shiftHours;
+  return shiftHours ? Math.round(shiftHours * 60) : env.overtimeThresholdMinutes;
+}
 
 export const attendanceService = {
   async getToday(userId) {
@@ -88,15 +97,17 @@ export const attendanceService = {
 
     const workedMinutes = minutesBetween(record.clockIn, now);
     const status = statusForWorkedMinutes(workedMinutes);
+    const shiftMinutes = await resolveShiftMinutes(userId);
 
     const updated = await attendanceRepository.updateById(record._id, {
       clockOut: now,
       workedMinutes,
       status,
-      earlyDepartureMinutes: earlyDepartureFor(workedMinutes),
+      shiftMinutes,
+      earlyDepartureMinutes: earlyDepartureFor(workedMinutes, shiftMinutes),
     });
 
-    const overtimeMinutes = workedMinutes - env.overtimeThresholdMinutes;
+    const overtimeMinutes = workedMinutes - shiftMinutes;
     if (overtimeMinutes > 0) {
       await overtimeRepository.createForAttendance({
         user: userId,
@@ -136,9 +147,13 @@ export const attendanceService = {
     if (clockOut) changes.clockOut = newClockOut;
     if (notes !== undefined) changes.notes = notes;
     if (newClockIn && newClockOut && (clockIn || clockOut)) {
+      // Keep the shift the day was first measured against; an open or older record
+      // takes the person's current shift and stores it from now on.
+      const shiftMinutes = record.shiftMinutes ?? (await resolveShiftMinutes(record.user));
       changes.workedMinutes = minutesBetween(newClockIn, newClockOut);
       changes.status = statusForWorkedMinutes(changes.workedMinutes);
-      changes.earlyDepartureMinutes = earlyDepartureFor(changes.workedMinutes);
+      changes.shiftMinutes = shiftMinutes;
+      changes.earlyDepartureMinutes = earlyDepartureFor(changes.workedMinutes, shiftMinutes);
     }
     if (status) changes.status = status;
 

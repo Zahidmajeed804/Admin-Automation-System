@@ -8,6 +8,7 @@ import Table from "../../components/tables/Table";
 import { generatorService } from "../../services/generatorService";
 import { formatDate } from "../../utils/formatDate";
 import { formatNumber } from "../../utils/formatNumber";
+import { describeError } from "../../utils/errorMessage";
 
 const COLUMNS = [
   { key: "generator", header: "Generator", render: (row) => <span className="font-medium text-ink">{row.generator.tag}</span> },
@@ -28,11 +29,11 @@ export default function GeneratorReportMaintenanceCost({ generatorOptions }) {
 
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError(false);
+    setError(null);
     try {
       const data = await generatorService.getMaintenanceCostReport({
         ...(generatorId ? { generatorId } : {}),
@@ -40,8 +41,8 @@ export default function GeneratorReportMaintenanceCost({ generatorOptions }) {
         ...(to ? { to } : {}),
       });
       setReport(data);
-    } catch {
-      setError(true);
+    } catch (err) {
+      setError(err);
     } finally {
       setLoading(false);
     }
@@ -82,6 +83,7 @@ export default function GeneratorReportMaintenanceCost({ generatorOptions }) {
         data={(report?.generators ?? []).map((row) => ({ ...row, id: row.generator.id }))}
         loading={loading}
         error={error}
+        errorDescription={error ? describeError(error) : undefined}
         onRetry={load}
         emptyTitle="No generators to report on"
         emptyDescription="There are no active generators for this filter."

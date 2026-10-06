@@ -1,10 +1,12 @@
 import { body, param, query } from "express-validator";
 import { runValidation } from "../middleware/runValidation.js";
-
-// Admin-typed, not auto-generated — see AAS-383. Letters, numbers and hyphens
-// keep it URL/filename-safe wherever it's displayed or exported later.
-const EMPLOYEE_ID_PATTERN = /^[A-Za-z0-9-]{2,20}$/;
-const employeeIdMessage = "Employee ID must be 2-20 letters, numbers or hyphens";
+import {
+  EMPLOYEE_ID_PATTERN,
+  employeeIdMessage,
+  optionalEmail,
+  requiredPhone,
+  optionalPhone,
+} from "./contactFields.js";
 
 // Yearly day counts for the types that are actually limited (unpaid leave has no
 // allocation). Shared by create and update — both accept the whole object or leave
@@ -25,9 +27,10 @@ const leaveAllocationFields = [
     .withMessage("leaveAllocation.annual must be a non-negative integer"),
 ];
 
+// Staff created by an admin: Employee ID and phone required, email optional (AAS-468).
 export const createUserValidator = [
   body("name").trim().notEmpty().withMessage("Name is required"),
-  body("email").trim().isEmail().withMessage("A valid email is required").normalizeEmail(),
+  optionalEmail(),
   body("employeeId")
     .trim()
     .notEmpty()
@@ -40,16 +43,18 @@ export const createUserValidator = [
     .withMessage("Password must be at least 8 characters")
     .matches(/\d/)
     .withMessage("Password must contain at least one number"),
-  body("phone").optional().trim(),
+  requiredPhone(),
   body("department").optional().trim(),
+  body("designationId").optional({ values: "falsy" }).isMongoId().withMessage("designationId must be a valid id"),
   ...leaveAllocationFields,
   runValidation,
 ];
 
+// "" for email or phone removes it (see userService.update).
 export const updateUserValidator = [
   param("id").isMongoId().withMessage("id must be a valid user id"),
   body("name").optional().trim().notEmpty().withMessage("Name cannot be empty"),
-  body("email").optional().trim().isEmail().withMessage("A valid email is required").normalizeEmail(),
+  optionalEmail(),
   body("employeeId")
     .optional()
     .trim()
@@ -58,8 +63,10 @@ export const updateUserValidator = [
     .bail()
     .matches(EMPLOYEE_ID_PATTERN)
     .withMessage(employeeIdMessage),
-  body("phone").optional().trim(),
+  optionalPhone(),
   body("department").optional().trim(),
+  // null or "" clears the designation (see userService.update).
+  body("designationId").optional({ values: "falsy" }).isMongoId().withMessage("designationId must be a valid id"),
   ...leaveAllocationFields,
   runValidation,
 ];
@@ -83,5 +90,7 @@ export const assignLeaveAllocationAllValidator = [
   body("sick").isInt({ min: 0 }).withMessage("sick must be a non-negative integer").toInt(),
   body("annual").isInt({ min: 0 }).withMessage("annual must be a non-negative integer").toInt(),
   body("overwrite").optional().isBoolean().withMessage("overwrite must be true or false").toBoolean(),
+  // Omitted, null or "" = every active staff member.
+  body("designationId").optional({ values: "falsy" }).isMongoId().withMessage("designationId must be a valid id"),
   runValidation,
 ];

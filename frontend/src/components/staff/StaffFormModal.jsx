@@ -1,13 +1,60 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
 import { userService } from "../../services/userService";
+import { designationService } from "../../services/designationService";
 import Modal from "../modals/Modal";
 import Button from "../common/Button";
 import Input from "../common/Input";
+import Select from "../common/Select";
 import { apiErrorMessage } from "../../utils/apiError";
+import { formatShiftHours } from "../../utils/designationFormat";
+import { isValidPhone } from "../../utils/phone";
 
 const FORM_ID = "staff-form";
 
-const emptyForm = { name: "", email: "", employeeId: "", password: "", phone: "", department: "" };
+const emptyForm = {
+  name: "",
+  email: "",
+  employeeId: "",
+  password: "",
+  phone: "",
+  department: "",
+  designationId: "",
+};
+
+const designationOption = (d) => ({
+  value: d._id,
+  label: `${d.name} (${formatShiftHours(d.shiftHours)} shift)${d.isActive ? "" : " — inactive"}`,
+});
+
+// Active designations to pick from, plus the person's current one if it has since been
+// deactivated, so editing someone doesn't silently drop it. Falls back to that current
+// one alone if the list can't be loaded.
+function useDesignationOptions(current) {
+  const [state, setState] = useState({ items: [], failed: false });
+
+  useEffect(() => {
+    let cancelled = false;
+    designationService
+      .list({ status: "active" })
+      .then((items) => {
+        if (!cancelled) setState({ items, failed: false });
+      })
+      .catch(() => {
+        if (!cancelled) setState({ items: [], failed: true });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const items = [...state.items];
+  if (current?._id && !items.some((d) => d._id === current._id)) items.push(current);
+  return {
+    options: [{ value: "", label: "No designation (default shift)" }, ...items.map(designationOption)],
+    failed: state.failed,
+  };
+}
 
 const serverMessage = (err) => apiErrorMessage(err, "Couldn't save this staff member. Please try again.");
 
@@ -22,23 +69,33 @@ function StaffForm({ staff, onClose, onSaved }) {
           password: "",
           phone: staff.phone || "",
           department: staff.department || "",
+          designationId: staff.designation?._id || "",
         }
       : emptyForm
   );
+  const designations = useDesignationOptions(staff?.designation);
   const [saving, setSaving] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  // Validation errors only render after a submit attempt - not while the form is still empty
+  // or mid-fill, which is when `errors` below is otherwise most likely to be non-empty.
+  const [submitted, setSubmitted] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const setField = (name) => (e) => setForm((f) => ({ ...f, [name]: e.target.value }));
 
   const name = form.name.trim();
   const email = form.email.trim();
   const employeeId = form.employeeId.trim();
+  const phone = form.phone.trim();
   const password = form.password;
 
   const errors = {};
   if (!name) errors.name = "Name is required.";
-  if (!email) errors.email = "Email is required.";
-  else if (!/^\S+@\S+\.\S+$/.test(email)) errors.email = "Enter a valid email address.";
+  // Email is optional (staff can sign in with their phone or Employee ID); phone is
+  // required for new staff. On edit, clearing either removes it.
+  if (email && !/^\S+@\S+\.\S+$/.test(email)) errors.email = "Enter a valid email address.";
+  if (!isEdit && !phone) errors.phone = "Phone number is required.";
+  else if (phone && !isValidPhone(phone)) errors.phone = "Enter a valid phone number, e.g. 0300 1234567.";
   if (!employeeId) errors.employeeId = "Employee ID is required.";
   else if (!/^[A-Za-z0-9-]{2,20}$/.test(employeeId)) {
     errors.employeeId = "2-20 letters, numbers or hyphens.";
@@ -49,21 +106,24 @@ function StaffForm({ staff, onClose, onSaved }) {
     else if (!/\d/.test(password)) errors.password = "Must contain at least one number.";
   }
 
-  const canSave = Object.keys(errors).length === 0 && !saving;
+  const hasErrors = Object.keys(errors).length > 0;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!canSave) return;
+    setSubmitted(true);
+    if (hasErrors || saving) return;
 
     setSaving(true);
     setSubmitError("");
     try {
-      const phone = form.phone.trim();
       const department = form.department.trim();
       if (isEdit) {
-        await userService.update(staff._id, { name, email, employeeId, phone, department });
+        // null clears a designation that was removed in the form.
+        const designationId = form.designationId || null;
+        await userService.update(staff._id, { name, email, employeeId, phone, department, designationId });
       } else {
-        await userService.create({ name, email, employeeId, password, phone, department });
+        const designationId = form.designationId || undefined;
+        await userService.create({ name, email, employeeId, password, phone, department, designationId });
       }
       onSaved();
     } catch (err) {
@@ -88,7 +148,7 @@ function StaffForm({ staff, onClose, onSaved }) {
           <Button variant="secondary" onClick={onClose} disabled={saving}>
             Cancel
           </Button>
-          <Button type="submit" form={FORM_ID} loading={saving} disabled={!canSave}>
+          <Button type="submit" form={FORM_ID} loading={saving} disabled={saving}>
             {isEdit ? "Save changes" : "Create staff"}
           </Button>
         </>
@@ -108,61 +168,95 @@ function StaffForm({ staff, onClose, onSaved }) {
             label="Full name"
             name="name"
             id="staff-name"
+            autoComplete="off"
             value={form.name}
             onChange={setField("name")}
-            error={errors.name}
+            error={submitted ? errors.name : undefined}
             required
           />
           <Input
             label="Employee ID"
             name="employeeId"
             id="staff-employee-id"
+            autoComplete="off"
             value={form.employeeId}
             onChange={setField("employeeId")}
-            error={errors.employeeId}
+            error={submitted ? errors.employeeId : undefined}
             placeholder="EMP-001"
             required
           />
         </div>
-        <Input
-          label="Email"
-          type="email"
-          name="email"
-          id="staff-email"
-          value={form.email}
-          onChange={setField("email")}
-          error={errors.email}
-          required
-        />
-        {!isEdit && (
-          <Input
-            label="Temporary password"
-            type="password"
-            name="password"
-            id="staff-password"
-            value={form.password}
-            onChange={setField("password")}
-            error={errors.password}
-            helperText="At least 8 characters, including a number. They can change it later."
-            required
-          />
-        )}
         <div className="grid gap-4 sm:grid-cols-2">
           <Input
             label="Phone"
+            type="tel"
             name="phone"
             id="staff-phone"
+            autoComplete="off"
+            placeholder="0300 1234567"
             value={form.phone}
             onChange={setField("phone")}
+            error={submitted ? errors.phone : undefined}
+            helperText="They can sign in with this number or their Employee ID."
+            required={!isEdit}
           />
           <Input
-            label="Department"
-            name="department"
-            id="staff-department"
-            value={form.department}
-            onChange={setField("department")}
+            label="Email (optional)"
+            type="email"
+            name="email"
+            id="staff-email"
+            autoComplete="off"
+            value={form.email}
+            onChange={setField("email")}
+            error={submitted ? errors.email : undefined}
           />
         </div>
+        {!isEdit && (
+          <Input
+            label="Temporary password"
+            type={showPassword ? "text" : "password"}
+            name="password"
+            id="staff-password"
+            autoComplete="new-password"
+            value={form.password}
+            onChange={setField("password")}
+            error={submitted ? errors.password : undefined}
+            helperText="At least 8 characters, including a number. They can change it later."
+            required
+            trailing={
+              <button
+                type="button"
+                onClick={() => setShowPassword((s) => !s)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                className="text-ink-muted hover:text-ink"
+                tabIndex={-1}
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            }
+          />
+        )}
+        <Input
+          label="Department"
+          name="department"
+          id="staff-department"
+          autoComplete="off"
+          value={form.department}
+          onChange={setField("department")}
+        />
+        <Select
+          label="Designation"
+          name="designationId"
+          id="staff-designation"
+          value={form.designationId}
+          onChange={setField("designationId")}
+          options={designations.options}
+          helperText={
+            designations.failed
+              ? "Couldn't load designations. You can still save; the current one is kept."
+              : "Sets their shift length. Work beyond the shift counts as overtime."
+          }
+        />
       </form>
     </Modal>
   );

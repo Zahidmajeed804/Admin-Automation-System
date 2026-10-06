@@ -8,6 +8,7 @@ import attendanceRoutes from "./attendance.routes.js";
 import overtimeRoutes from "./overtime.routes.js";
 import leaveRoutes from "./leave.routes.js";
 import reportsRoutes from "./reports.routes.js";
+import designationRoutes from "./designation.routes.js";
 
 // Module route files get mounted here as they're built.
 const router = Router();
@@ -23,5 +24,6 @@ router.use("/leave", leaveRoutes);
 // Module 7 — cross-module Reports board, distinct from the Generator
 // module's own "/generator/reports/*" endpoints.
 router.use("/reports", reportsRoutes);
+router.use("/designations", designationRoutes);
 
 export default router;

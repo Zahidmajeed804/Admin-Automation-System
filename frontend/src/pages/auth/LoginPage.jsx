@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { Mail, Lock } from "lucide-react";
+import { UserRound, Lock } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import Input from "../../components/common/Input";
 import Button from "../../components/common/Button";
@@ -20,7 +20,8 @@ export default function LoginPage() {
   const location = useLocation();
   const redirectTo = location.state?.from?.pathname || "/dashboard";
 
-  const [form, setForm] = useState({ email: "", password: "" });
+  // `identifier` is a phone number, Employee ID or email — the API works out which.
+  const [form, setForm] = useState({ identifier: "", password: "" });
   const [remember, setRemember] = useState(true);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -35,7 +36,7 @@ export default function LoginPage() {
     e.preventDefault();
     setError("");
     setLoading(true);
-    const result = await login(form.email, form.password);
+    const result = await login(form.identifier, form.password);
     setLoading(false);
     if (result.success) {
       setShowWelcome(true);
@@ -58,11 +59,8 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-surface-subtle px-4">
       <div className="w-full max-w-sm flex flex-col gap-6">
         <div className="flex flex-col items-center gap-3 text-center">
-          <img src="/folio3-logo.png" alt="Folio3" className="h-16 w-auto" />
-          <div>
-            <p className="text-page-title text-ink">Admin Automation System</p>
-            <p className="text-body text-ink-muted mt-1">Sign in to manage administrative operations</p>
-          </div>
+          <img src="/folio3-logo.png" alt="Folio3" className="h-20 w-auto" />
+          <p className="text-body text-ink-muted">Sign in to manage administrative operations</p>
         </div>
 
         <form
@@ -70,21 +68,26 @@ export default function LoginPage() {
           className="bg-white border border-border rounded-card shadow-card p-6 flex flex-col gap-4"
         >
           {error && (
-            <div className="bg-status-errorBg border border-red-200 text-status-error text-body rounded-md px-3 py-2">
+            <div
+              role="alert"
+              className="bg-status-errorBg border border-red-200 text-status-error text-body rounded-md px-3 py-2"
+            >
               {error}
             </div>
           )}
 
           <Input
-            label="Email"
-            name="email"
-            type="email"
-            icon={Mail}
-            placeholder="you@company.com"
-            value={form.email}
+            label="Phone, Employee ID or email"
+            name="identifier"
+            id="login-identifier"
+            type="text"
+            icon={UserRound}
+            placeholder="0300 1234567"
+            value={form.identifier}
             onChange={handleChange}
             required
-            autoComplete="email"
+            autoComplete="username"
+            helperText="Use whichever you have — email is optional."
           />
           <Input
             label="Password"

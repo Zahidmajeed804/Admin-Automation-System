@@ -1,13 +1,19 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, lazy, Suspense } from "react";
 import Tabs from "../../components/common/Tabs";
+import { LoadingSpinner } from "../../components/common/Loading";
 import { generatorService } from "../../services/generatorService";
-import GeneratorReportRunningHours from "./GeneratorReportRunningHours";
-import GeneratorReportFuelConsumption from "./GeneratorReportFuelConsumption";
-import GeneratorReportFuelCost from "./GeneratorReportFuelCost";
-import GeneratorReportMaintenanceCost from "./GeneratorReportMaintenanceCost";
-import GeneratorReportOperatingCost from "./GeneratorReportOperatingCost";
-import GeneratorReportServiceHistory from "./GeneratorReportServiceHistory";
-import GeneratorReportCostAnalysis from "./GeneratorReportCostAnalysis";
+
+// Lazy per tab: these seven panels pull in recharts (a large charting
+// library) between them, so loading all of them - and the chart library -
+// up front made this page's chunk ~400KB even though only one tab is ever
+// visible at a time. Each one now loads only when its tab is opened.
+const GeneratorReportRunningHours = lazy(() => import("./GeneratorReportRunningHours"));
+const GeneratorReportFuelConsumption = lazy(() => import("./GeneratorReportFuelConsumption"));
+const GeneratorReportFuelCost = lazy(() => import("./GeneratorReportFuelCost"));
+const GeneratorReportMaintenanceCost = lazy(() => import("./GeneratorReportMaintenanceCost"));
+const GeneratorReportOperatingCost = lazy(() => import("./GeneratorReportOperatingCost"));
+const GeneratorReportServiceHistory = lazy(() => import("./GeneratorReportServiceHistory"));
+const GeneratorReportCostAnalysis = lazy(() => import("./GeneratorReportCostAnalysis"));
 
 // All seven spec 4.2 reports this page covers, in the order they read most
 // naturally (usage first, then cost, then the yearly/history rollups, then
@@ -61,7 +67,9 @@ export default function GeneratorReportsPage() {
   return (
     <div className="flex flex-col gap-5">
       <Tabs tabs={REPORT_TABS} value={tab} onChange={setTab} label="Report type" />
-      <ReportView generatorOptions={generatorOptions} />
+      <Suspense fallback={<LoadingSpinner label="Loading report…" />}>
+        <ReportView generatorOptions={generatorOptions} />
+      </Suspense>
     </div>
   );
 }

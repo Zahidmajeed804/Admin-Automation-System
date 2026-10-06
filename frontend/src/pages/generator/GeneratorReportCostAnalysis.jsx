@@ -10,6 +10,7 @@ import ErrorState from "../../components/common/ErrorState";
 import { LoadingSpinner } from "../../components/common/Loading";
 import { generatorService } from "../../services/generatorService";
 import { formatNumber } from "../../utils/formatNumber";
+import { describeError } from "../../utils/errorMessage";
 
 const CURRENT_YEAR = new Date().getUTCFullYear();
 // Same range as GeneratorReportOperatingCost's own year picker, for the same reason.
@@ -52,11 +53,11 @@ export default function GeneratorReportCostAnalysis({ generatorOptions }) {
   // one error state" convention — a cost-summary/fuel-consumption failure
   // on its own just leaves that one chart empty, since the dashboard's core
   // numbers (fuel/maintenance/total cost) are still shown correctly.
-  const [error, setError] = useState(false);
+  const [error, setError] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError(false);
+    setError(null);
     const resolvedYear = year || String(CURRENT_YEAR);
     // cost-summary and fuel-consumption take an arbitrary from/to range, not
     // a year param like operating-cost, so the same calendar year is spelled
@@ -75,7 +76,7 @@ export default function GeneratorReportCostAnalysis({ generatorOptions }) {
       setOperating(operatingResult.value);
     } else {
       setOperating(null);
-      setError(true);
+      setError(operatingResult.reason);
     }
     setCostSummary(costSummaryResult.status === "fulfilled" ? costSummaryResult.value : null);
     setFuelConsumption(fuelConsumptionResult.status === "fulfilled" ? fuelConsumptionResult.value : null);
@@ -136,7 +137,7 @@ export default function GeneratorReportCostAnalysis({ generatorOptions }) {
 
       {!loading && error && (
         <Card>
-          <ErrorState onRetry={load} description="We couldn't load the cost-analysis dashboard. Please try again." />
+          <ErrorState onRetry={load} description={describeError(error)} />
         </Card>
       )}
 

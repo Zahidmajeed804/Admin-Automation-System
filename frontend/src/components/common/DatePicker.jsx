@@ -1,7 +1,7 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { useEffect, useRef, useState } from "react";
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, X } from "lucide-react";
 import clsx from "clsx";
+import PickerPopover from "./PickerPopover";
 
 export const WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
@@ -21,9 +21,13 @@ export const parseDateStr = (s) => {
 export const monthLabel = (year, month) =>
   new Date(year, month, 1).toLocaleDateString([], { month: "long", year: "numeric" });
 
+// Deliberately "DD/MM/YYYY" via manual padding rather than toLocaleDateString: a locale-dependent
+// month name (e.g. "16 Sept 2026") is long enough to get clipped by the trigger's fixed width in
+// every place it's used at a narrow size (filter bars' `sm:w-40`), especially once the clear
+// button's reserved space is added on top - this stays compact and predictable at any width.
 const displayLabel = (s) => {
   const d = parseDateStr(s);
-  return d ? d.toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" }) : "";
+  return d ? `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()}` : "";
 };
 
 export const addDays = (d, n) => {
@@ -91,8 +95,6 @@ export default function DatePicker({
   const [draft, setDraft] = useState(null); // staged "YYYY-MM-DD", only meaningful while open
   const [view, setView] = useState(null); // { year, month } currently shown
   const [focused, setFocused] = useState(null); // "YYYY-MM-DD" of the roving-tabindex day
-  // Viewport coordinates for the portaled popover (see the portal note below).
-  const [pos, setPos] = useState({ top: 0, left: 0 });
   const wrapperRef = useRef(null);
   const triggerRef = useRef(null);
   const popoverRef = useRef(null);
@@ -110,12 +112,8 @@ export default function DatePicker({
   useEffect(() => {
     if (!open) return;
     const onDocMouseDown = (e) => {
-      // The popover is portaled to <body> (see the return below), so it's
-      // no longer a DOM descendant of wrapperRef — it has to be checked
-      // separately, or every click inside it would look like a click outside.
-      if (wrapperRef.current?.contains(e.target)) return;
-      if (popoverRef.current?.contains(e.target)) return;
-      close();
+      // The popover is portalled to <body>, so it isn't inside the wrapper.
+      if (!wrapperRef.current?.contains(e.target) && !popoverRef.current?.contains(e.target)) close();
     };
     document.addEventListener("mousedown", onDocMouseDown);
     return () => document.removeEventListener("mousedown", onDocMouseDown);
@@ -126,44 +124,6 @@ export default function DatePicker({
     if (!open || !focused) return;
     popoverRef.current?.querySelector(`[data-date="${focused}"]`)?.focus();
   }, [open, focused, view]);
-
-  // The popover is portaled to <body> (see the return below) so it isn't
-  // clipped by an ancestor with overflow:hidden/auto — e.g. a Modal's
-  // scrollable body, which otherwise cuts the calendar off mid-grid for a
-  // field anywhere past the fold. Portaling means it's no longer positioned
-  // by normal CSS flow relative to the trigger, so its viewport coordinates
-  // are computed here instead, and kept in sync while open since the page
-  // (or a scrollable ancestor) can scroll underneath a fixed-position popover.
-  const POPOVER_WIDTH = 288; // matches w-72
-  const POPOVER_HEIGHT_ESTIMATE = 360; // flips the popover above the trigger when this won't fit below
-  const updatePosition = () => {
-    const el = triggerRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const margin = 8;
-    let left = rect.left;
-    if (left + POPOVER_WIDTH > window.innerWidth - margin) {
-      left = Math.max(margin, window.innerWidth - POPOVER_WIDTH - margin);
-    }
-    const spaceBelow = window.innerHeight - rect.bottom;
-    const openUpward = spaceBelow < POPOVER_HEIGHT_ESTIMATE && rect.top > POPOVER_HEIGHT_ESTIMATE;
-    const top = openUpward ? rect.top - POPOVER_HEIGHT_ESTIMATE - 4 : rect.bottom + 4;
-    setPos({ top, left });
-  };
-
-  useLayoutEffect(() => {
-    if (!open) return undefined;
-    updatePosition();
-    // Capture phase: also catches scrolling inside a scrollable ancestor
-    // (like a Modal body), not just the window itself.
-    window.addEventListener("scroll", updatePosition, true);
-    window.addEventListener("resize", updatePosition);
-    return () => {
-      window.removeEventListener("scroll", updatePosition, true);
-      window.removeEventListener("resize", updatePosition);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
 
   const openPicker = () => {
     const start = parseDateStr(value) || new Date();
@@ -325,18 +285,8 @@ export default function DatePicker({
         <p className="text-helper text-ink-muted">{helperText}</p>
       ) : null}
 
-      {open &&
-        view &&
-        createPortal(
-          <div
-            ref={popoverRef}
-            role="dialog"
-            aria-modal="true"
-            aria-label="Choose a date"
-            onKeyDown={onPopoverKeyDown}
-            style={{ top: pos.top, left: pos.left }}
-            className="fixed z-[60] w-72 max-w-[calc(100vw-2rem)] bg-white rounded-card border border-border shadow-elevated p-3 flex flex-col gap-3"
-          >
+      {open && view && (
+        <PickerPopover anchorRef={triggerRef} popoverRef={popoverRef} label="Choose a date" onKeyDown={onPopoverKeyDown}>
           <div className="flex items-center justify-between">
             <button
               type="button"
@@ -426,11 +376,10 @@ export default function DatePicker({
               className="h-9 sm:h-8 px-3 rounded-md text-sm font-medium bg-primary text-white hover:bg-primary-dark disabled:bg-blue-300 transition-colors duration-150"
             >
               OK
-              </button>
-            </div>
-          </div>,
-          document.body
-        )}
+            </button>
+          </div>
+        </PickerPopover>
+      )}
     </div>
   );
 }

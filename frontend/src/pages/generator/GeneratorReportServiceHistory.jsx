@@ -7,6 +7,7 @@ import Table from "../../components/tables/Table";
 import { generatorService } from "../../services/generatorService";
 import { formatDate } from "../../utils/formatDate";
 import { formatNumber } from "../../utils/formatNumber";
+import { describeError } from "../../utils/errorMessage";
 
 const PAGE_SIZE = 10;
 
@@ -46,11 +47,11 @@ export default function GeneratorReportServiceHistory({ generatorOptions }) {
   const [items, setItems] = useState([]);
   const [meta, setMeta] = useState({ page: 1, totalPages: 1, totalItems: 0, pageSize: PAGE_SIZE });
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError(false);
+    setError(null);
     try {
       const { items, meta } = await generatorService.getServiceHistoryReport({
         page,
@@ -62,8 +63,8 @@ export default function GeneratorReportServiceHistory({ generatorOptions }) {
       });
       setItems(items);
       setMeta(meta);
-    } catch {
-      setError(true);
+    } catch (err) {
+      setError(err);
     } finally {
       setLoading(false);
     }
@@ -114,6 +115,7 @@ export default function GeneratorReportServiceHistory({ generatorOptions }) {
         data={items}
         loading={loading}
         error={error}
+        errorDescription={error ? describeError(error) : undefined}
         onRetry={load}
         keyField="_id"
         emptyTitle="No service history found"
