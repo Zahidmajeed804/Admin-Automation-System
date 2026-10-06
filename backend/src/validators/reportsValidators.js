@@ -39,3 +39,10 @@ export const overtimeSummaryExportValidator = [
 const yearFilter = query("year").optional().isInt({ min: 2000, max: 2100 }).withMessage("year must be a 4-digit year between 2000 and 2100");
 
 export const leaveUsageReportValidator = [employeeIdFilter, yearFilter, runValidation];
+
+export const leaveUsageExportValidator = [
+  employeeIdFilter,
+  yearFilter,
+  query("format").optional().isIn(["csv", "pdf"]).withMessage("format must be one of: csv, pdf"),
+  runValidation,
+];
