@@ -14,6 +14,11 @@ const FUEL_TYPE_OPTIONS = [
   { value: "cng", label: "CNG" },
 ];
 
+const FUEL_MEASUREMENT_TYPE_OPTIONS = [
+  { value: "gauge", label: "Needle Gauge" },
+  { value: "digital", label: "Digital Sensor" },
+];
+
 const STATUS_OPTIONS = [
   { value: "operational", label: "Operational" },
   { value: "under_maintenance", label: "Under Maintenance" },
@@ -31,6 +36,7 @@ const BLANK = {
   serialNumber: "",
   capacityKVA: "",
   fuelType: "diesel",
+  fuelMeasurementType: "gauge",
   fuelTankCapacityLiters: "",
   status: "operational",
   installationDate: "",
@@ -53,6 +59,7 @@ export function toFormValues(generator) {
     // still keeping 0 — a real reading — instead of falling back to "".
     capacityKVA: generator.capacityKVA != null ? String(generator.capacityKVA) : "",
     fuelType: generator.fuelType ?? "diesel",
+    fuelMeasurementType: generator.fuelMeasurementType ?? "gauge",
     fuelTankCapacityLiters: generator.fuelTankCapacityLiters != null ? String(generator.fuelTankCapacityLiters) : "",
     status: generator.status ?? "operational",
     // <input type="date"> needs "YYYY-MM-DD"; the API gives back a full ISO string.
@@ -75,6 +82,7 @@ export function toPayload(values) {
   if (values.fuelTankCapacityLiters !== "") payload.fuelTankCapacityLiters = Number(values.fuelTankCapacityLiters);
   if (values.maintenanceIntervalHours) payload.maintenanceIntervalHours = Number(values.maintenanceIntervalHours);
   if (values.fuelType) payload.fuelType = values.fuelType;
+  if (values.fuelMeasurementType) payload.fuelMeasurementType = values.fuelMeasurementType;
   if (values.status) payload.status = values.status;
   return payload;
 }
@@ -125,6 +133,11 @@ export default function GeneratorForm({ open, onClose, onSaved, generator }) {
     const next = {};
     if (!values.tag.trim()) next.tag = "Tag is required";
     if (!values.name.trim()) next.name = "Name is required";
+    // A needle-gauge reading is only convertible to litres/kg with a known
+    // tank capacity, so it's required up front for that measurement type.
+    if (values.fuelMeasurementType === "gauge" && !(Number(values.fuelTankCapacityLiters) > 0)) {
+      next.fuelTankCapacityLiters = "Required for a needle-gauge generator, so readings can be converted";
+    }
     setFieldErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -182,13 +195,23 @@ export default function GeneratorForm({ open, onClose, onSaved, generator }) {
           <Input id="generator-serialNumber" label="Serial Number" value={values.serialNumber} onChange={setField("serialNumber")} />
           <DatePicker id="generator-installationDate" label="Installation Date" clearable value={values.installationDate} onChange={setField("installationDate")} />
           <Select id="generator-fuelType" label="Fuel Type" value={values.fuelType} onChange={setField("fuelType")} options={FUEL_TYPE_OPTIONS} />
+          <Select
+            id="generator-fuelMeasurementType"
+            label="Fuel Measurement"
+            value={values.fuelMeasurementType}
+            onChange={setField("fuelMeasurementType")}
+            options={FUEL_MEASUREMENT_TYPE_OPTIONS}
+          />
           <Input
             id="generator-fuelTankCapacityLiters"
             label={`Fuel Tank Capacity (${fuelUnit(values.fuelType)})`}
             type="number"
             min="0"
+            required={values.fuelMeasurementType === "gauge"}
             value={values.fuelTankCapacityLiters}
             onChange={setField("fuelTankCapacityLiters")}
+            error={fieldErrors.fuelTankCapacityLiters}
+            helperText={values.fuelMeasurementType === "gauge" ? "Needed to convert needle-gauge marks (E/¼/½/¾/F) into an amount" : undefined}
           />
           <Input id="generator-capacityKVA" label="Capacity (kVA)" type="number" min="0" value={values.capacityKVA} onChange={setField("capacityKVA")} />
           <HoursMinutesInput
