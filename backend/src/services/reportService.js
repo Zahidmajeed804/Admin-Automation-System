@@ -2,6 +2,11 @@ import { reportRepository } from "../repositories/reportRepository.js";
 import { NotFoundError } from "../errors/AppError.js";
 import { resolveMonthRange, resolveDateRange, resolveYearRange } from "../utils/dateRanges.js";
 
+// Re-exported for backward compatibility — resolveMonthRange/resolveDateRange/
+// resolveYearRange now live in utils/dateRanges.js, but existing imports from
+// reportService.js (e.g. reportService.test.js) keep working.
+export { resolveMonthRange, resolveDateRange, resolveYearRange };
+
 // Litres/hours/money are kept to 2 decimals so float noise never reaches the
 // client, same convention as generatorService's round2.
 const round2 = (n) => Math.round((n || 0) * 100) / 100;
