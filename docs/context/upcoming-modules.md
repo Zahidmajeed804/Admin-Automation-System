@@ -5,7 +5,9 @@ already exists that these modules should build on, so they stay consistent with 
 
 ## Module 6 — Centralized Dashboard
 
-- Placeholder: `pages/dashboard/DashboardPage.jsx` (route `/dashboard`, the post-login landing page; ungated).
+- `pages/dashboard/DashboardPage.jsx` (route `/dashboard`, the post-login landing page; ungated). First section is live
+  (AAS-462): `components/attendance/summary/DashboardMonthlySummary.jsx` — this month's overtime/attendance stat cards
+  and overtime pie from `GET /attendance/summary`, shown with `attendance.read`. The rest is a placeholder card.
 - Permission seeded: `dashboard.read` (admin, manager, staff).
 - No backend yet. Suggested: `routes/dashboard.routes.js` → `GET /dashboard` gated by `dashboard.read`, with a
   `dashboardService` that composes **existing repositories** (attendance today, pending overtime/leave counts,
@@ -21,8 +23,8 @@ already exists that these modules should build on, so they stay consistent with 
   `repositories/reportRepository.js`, `validators/reportValidators.js`) and `pages/generator/GeneratorReport*.jsx`.
   Reuse `resolveMonthRange` / `resolveDateRange` / `resolveYearRange` and the report panel pattern
   (`FilterBar` + `StatCard` + `Table` + lazy recharts).
-- Outstanding from Module 5: daily & monthly attendance, monthly overtime, leave, individual employee,
-  attendance percentage reports, and the overtime sheet export (no export/CSV helper exists yet).
+- Done in Module 5 (AAS-457): monthly overtime + attendance % summary (`/attendance/summary`). Still outstanding:
+  daily attendance, leave and individual-employee reports, and the overtime sheet export (no export/CSV helper exists yet).
 - **Notifications today** = only generator maintenance emails: `jobs/maintenanceReminderJob.js`,
   `jobs/scheduler.js`, `utils/mailer.js`, `utils/emailTemplates/`, `services/notificationRecipients.js`.
   No in-app notification model. The Header bell (`components/layout/Header.jsx`) has a hardcoded red dot.

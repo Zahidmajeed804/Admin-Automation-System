@@ -41,6 +41,7 @@ Enums: `constants/attendance.js` — `ATTENDANCE_STATUSES` (present, absent, hal
 | `GET /attendance/me/today` | `attendance.read` | |
 | `GET /attendance` `?userId&status&startDate&endDate&page&pageSize` | `attendance.read` | own records; `attendance.update` sees everyone |
 | `GET /attendance/employees` | `attendance.update` | Team filter options |
+| `GET /attendance/summary` `?month=YYYY-MM&userId&designationId` | `attendance.read` | `attendanceSummaryService.getMonthly`; `attendance.update` sees everyone + filters, others only their own row |
 | `PATCH /attendance/:id` `{ clockIn, clockOut, status, notes }` | `attendance.update` | manager correction; recomputes worked/status/early departure |
 | `GET /overtime` | `overtime.read` | `overtime.approve` sees everyone |
 | `PATCH /overtime/:id/review` `{ decision, note }` | `overtime.approve` | |
@@ -65,6 +66,11 @@ Enums: `constants/attendance.js` — `ATTENDANCE_STATUSES` (present, absent, hal
   `clockIn` must fall on the record's date.
 - Worked time above the shift auto-creates a **pending OvertimeRequest** for the excess on clock-out
   (upsert on `attendance`, so it's idempotent). Manager corrections don't create or adjust overtime.
+- Monthly summary (AAS-457): overtime per person = approved / pending `overtimeMinutes` dated in the month (rejected ignored);
+  day counts by stored status; leave days = approved leave clipped to the month. Working days = Mon–Fri up to today
+  (whole past month, 0 for a future one). Attendance % = (present + late + ½ half-day) ÷ (working days − approved leave on
+  working days), 1 decimal, capped at 100, `null` if nothing to measure. Listed: anyone with activity that month plus
+  active staff with a designation (`userRepository.findForSummary`).
 - Designations: assigning one requires it to exist (404) and be active (400); a person keeps a designation
   that's deactivated later. `designationId: null` / `""` on `PATCH /users/:id` clears it.
 - Reviews are **decided once** (atomic `reviewIfPending`; second decision → 409) and **nobody reviews their own** request (403).
@@ -87,6 +93,7 @@ Enums: `constants/attendance.js` — `ATTENDANCE_STATUSES` (present, absent, hal
 | `/attendance` | `pages/attendance/AttendancePage.jsx` | Tabs "My attendance" / "Team" (`?tab=team`, needs `attendance.update`); `ClockWidget`, `AttendanceViewToggle` (List/Calendar), `AttendanceHistoryTable`, `AttendanceCalendarContainer` → `AttendanceCalendar`, `TeamAttendanceTable`, `EditAttendanceModal` (DateTimePicker) |
 | `/attendance/overtime` | `pages/overtime/OvertimePage.jsx` | Pending / Team (`?view=team`) for `overtime.approve`: `PendingOvertimeTable`, `TeamOvertimeTable`, `ReviewOvertimeDialog`; "My overtime" `OvertimeHistoryTable` |
 | `/attendance/leave` | `pages/leave/LeavePage.jsx` | `LeaveBalanceCards`, `RequestLeaveModal` (shows remaining, blocks over-balance), `LeaveHistoryTable`, Pending/Team for approvers: `PendingLeaveTable`, `TeamLeaveTable`, `ReviewLeaveDialog`, `EditLeaveDatesDialog` (Edit dates on pending rows > 2 days); `LeaveDaysCell` adds the "Edited · was N days" badge (`theme.statusStyles.edited`) in all three tables |
+| `/attendance/summary` | `pages/attendance/AttendanceSummaryPage.jsx` | month/employee/designation filters, `components/attendance/summary/`: `useMonthlySummary`, `MonthlySummaryStats`, `MonthlySummaryTable`, lazy `SummaryCharts` (`OvertimeShareChart`, `AttendanceBreakdownChart`, `SummaryPie`); `DashboardMonthlySummary` on the Dashboard |
 | `/attendance/staff` | `pages/attendance/StaffPage.jsx` | `FilterBar` + `Table` (Designation column), `StaffFormModal` (Employee ID, temp password with show/hide, Designation select of active ones), `ConfirmDialog` (activate/deactivate), `AssignLeaveAllocationDialog` ("Apply to": all active staff or a designation), `StaffLeaveAllocationDialog` (row **Leave** action, prefilled, sends only changed types), `DesignationsDialog` (add/edit/(de)activate) |
 
 Services: `attendanceService`, `overtimeService`, `leaveService`, `userService` — all return `{ items, pagination }`;
@@ -107,12 +114,12 @@ Shared columns/formatting: `components/attendance/attendanceColumns.jsx`, `utils
 AAS-91 clock in/out · AAS-96 list & edit · early-departure · AAS-280 overtime auto-trigger · AAS-290 leave
 · AAS-302 end-to-end · AAS-383–388 staff · AAS-390–392 hide self-service · AAS-394–398 team overtime/leave
 · AAS-400–406 leave quotas · AAS-408–412 date/time picker · AAS-414–420 calendar
-· AAS-430–434 shift by designation · AAS-447–450 leave allocation by designation / per person · AAS-452–456 edit long leave dates.
+· AAS-430–434 shift by designation · AAS-447–450 leave allocation by designation / per person · AAS-452–456 edit long leave dates · AAS-458–463 monthly summary.
 
 ## Not built yet
 
 - Late-arrival tracking (no fixed shift start, by design).
 - Leave/Holiday/Weekend as stored attendance statuses; configurable public-holiday list.
-- Attendance / overtime / leave reports and the overtime sheet export (→ Module 7).
+- Reports beyond the monthly summary (daily, leave, individual history) and the overtime sheet export (→ Module 7).
 - Backend tests for this module (verified manually via the guides above).
 - After pulling, run `npm run seed` (adds `overtime.read` to staff).

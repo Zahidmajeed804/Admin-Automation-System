@@ -49,7 +49,7 @@ npm run build | npm run lint | npm test
 | 3 | Grocery & Cleaning Inventory | Frontend + permissions only, **no backend** | [docs/context/inventory.md](docs/context/inventory.md) |
 | 4 | Generator Management | Done (PR #7) | [docs/context/generator.md](docs/context/generator.md) |
 | 5 | Attendance, Overtime, Leave, Staff | Done for planned scope | [docs/context/attendance.md](docs/context/attendance.md) |
-| 6–8 | Dashboard · Reports/Alerts/Notifications · Profile/Settings | `ComingSoon` placeholders | [docs/context/upcoming-modules.md](docs/context/upcoming-modules.md) |
+| 6–8 | Dashboard · Reports/Alerts/Notifications · Profile/Settings | `ComingSoon` placeholders (Dashboard has its first section: the monthly summary) | [docs/context/upcoming-modules.md](docs/context/upcoming-modules.md) |
 
 ## Foundation rules (keep every module consistent)
 

@@ -47,6 +47,7 @@ the Module 1 layering.
 | Attendance | `POST /attendance/clock-in`, `POST /attendance/clock-out`, `GET /attendance/me/today` | `attendance.create`, `attendance.read` |
 | | `GET /attendance` (filters, paging) | `attendance.read` (own records); `attendance.update` sees everyone |
 | | `GET /attendance/employees` (for the Team filter), `PATCH /attendance/:id` (manager correction) | `attendance.update` |
+| | `GET /attendance/summary?month&userId&designationId` (monthly summary) | `attendance.read`; filters and everyone need `attendance.update` |
 | Overtime | `GET /overtime` (filters, paging) | `overtime.read`; `overtime.approve` sees everyone |
 | | `PATCH /overtime/:id/review` (approve or reject) | `overtime.approve` |
 | Leave | `POST /leave`, `GET /leave` (filters, paging) | `leave.create`, `leave.read`; approvers see everyone |
@@ -124,6 +125,10 @@ Rules the API enforces:
   manage **Designations** (shift hours), **Assign leaves**: set casual/sick/annual days
   for all active staff or one designation at once, either filling only accounts with no
   allocation yet or overwriting, and a per-row **Leave** action to set one person's days.
+- `/attendance/summary` — a month of overtime (approved and pending, per person and in
+  total) and attendance % per person, with month/employee/designation filters, stat cards,
+  an overtime-share pie, an attendance-breakdown pie for one employee, and a table. Managers
+  see everyone; staff see only themselves. The **Dashboard** shows this month's version.
 - A single Attendance entry in the sidebar, and a page switcher at the top of the
   four pages (Attendance, Overtime, Leave, Staff), each link shown only to users who
   hold that page's permission.
@@ -157,6 +162,7 @@ data removed afterwards. Each guide can be repeated by hand:
 - [`docs/verification/AAS-430-434-shift-by-designation.md`](docs/verification/AAS-430-434-shift-by-designation.md) — designations with shift hours, 8h vs 9h overtime and early departure, Designations dialog and staff form field
 - [`docs/verification/AAS-447-450-leave-allocation-by-designation.md`](docs/verification/AAS-447-450-leave-allocation-by-designation.md) — bulk leave allocation by designation ("Apply to") and per-person allocation from the staff row
 - [`docs/verification/AAS-452-456-edit-long-leave-dates.md`](docs/verification/AAS-452-456-edit-long-leave-dates.md) — reviewers change the dates of pending requests over 2 days, checks, and the "Edited" badge
+- [`docs/verification/AAS-458-463-monthly-summary.md`](docs/verification/AAS-458-463-monthly-summary.md) — monthly overtime and attendance % per person, filters, pie charts, and the Dashboard section
 
 **After pulling this module, run `npm run seed` in `backend`.** It adds
 `overtime.read` to the staff role so staff can see their own overtime. It only adds
@@ -170,8 +176,8 @@ when they open the Overtime page.
   doesn't create an attendance record, and there's no configurable public-holiday list. The new
   monthly calendar (above) shows leave and weekends visually by merging leave requests and
   the calendar grid at display time, without changing what's stored.
-- Reports (daily and monthly attendance, monthly overtime, leave, individual
-  employee, attendance percentage) and the overtime sheet export.
+- Reports beyond the monthly summary (daily attendance, leave, individual employee history)
+  and the overtime sheet export.
 
 No other business modules (giveaways, inventory, generator, reports) are
 implemented on this branch yet.
