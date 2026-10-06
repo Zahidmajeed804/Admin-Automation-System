@@ -172,6 +172,17 @@ export default function GeneratorLogForm({ open, onClose, onSaved, generatorOpti
   const tankCapacity = selectedGenerator?.fuelTankCapacityLiters;
   const hasCapacity = Number(tankCapacity) > 0;
 
+  // Price per unit and the vendor only make sense once fuel was actually
+  // poured in, so they stay hidden until Fuel Added is greater than 0.
+  const showFuelPurchaseFields = Number(values.fuelAddedLiters) > 0;
+
+  useEffect(() => {
+    if (!showFuelPurchaseFields && (values.fuelCostPerLiter !== "" || values.fuelVendor !== "")) {
+      setValues((v) => ({ ...v, fuelCostPerLiter: "", fuelVendor: "" }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showFuelPurchaseFields]);
+
   const prev = last.log;
   const hoursFromMeter = prev?.meterReadingHours != null;
   const openingFromPrev = prev?.closingFuelLiters != null;
@@ -463,9 +474,13 @@ export default function GeneratorLogForm({ open, onClose, onSaved, generatorOpti
               helperText={useReadingGaugeSelect ? "Gauge reading (estimate) + fuel added" : "Fuel reading + fuel added"}
             />
           )}
-          <Input id="log-fuelCostPerLiter" label={`Price per ${unit === "kg" ? "Kg" : "Litre"}`} type="number" min="0" step="0.01" value={values.fuelCostPerLiter} onChange={setField("fuelCostPerLiter")} error={fieldErrors.fuelCostPerLiter} />
+          {showFuelPurchaseFields && (
+            <>
+              <Input id="log-fuelCostPerLiter" label={`Price per ${unit === "kg" ? "Kg" : "Litre"}`} type="number" min="0" step="0.01" value={values.fuelCostPerLiter} onChange={setField("fuelCostPerLiter")} error={fieldErrors.fuelCostPerLiter} />
+              <Input id="log-fuelVendor" label="Fuel Vendor" value={values.fuelVendor} onChange={setField("fuelVendor")} placeholder="e.g. PSO Pump" />
+            </>
+          )}
 
-          <Input id="log-fuelVendor" label="Fuel Vendor" value={values.fuelVendor} onChange={setField("fuelVendor")} placeholder="e.g. PSO Pump" />
           <Input id="log-reason" label="Reason" value={values.reason} onChange={setField("reason")} placeholder="e.g. power outage" />
 
           {showPreview && (
