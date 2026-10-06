@@ -1,7 +1,12 @@
 import { reportsRepository } from "../repositories/reportsRepository.js";
+import { leaveService } from "./leaveService.js";
 import { NotFoundError } from "../errors/AppError.js";
 import { resolveDateRange, resolveYearRange } from "../utils/dateRanges.js";
 import { LEAVE_TYPES } from "../constants/attendance.js";
+
+// Leave types that draw down a yearly allocation — same set
+// leaveService.js itself checks balance for; unpaid leave has none.
+const QUOTA_LEAVE_TYPES = ["casual", "sick", "annual"];
 
 // Worked hours are kept to 2 decimals so float noise never reaches the
 // client, same convention as reportService's (Generator module) round2.
@@ -180,6 +185,20 @@ export const reportsService = {
       if (row._id.status === "approved") typeEntry.approvedDays = days;
       else if (row._id.status === "pending") typeEntry.pendingDays = days;
       else if (row._id.status === "rejected") typeEntry.rejectedDays = days;
+    }
+
+    // Balance half: allocated/used/pending/remaining per quota leave type,
+    // straight from leaveService.getBalanceForYear so this report can never
+    // drift out of parity with the balance the Leave module itself shows
+    // (and enforces) — see tests/reportsLeaveUsage.routes.test.js's parity
+    // check. Unpaid leave has no allocation, so it's left without a balance.
+    for (const employee of employees) {
+      const entry = rows.get(String(employee._id));
+      for (const leaveType of QUOTA_LEAVE_TYPES) {
+        const allocated = employee.leaveAllocation?.[leaveType] || 0;
+        const balance = await leaveService.getBalanceForYear(employee._id, leaveType, range.year, allocated);
+        Object.assign(entry.leaveTypes[leaveType], balance);
+      }
     }
 
     const result = [...rows.values()];

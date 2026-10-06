@@ -8,12 +8,15 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
 // reachable). With an employeeId, resolves to that one user (or an empty
 // array if it doesn't exist, which callers turn into a 404); without one,
 // every user, for a company-wide report.
+// leaveAllocation is only used by the Leave Usage report's balance half
+// (reportsService.getLeaveUsageReport, via leaveService.getBalanceForYear),
+// but selecting it here too is harmless for every other report.
 async function resolveEmployees(employeeId) {
   if (employeeId) {
-    const employee = await User.findById(employeeId).select("name email employeeId department isActive");
+    const employee = await User.findById(employeeId).select("name email employeeId department isActive leaveAllocation");
     return employee ? [employee] : [];
   }
-  return User.find().select("name email employeeId department isActive").sort({ name: 1 });
+  return User.find().select("name email employeeId department isActive leaveAllocation").sort({ name: 1 });
 }
 
 export const reportsRepository = {
