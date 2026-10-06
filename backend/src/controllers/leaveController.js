@@ -62,4 +62,13 @@ export const leaveController = {
       data: { leave },
     });
   }),
+
+  editDates: asyncHandler(async (req, res) => {
+    const { startDate, endDate } = req.body;
+    const leave = await leaveService.editDates(req.params.id, { editorId: req.userId, startDate, endDate });
+    sendSuccess(res, {
+      message: `Leave dates changed to ${leave.totalDays} day${leave.totalDays === 1 ? "" : "s"}`,
+      data: { leave },
+    });
+  }),
 };

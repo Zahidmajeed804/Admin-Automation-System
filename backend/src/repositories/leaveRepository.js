@@ -7,19 +7,21 @@ export const leaveRepository = {
 
   // Requests that still claim these days: pending or approved, and touching [startDate, endDate].
   // Two inclusive ranges overlap when each starts on or before the other ends.
-  findOverlapping: (userId, startDate, endDate) =>
+  // `excludeId` leaves one request out — the one whose dates are being changed.
+  findOverlapping: (userId, startDate, endDate, excludeId) =>
     LeaveRequest.findOne({
       user: userId,
       status: { $in: ["pending", "approved"] },
       startDate: { $lte: endDate },
       endDate: { $gte: startDate },
+      ...(excludeId ? { _id: { $ne: excludeId } } : {}),
     }),
 
   // Requests of this type that still claim days (pending or approved) and overlap the
   // given calendar year — used to compute the leave balance for that year. Fetched as
   // whole documents (not summed in the query) because a request can straddle two years
-  // and the caller needs to clip each one to the year itself.
-  findActiveByTypeAndYear: (userId, leaveType, year) => {
+  // and the caller needs to clip each one to the year itself. `excludeId` as above.
+  findActiveByTypeAndYear: (userId, leaveType, year, excludeId) => {
     const yearStart = startOfDay(new Date(Date.UTC(year, 0, 1)));
     const yearEnd = startOfDay(new Date(Date.UTC(year, 11, 31)));
     return LeaveRequest.find({
@@ -28,8 +30,17 @@ export const leaveRepository = {
       status: { $in: ["pending", "approved"] },
       startDate: { $lte: yearEnd },
       endDate: { $gte: yearStart },
+      ...(excludeId ? { _id: { $ne: excludeId } } : {}),
     });
   },
+
+  // New dates for a request that is still pending; null if it was decided meanwhile
+  // (same atomic "status: pending" guard as reviewIfPending).
+  updateDatesIfPending: (id, changes) =>
+    LeaveRequest.findOneAndUpdate({ _id: id, status: "pending" }, { $set: changes }, { returnDocument: "after" })
+      .populate("user", "name email department")
+      .populate("reviewedBy", "name email")
+      .populate("editedBy", "name email"),
 
   // Filtering on status "pending" inside the update makes the transition atomic:
   // of two concurrent reviews only one matches; the other gets null.
