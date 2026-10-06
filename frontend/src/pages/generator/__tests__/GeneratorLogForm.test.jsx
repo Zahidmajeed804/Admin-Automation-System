@@ -195,17 +195,20 @@ describe("<GeneratorLogForm /> (create, no previous entry)", () => {
     expect(generatorService.createLog).not.toHaveBeenCalled();
   });
 
-  it("requires litres added before accepting a price per litre", async () => {
+  it("hides price per litre and fuel vendor until litres are added, then shows them", async () => {
     const user = userEvent.setup();
     render(<GeneratorLogForm open onClose={vi.fn()} onSaved={vi.fn()} generatorOptions={GENERATOR_OPTIONS} />);
 
     await user.selectOptions(screen.getByLabelText("Generator", { exact: false }), "g1");
     await screen.findByText(/first entry for this generator/i);
-    await user.type(screen.getByLabelText("Hours Run — hours", { exact: false }), "8");
-    await user.type(screen.getByLabelText("Price per Litre", { exact: false }), "300");
 
-    await user.click(screen.getByRole("button", { name: "Add Log" }));
-    expect(await screen.findByText("Enter the L added to use a price per L")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Price per Litre", { exact: false })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Fuel Vendor", { exact: false })).not.toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("Fuel Added (L)", { exact: false }), "20");
+
+    expect(await screen.findByLabelText("Price per Litre", { exact: false })).toBeInTheDocument();
+    expect(screen.getByLabelText("Fuel Vendor", { exact: false })).toBeInTheDocument();
   });
 
   it("shows the calculated-on-save preview (consumed litres and cost) once enough figures are entered", async () => {
