@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { UserPlus, Pencil, UserX, UserCheck, CalendarRange, BriefcaseBusiness } from "lucide-react";
+import { UserPlus, Pencil, UserX, UserCheck, CalendarRange, CalendarDays, BriefcaseBusiness } from "lucide-react";
 import { userService } from "../../services/userService";
 import { apiErrorMessage } from "../../utils/apiError";
 import { formatShiftHours } from "../../utils/designationFormat";
@@ -13,6 +13,7 @@ import Table from "../../components/tables/Table";
 import ConfirmDialog from "../../components/modals/ConfirmDialog";
 import StaffFormModal from "../../components/staff/StaffFormModal";
 import AssignLeaveAllocationDialog from "../../components/staff/AssignLeaveAllocationDialog";
+import StaffLeaveAllocationDialog from "../../components/staff/StaffLeaveAllocationDialog";
 import DesignationsDialog from "../../components/staff/DesignationsDialog";
 
 const PAGE_SIZE = 10;
@@ -41,8 +42,9 @@ export default function StaffPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState(null); // null = creating a new staff member
   const [assignOpen, setAssignOpen] = useState(false);
-  // { matched, modified, designationName? } from the last bulk apply
-  const [assignResult, setAssignResult] = useState(null);
+  const [allocationTarget, setAllocationTarget] = useState(null); // row whose own leave allocation is being edited
+  // Success message from the last leave-allocation change (bulk or one person).
+  const [notice, setNotice] = useState("");
   const [designationsOpen, setDesignationsOpen] = useState(false);
   const [result, setResult] = useState({ key: null, items: [], pagination: null, failed: false });
 
@@ -152,6 +154,15 @@ export default function StaffPage() {
           <Button
             variant="ghost"
             size="sm"
+            icon={CalendarDays}
+            aria-label={`Leave allocation for ${row.name}`}
+            onClick={() => setAllocationTarget(row)}
+          >
+            Leave
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
             icon={row.isActive ? UserX : UserCheck}
             aria-label={row.isActive ? `Deactivate ${row.name}` : `Activate ${row.name}`}
             onClick={() => {
@@ -188,13 +199,12 @@ export default function StaffPage() {
         }
       />
       <AttendanceSectionNav />
-      {assignResult && (
+      {notice && (
         <div
           role="status"
           className="bg-status-successBg border border-green-200 text-status-success text-body rounded-md px-3 py-2"
         >
-          Leave allocation applied to {assignResult.modified} of {assignResult.matched} matching staff member(s)
-          {assignResult.designationName ? ` with the ${assignResult.designationName} designation` : ""}.
+          {notice}
         </div>
       )}
       <div className="flex flex-col gap-4">
@@ -268,12 +278,25 @@ export default function StaffPage() {
         // Renames and shift changes show up in the Designation column.
         onChanged={() => setRefreshKey((k) => k + 1)}
       />
+      <StaffLeaveAllocationDialog
+        staff={allocationTarget}
+        onClose={() => setAllocationTarget(null)}
+        onSaved={(updated) => {
+          setAllocationTarget(null);
+          const { casual = 0, sick = 0, annual = 0 } = updated.leaveAllocation || {};
+          setNotice(`Leave allocation saved for ${updated.name}: ${casual} casual, ${sick} sick, ${annual} annual days a year.`);
+          setRefreshKey((k) => k + 1);
+        }}
+      />
       <AssignLeaveAllocationDialog
         open={assignOpen}
         onClose={() => setAssignOpen(false)}
         onDone={(result, designationName) => {
           setAssignOpen(false);
-          setAssignResult({ ...result, designationName });
+          setNotice(
+            `Leave allocation applied to ${result.modified} of ${result.matched} matching staff member(s)` +
+              (designationName ? ` with the ${designationName} designation.` : ".")
+          );
           // Rows carry each person's allocation; reload so they show the new values.
           setRefreshKey((k) => k + 1);
         }}
