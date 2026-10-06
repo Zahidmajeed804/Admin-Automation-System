@@ -45,6 +45,14 @@ describe("toEditValues", () => {
   it("leaves fuelAddedLiters blank when it's 0, not '0'", () => {
     expect(toEditValues({ ...STORED_LOG, fuelAddedLiters: 0 }).fuelAddedLiters).toBe("");
   });
+
+  it("maps a stored gauge mark on either reading, blank when absent", () => {
+    expect(toEditValues(STORED_LOG).openingFuelGaugeReading).toBe("");
+    expect(toEditValues(STORED_LOG).fuelGaugeReading).toBe("");
+    const withMarks = toEditValues({ ...STORED_LOG, openingFuelGaugeReading: "1/2", fuelGaugeReading: "1/4" });
+    expect(withMarks.openingFuelGaugeReading).toBe("1/2");
+    expect(withMarks.fuelGaugeReading).toBe("1/4");
+  });
 });
 
 describe("toPayload (create)", () => {
@@ -69,6 +77,25 @@ describe("toPayload (create)", () => {
       closingFuelLiters: 115,
       fuelVendor: "Shell",
     });
+  });
+
+  it("includes gauge marks when given", () => {
+    const payload = toPayload({
+      generatorId: "g1",
+      date: "",
+      hoursRun: "8",
+      meterReadingHours: "",
+      openingFuelLiters: "",
+      openingFuelGaugeReading: "1/2",
+      fuelAddedLiters: "",
+      fuelGaugeReading: "1/4",
+      closingFuelLiters: "50",
+      fuelCostPerLiter: "",
+      fuelVendor: "",
+      reason: "",
+      notes: "",
+    });
+    expect(payload).toMatchObject({ openingFuelGaugeReading: "1/2", fuelGaugeReading: "1/4" });
   });
 });
 
@@ -98,6 +125,22 @@ describe("toUpdatePayload (edit)", () => {
       reason: null,
       notes: null,
     });
+  });
+
+  it("sends a gauge mark as null when cleared, and as the mark when given", () => {
+    const cleared = toUpdatePayload({
+      hoursRun: "8", date: "", meterReadingHours: "", openingFuelLiters: "", openingFuelGaugeReading: "",
+      fuelAddedLiters: "", fuelGaugeReading: "", closingFuelLiters: "", fuelCostPerLiter: "", fuelVendor: "", reason: "", notes: "",
+    });
+    expect(cleared.openingFuelGaugeReading).toBeNull();
+    expect(cleared.fuelGaugeReading).toBeNull();
+
+    const set = toUpdatePayload({
+      hoursRun: "8", date: "", meterReadingHours: "", openingFuelLiters: "", openingFuelGaugeReading: "1/2",
+      fuelAddedLiters: "", fuelGaugeReading: "3/4", closingFuelLiters: "", fuelCostPerLiter: "", fuelVendor: "", reason: "", notes: "",
+    });
+    expect(set.openingFuelGaugeReading).toBe("1/2");
+    expect(set.fuelGaugeReading).toBe("3/4");
   });
 });
 
@@ -330,6 +373,166 @@ describe("<GeneratorLogForm /> (edit)", () => {
 
     await waitFor(() =>
       expect(generatorService.updateLog).toHaveBeenCalledWith("l1", expect.objectContaining({ hoursRun: 9 }))
+    );
+    expect(onSaved).toHaveBeenCalled();
+  });
+});
+
+const GAUGE_OPTIONS = [{ value: "g1", label: "GEN-01", fuelMeasurementType: "gauge", fuelTankCapacityLiters: 200 }];
+const GAUGE_OPTIONS_NO_CAPACITY = [{ value: "g1", label: "GEN-01", fuelMeasurementType: "gauge", fuelTankCapacityLiters: undefined }];
+
+describe("<GeneratorLogForm /> (create, gauge generator, no previous entry)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    generatorService.listLogs.mockResolvedValue({ items: [] });
+  });
+
+  it("shows gauge-mark selects for opening and reading instead of free number inputs", async () => {
+    const user = userEvent.setup();
+    render(<GeneratorLogForm open onClose={vi.fn()} onSaved={vi.fn()} generatorOptions={GAUGE_OPTIONS} />);
+
+    await user.selectOptions(screen.getByLabelText("Generator", { exact: false }), "g1");
+    await screen.findByText(/first entry for this generator/i);
+
+    expect(screen.getByLabelText("Opening Fuel (gauge)", { exact: false })).toBeInTheDocument();
+    expect(screen.getByLabelText("Fuel Reading (gauge)", { exact: false })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Opening Fuel (L)", { exact: false })).not.toBeInTheDocument();
+  });
+
+  it("converts the selected marks to an estimated closing fuel and does not block a higher reading", async () => {
+    const user = userEvent.setup();
+    render(<GeneratorLogForm open onClose={vi.fn()} onSaved={vi.fn()} generatorOptions={GAUGE_OPTIONS} />);
+
+    await user.selectOptions(screen.getByLabelText("Generator", { exact: false }), "g1");
+    await screen.findByText(/first entry for this generator/i);
+    await user.type(screen.getByLabelText("Hours Run — hours", { exact: false }), "8");
+    await user.selectOptions(screen.getByLabelText("Opening Fuel (gauge)", { exact: false }), "1/4"); // 50 L
+    await user.selectOptions(screen.getByLabelText("Fuel Reading (gauge)", { exact: false }), "F"); // 200 L, above opening
+
+    // Estimated closing (≈ 200 L) is shown, but submitting is not blocked by it.
+    expect(await screen.findByText(/≈ 200/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Add Log" }));
+    await waitFor(() => expect(generatorService.createLog).toHaveBeenCalled());
+  });
+
+  it("submits the converted litres alongside the chosen marks", async () => {
+    generatorService.createLog.mockResolvedValue({ _id: "new3" });
+    const onSaved = vi.fn();
+    const user = userEvent.setup();
+    render(<GeneratorLogForm open onClose={vi.fn()} onSaved={onSaved} generatorOptions={GAUGE_OPTIONS} />);
+
+    await user.selectOptions(screen.getByLabelText("Generator", { exact: false }), "g1");
+    await screen.findByText(/first entry for this generator/i);
+    await user.type(screen.getByLabelText("Hours Run — hours", { exact: false }), "8");
+    await user.selectOptions(screen.getByLabelText("Opening Fuel (gauge)", { exact: false }), "1/2"); // 100 L
+    await user.selectOptions(screen.getByLabelText("Fuel Reading (gauge)", { exact: false }), "1/4"); // 50 L
+    await user.type(screen.getByLabelText(/fuel added/i), "20");
+
+    await user.click(screen.getByRole("button", { name: "Add Log" }));
+
+    await waitFor(() =>
+      expect(generatorService.createLog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          generatorId: "g1",
+          openingFuelGaugeReading: "1/2",
+          openingFuelLiters: 100,
+          fuelGaugeReading: "1/4",
+          fuelAddedLiters: 20,
+          closingFuelLiters: 70, // 50 (reading) + 20 (added)
+        })
+      )
+    );
+    expect(onSaved).toHaveBeenCalledWith({ _id: "new3" });
+  });
+
+  it("disables fuel-level entry and shows a notice when the generator has no tank capacity", async () => {
+    const user = userEvent.setup();
+    render(<GeneratorLogForm open onClose={vi.fn()} onSaved={vi.fn()} generatorOptions={GAUGE_OPTIONS_NO_CAPACITY} />);
+
+    await user.selectOptions(screen.getByLabelText("Generator", { exact: false }), "g1");
+    await screen.findByText(/first entry for this generator/i);
+
+    expect(await screen.findByText(/no tank capacity set/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText("Opening Fuel (gauge)", { exact: false })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Fuel Reading (gauge)", { exact: false })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Opening Fuel (L)", { exact: false })).toBeDisabled();
+    expect(screen.getByLabelText("Fuel Reading (L)", { exact: false })).toBeDisabled();
+  });
+
+  it("still lets hours run be logged when fuel-level entry is disabled for a missing capacity", async () => {
+    generatorService.createLog.mockResolvedValue({ _id: "new4" });
+    const onSaved = vi.fn();
+    const user = userEvent.setup();
+    render(<GeneratorLogForm open onClose={vi.fn()} onSaved={onSaved} generatorOptions={GAUGE_OPTIONS_NO_CAPACITY} />);
+
+    await user.selectOptions(screen.getByLabelText("Generator", { exact: false }), "g1");
+    await screen.findByText(/first entry for this generator/i);
+    await user.type(screen.getByLabelText("Hours Run — hours", { exact: false }), "5");
+    await user.click(screen.getByRole("button", { name: "Add Log" }));
+
+    await waitFor(() =>
+      expect(generatorService.createLog).toHaveBeenCalledWith(expect.objectContaining({ generatorId: "g1", hoursRun: 5 }))
+    );
+    expect(onSaved).toHaveBeenCalledWith({ _id: "new4" });
+  });
+});
+
+describe("<GeneratorLogForm /> (create, gauge generator, with a previous entry)", () => {
+  const PREV_LOG = { _id: "prev1", date: "2026-02-01T00:00:00.000Z", meterReadingHours: 1200, closingFuelLiters: 90 };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    generatorService.listLogs.mockResolvedValue({ items: [PREV_LOG] });
+  });
+
+  it("keeps opening fuel auto-filled from the previous entry, and shows only a reading gauge select", async () => {
+    const user = userEvent.setup();
+    render(<GeneratorLogForm open onClose={vi.fn()} onSaved={vi.fn()} generatorOptions={GAUGE_OPTIONS} />);
+
+    await user.selectOptions(screen.getByLabelText("Generator", { exact: false }), "g1");
+    const openingInput = await screen.findByLabelText("Opening Fuel (L)", { exact: false });
+    expect(openingInput).toBeDisabled();
+    expect(openingInput).toHaveValue("90");
+    expect(screen.getByLabelText("Fuel Reading (gauge)", { exact: false })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Opening Fuel (gauge)", { exact: false })).not.toBeInTheDocument();
+  });
+});
+
+describe("<GeneratorLogForm /> (edit, gauge generator)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const GAUGE_GENERATOR = { _id: "g1", tag: "GEN-01", fuelMeasurementType: "gauge", fuelTankCapacityLiters: 200 };
+
+  it("shows a prefilled gauge select when the entry has a stored mark", () => {
+    const log = { ...STORED_LOG, generator: GAUGE_GENERATOR, fuelGaugeReading: "1/4" };
+    render(<GeneratorLogForm open onClose={vi.fn()} onSaved={vi.fn()} generatorOptions={GAUGE_OPTIONS} log={log} />);
+
+    expect(screen.getByLabelText("Fuel Reading (gauge)", { exact: false })).toHaveValue("1/4");
+  });
+
+  it("falls back to the free closing-fuel number input for a legacy entry with no stored mark", () => {
+    const log = { ...STORED_LOG, generator: GAUGE_GENERATOR };
+    render(<GeneratorLogForm open onClose={vi.fn()} onSaved={vi.fn()} generatorOptions={GAUGE_OPTIONS} log={log} />);
+
+    expect(screen.queryByLabelText("Fuel Reading (gauge)", { exact: false })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Closing Fuel (L)", { exact: false })).toHaveValue(115);
+  });
+
+  it("saves a changed gauge mark converted to litres", async () => {
+    generatorService.updateLog.mockResolvedValue({ ...STORED_LOG, fuelGaugeReading: "3/4" });
+    const user = userEvent.setup();
+    const onSaved = vi.fn();
+    const log = { ...STORED_LOG, generator: GAUGE_GENERATOR, fuelGaugeReading: "1/4" };
+    render(<GeneratorLogForm open onClose={vi.fn()} onSaved={onSaved} generatorOptions={GAUGE_OPTIONS} log={log} />);
+
+    await user.selectOptions(screen.getByLabelText("Fuel Reading (gauge)", { exact: false }), "3/4");
+    await user.click(screen.getByRole("button", { name: "Save Changes" }));
+
+    await waitFor(() =>
+      expect(generatorService.updateLog).toHaveBeenCalledWith(
+        "l1",
+        expect.objectContaining({ fuelGaugeReading: "3/4", closingFuelLiters: 170 }) // 150 (3/4 of 200) + 20 added
+      )
     );
     expect(onSaved).toHaveBeenCalled();
   });

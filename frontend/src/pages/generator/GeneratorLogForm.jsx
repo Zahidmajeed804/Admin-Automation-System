@@ -5,7 +5,7 @@ import Input from "../../components/common/Input";
 import Select from "../../components/common/Select";
 import { generatorService } from "../../services/generatorService";
 import { extractErrorMessage } from "./GeneratorForm";
-import { computeFuelFigures, closingExceedsAvailable } from "../../utils/fuelFigures";
+import { computeFuelFigures, closingExceedsAvailable, GAUGE_MARKS, gaugeToLiters } from "../../utils/fuelFigures";
 import { formatNumber } from "../../utils/formatNumber";
 import { formatDate, todayDateValue } from "../../utils/formatDate";
 import { fuelUnit } from "../../utils/fuelUnit";
@@ -19,8 +19,10 @@ const BLANK = {
   hoursRun: "",
   meterReadingHours: "",
   openingFuelLiters: "",
+  openingFuelGaugeReading: "", // needle-gauge mark, gauge-measurement generators only
   fuelAddedLiters: "",
   fuelReadingLiters: "",
+  fuelGaugeReading: "", // needle-gauge mark, gauge-measurement generators only
   closingFuelLiters: "", // typed only when editing; when adding, it is worked out from the reading
   fuelCostPerLiter: "",
   fuelVendor: "",
@@ -50,7 +52,9 @@ export function toEditValues(log) {
     hoursRun: str(log.hoursRun),
     meterReadingHours: str(log.meterReadingHours),
     openingFuelLiters: str(log.openingFuelLiters),
+    openingFuelGaugeReading: str(log.openingFuelGaugeReading),
     fuelAddedLiters: log.fuelAddedLiters > 0 ? str(log.fuelAddedLiters) : "",
+    fuelGaugeReading: str(log.fuelGaugeReading),
     closingFuelLiters: str(log.closingFuelLiters),
     fuelCostPerLiter: str(log.fuelCostPerLiter),
     fuelVendor: str(log.fuelVendor),
@@ -67,6 +71,7 @@ export function toUpdatePayload(values) {
   const payload = { hoursRun: Number(values.hoursRun) };
   if (values.date) payload.date = values.date;
   for (const key of PAYLOAD_NUMBERS) payload[key] = values[key] !== "" ? Number(values[key]) : null;
+  for (const key of GAUGE_MARK_FIELDS) payload[key] = values[key] !== "" ? values[key] : null;
   for (const key of ["fuelVendor", "reason", "notes"]) payload[key] = values[key].trim() || null;
   return payload;
 }
@@ -74,6 +79,10 @@ export function toUpdatePayload(values) {
 // Numbers sent to the server. The typed fuel reading is not one of them:
 // what is sent is the closing fuel worked out from it (reading + fuel added).
 const PAYLOAD_NUMBERS = ["meterReadingHours", "openingFuelLiters", "fuelAddedLiters", "closingFuelLiters", "fuelCostPerLiter"];
+
+// The needle-gauge marks a tank-level reading was taken at, sent alongside
+// the converted liters above (gauge-measurement generators only).
+const GAUGE_MARK_FIELDS = ["openingFuelGaugeReading", "fuelGaugeReading"];
 
 // Blank optional fields are left out so the backend's defaults apply
 // (date: now, fuel fields: 0). Fuel consumed and total cost are worked out
@@ -83,6 +92,9 @@ export function toPayload(values) {
   if (values.date) payload.date = values.date;
   for (const key of PAYLOAD_NUMBERS) {
     if (values[key] !== "") payload[key] = Number(values[key]);
+  }
+  for (const key of GAUGE_MARK_FIELDS) {
+    if (values[key] !== "") payload[key] = values[key];
   }
   if (values.fuelVendor.trim()) payload.fuelVendor = values.fuelVendor.trim();
   if (values.reason.trim()) payload.reason = values.reason.trim();
@@ -101,8 +113,9 @@ const round2 = (n) => Math.round(n * 100) / 100;
  * meter then, opening fuel = the previous closing fuel). When there is no
  * previous entry to work from, those two fields become normal inputs.
  *
- * `generatorOptions` is [{ value, label, fuelType }]; `defaultGeneratorId` preselects
- * one. `onSaved(log)` fires with the created record after a successful post.
+ * `generatorOptions` is [{ value, label, fuelType, fuelMeasurementType, fuelTankCapacityLiters }];
+ * `defaultGeneratorId` preselects one. `onSaved(log)` fires with the created
+ * record after a successful post.
  */
 export default function GeneratorLogForm({ open, onClose, onSaved, generatorOptions, defaultGeneratorId, log = null }) {
   const isEdit = Boolean(log);
@@ -147,11 +160,17 @@ export default function GeneratorLogForm({ open, onClose, onSaved, generatorOpti
     setFieldErrors((e) => (e[key] ? { ...e, [key]: undefined } : e));
   };
 
-  // The selected generator's fuel type decides the unit shown (L or kg).
-  // Editing works off the stored log's own generator; adding looks it up in
-  // the options list the page already fetched full generator records for.
-  const selectedFuelType = isEdit ? log.generator?.fuelType : generatorOptions.find((o) => o.value === values.generatorId)?.fuelType;
+  // The selected generator decides the unit shown (L or kg) and whether fuel
+  // level is read off a needle gauge or typed as a precise number. Editing
+  // works off the stored log's own generator (populated by the API, so it
+  // carries fuelMeasurementType/fuelTankCapacityLiters too); adding looks it
+  // up in the options list the page already fetched.
+  const selectedGenerator = isEdit ? log.generator : generatorOptions.find((o) => o.value === values.generatorId);
+  const selectedFuelType = selectedGenerator?.fuelType;
   const unit = fuelUnit(selectedFuelType);
+  const isGauge = selectedGenerator?.fuelMeasurementType === "gauge";
+  const tankCapacity = selectedGenerator?.fuelTankCapacityLiters;
+  const hasCapacity = Number(tankCapacity) > 0;
 
   const prev = last.log;
   const hoursFromMeter = prev?.meterReadingHours != null;
@@ -160,15 +179,56 @@ export default function GeneratorLogForm({ open, onClose, onSaved, generatorOpti
   const meterNow = values.meterReadingHours !== "" ? Number(values.meterReadingHours) : null;
   const autoHours = hoursFromMeter && meterNow !== null && meterNow >= prev.meterReadingHours ? round2(meterNow - prev.meterReadingHours) : null;
 
-  // Closing fuel = the gauge reading (taken before refuelling) + the fuel added.
-  const closingFuel = values.fuelReadingLiters !== "" ? round2(Number(values.fuelReadingLiters) + (Number(values.fuelAddedLiters) || 0)) : null;
+  // On a gauge generator, a tank-level reading is picked as a quarter mark
+  // (E/¼/½/¾/F) and converted to an amount with the tank capacity, instead of
+  // typed as a precise number. Editing keeps using the select only when the
+  // entry already has a stored mark — an older entry recorded before this
+  // field existed falls back to the same free-number input a digital
+  // generator uses, so it stays editable even without a mark. Either select
+  // needs a known tank capacity to convert from; without one, fuel-level
+  // entry is disabled rather than silently falling back to free numbers.
+  const openingMarkStored = isEdit && Boolean(log.openingFuelGaugeReading);
+  const wouldUseOpeningGauge = isGauge && !openingFromPrev && (!isEdit || openingMarkStored);
+  const useOpeningGaugeSelect = wouldUseOpeningGauge && hasCapacity;
+  const openingGaugeBlocked = wouldUseOpeningGauge && !hasCapacity;
 
-  // The values the entry is saved with: calculated where a previous entry allows it, typed otherwise.
+  const readingMarkStored = isEdit && Boolean(log.fuelGaugeReading);
+  const wouldUseReadingGauge = isGauge && (!isEdit || readingMarkStored);
+  const useReadingGaugeSelect = wouldUseReadingGauge && hasCapacity;
+  const readingGaugeBlocked = wouldUseReadingGauge && !hasCapacity;
+
+  const missingCapacityNotice = openingGaugeBlocked || readingGaugeBlocked;
+
+  const openingMarkLiters = useOpeningGaugeSelect && values.openingFuelGaugeReading ? gaugeToLiters(values.openingFuelGaugeReading, tankCapacity) : null;
+  const readingMarkLiters = useReadingGaugeSelect && values.fuelGaugeReading ? gaugeToLiters(values.fuelGaugeReading, tankCapacity) : null;
+
+  // Closing fuel = the reading taken before refuelling (typed, or a gauge
+  // mark converted to an amount) + the fuel added. It's calculated (not
+  // typed directly) whenever adding a new entry, or editing one whose
+  // reading is a gauge mark; a typed edit of a legacy/digital entry keeps
+  // its own closingFuelLiters input instead.
+  const closingIsCalculated = !isEdit || useReadingGaugeSelect;
+  const closingFuel = useReadingGaugeSelect
+    ? readingMarkLiters === null
+      ? null
+      : round2(readingMarkLiters + (Number(values.fuelAddedLiters) || 0))
+    : !isEdit && values.fuelReadingLiters !== ""
+      ? round2(Number(values.fuelReadingLiters) + (Number(values.fuelAddedLiters) || 0))
+      : null;
+
+  // The values the entry is saved with: calculated where a previous entry or
+  // a gauge mark allows it, typed otherwise.
   const effective = {
     ...values,
     hoursRun: hoursFromMeter ? (autoHours === null ? "" : String(autoHours)) : values.hoursRun,
-    openingFuelLiters: openingFromPrev ? String(prev.closingFuelLiters) : values.openingFuelLiters,
-    closingFuelLiters: isEdit ? values.closingFuelLiters : closingFuel === null ? "" : String(closingFuel),
+    openingFuelLiters: openingFromPrev
+      ? String(prev.closingFuelLiters)
+      : useOpeningGaugeSelect
+        ? openingMarkLiters === null
+          ? ""
+          : String(openingMarkLiters)
+        : values.openingFuelLiters,
+    closingFuelLiters: closingIsCalculated ? (closingFuel === null ? "" : String(closingFuel)) : values.closingFuelLiters,
   };
 
   // What the server will work out on save, shown before the person submits.
@@ -197,9 +257,12 @@ export default function GeneratorLogForm({ open, onClose, onSaved, generatorOpti
     for (const [key, labelFor] of NUMBER_FIELDS) {
       if (!next[key] && values[key] !== "" && !(Number(values[key]) >= 0)) next[key] = `${labelFor(unit)} must be 0 or more`;
     }
-    // Same two rules the server enforces on POST /generator/logs.
+    // Same two rules the server enforces on POST /generator/logs. A gauge
+    // mark is only a quarter-tank estimate, so it's surfaced as a warning in
+    // the preview below rather than blocking submission the way a precise
+    // typed reading does.
     const closingKey = isEdit ? "closingFuelLiters" : "fuelReadingLiters";
-    if (!next[closingKey] && closingExceedsAvailable(effective)) {
+    if (!useReadingGaugeSelect && !next[closingKey] && closingExceedsAvailable(effective)) {
       next[closingKey] = isEdit
         ? "Closing fuel cannot be more than opening plus fuel added"
         : "Fuel reading is higher than the opening fuel. Enter any fuel poured in under Fuel Added.";
@@ -322,6 +385,12 @@ export default function GeneratorLogForm({ open, onClose, onSaved, generatorOpti
             />
           )}
 
+          {missingCapacityNotice && (
+            <p className="sm:col-span-2 text-helper text-status-warning bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+              This generator reads fuel off a needle gauge but has no tank capacity set, so a gauge mark can't be converted to an amount yet. Set a tank capacity on the generator to record fuel level here — hours and the other fields can still be logged.
+            </p>
+          )}
+
           {openingFromPrev ? (
             <Input
               id="log-openingFuelLiters"
@@ -330,10 +399,36 @@ export default function GeneratorLogForm({ open, onClose, onSaved, generatorOpti
               value={formatNumber(prev.closingFuelLiters)}
               helperText="Closing fuel of the last entry"
             />
+          ) : useOpeningGaugeSelect ? (
+            <Select
+              id="log-openingFuelGaugeReading"
+              label="Opening Fuel (gauge)"
+              value={values.openingFuelGaugeReading}
+              onChange={setField("openingFuelGaugeReading")}
+              options={GAUGE_MARKS}
+              placeholder="Select a mark"
+              helperText={openingMarkLiters === null ? "Needle position before this entry" : `≈ ${formatNumber(openingMarkLiters)} ${unit}`}
+              error={fieldErrors.openingFuelGaugeReading}
+            />
+          ) : openingGaugeBlocked ? (
+            <Input id="log-openingFuelLiters" label={`Opening Fuel (${unit})`} disabled placeholder="Set a tank capacity first" />
           ) : (
             <Input id="log-openingFuelLiters" label={`Opening Fuel (${unit})`} type="number" min="0" value={values.openingFuelLiters} onChange={setField("openingFuelLiters")} error={fieldErrors.openingFuelLiters} />
           )}
-          {isEdit ? (
+          {useReadingGaugeSelect ? (
+            <Select
+              id="log-fuelGaugeReading"
+              label="Fuel Reading (gauge)"
+              value={values.fuelGaugeReading}
+              onChange={setField("fuelGaugeReading")}
+              options={GAUGE_MARKS}
+              placeholder="Select a mark"
+              helperText={readingMarkLiters === null ? "Needle position before any fuel is added" : `≈ ${formatNumber(readingMarkLiters)} ${unit} before fuel added`}
+              error={fieldErrors.fuelGaugeReading}
+            />
+          ) : readingGaugeBlocked ? (
+            <Input id="log-fuelReadingLiters" label={`Fuel Reading (${unit})`} disabled placeholder="Set a tank capacity first" />
+          ) : isEdit ? (
             <Input id="log-closingFuelLiters" label={`Closing Fuel (${unit})`} type="number" min="0" value={values.closingFuelLiters} onChange={setField("closingFuelLiters")} error={fieldErrors.closingFuelLiters} />
           ) : (
             <Input
@@ -358,14 +453,14 @@ export default function GeneratorLogForm({ open, onClose, onSaved, generatorOpti
             helperText={prev ? `${unit === "kg" ? "Kilograms" : "Litres"} poured in after the last entry. Leave empty if none.` : undefined}
             error={fieldErrors.fuelAddedLiters}
           />
-          {!isEdit && (
+          {closingIsCalculated && (
             <Input
               id="log-closingFuelLiters"
               label={`Closing Fuel (${unit})`}
               disabled
-              value={closingFuel === null ? "" : formatNumber(closingFuel)}
+              value={closingFuel === null ? "" : `${useReadingGaugeSelect ? "≈ " : ""}${formatNumber(closingFuel)}`}
               placeholder="Enter the fuel reading"
-              helperText="Fuel reading + fuel added"
+              helperText={useReadingGaugeSelect ? "Gauge reading (estimate) + fuel added" : "Fuel reading + fuel added"}
             />
           )}
           <Input id="log-fuelCostPerLiter" label={`Price per ${unit === "kg" ? "Kg" : "Litre"}`} type="number" min="0" step="0.01" value={values.fuelCostPerLiter} onChange={setField("fuelCostPerLiter")} error={fieldErrors.fuelCostPerLiter} />

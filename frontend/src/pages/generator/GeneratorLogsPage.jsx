@@ -119,7 +119,17 @@ export default function GeneratorLogsPage() {
   useEffect(() => {
     generatorService
       .listGenerators({ pageSize: GENERATOR_OPTIONS_PAGE_SIZE })
-      .then(({ items }) => setGeneratorOptions(items.map((g) => ({ value: g._id, label: g.tag, fuelType: g.fuelType }))))
+      .then(({ items }) =>
+        setGeneratorOptions(
+          items.map((g) => ({
+            value: g._id,
+            label: g.tag,
+            fuelType: g.fuelType,
+            fuelMeasurementType: g.fuelMeasurementType,
+            fuelTankCapacityLiters: g.fuelTankCapacityLiters,
+          }))
+        )
+      )
       .catch(() => {
         // The filter dropdown just stays empty (only "All generators"); the
         // table load below has its own error handling.
