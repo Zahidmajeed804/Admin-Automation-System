@@ -123,13 +123,21 @@ export const userService = {
     return updated;
   },
 
-  // Bulk-sets the yearly leave allocation on every active account in one write.
+  // Bulk-sets the yearly leave allocation on every active account in one write, or
+  // only on active staff holding `designationId` when one is given. Deactivated
+  // designations are allowed here: the people who still hold one need leave too.
   // `overwrite: false` (the default) only fills accounts that look unset — all
   // three types at 0 or missing, since there's no separate "unset" sentinel on a
   // Number field. An admin who deliberately gave someone 0 days can always
   // re-apply it individually afterward.
-  async assignLeaveAllocationToAll({ casual, sick, annual, overwrite = false }) {
+  async assignLeaveAllocationToAll({ casual, sick, annual, overwrite = false, designationId }) {
     const filter = { isActive: true };
+    if (designationId) {
+      if (!(await designationRepository.findById(designationId))) {
+        throw new NotFoundError("Designation not found");
+      }
+      filter.designation = designationId;
+    }
     if (!overwrite) {
       // Accounts created before this field existed have no leaveAllocation at all —
       // Mongoose only backfills the schema default when a document is READ, not in

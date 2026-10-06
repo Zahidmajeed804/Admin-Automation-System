@@ -86,5 +86,7 @@ export const assignLeaveAllocationAllValidator = [
   body("sick").isInt({ min: 0 }).withMessage("sick must be a non-negative integer").toInt(),
   body("annual").isInt({ min: 0 }).withMessage("annual must be a non-negative integer").toInt(),
   body("overwrite").optional().isBoolean().withMessage("overwrite must be true or false").toBoolean(),
+  // Omitted, null or "" = every active staff member.
+  body("designationId").optional({ values: "falsy" }).isMongoId().withMessage("designationId must be a valid id"),
   runValidation,
 ];
