@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import Tabs from "../../components/common/Tabs";
 import { userService } from "../../services/userService";
-import AttendanceSummaryView from "./AttendanceSummaryView";
-import OvertimeSummaryView from "./OvertimeSummaryView";
-import LeaveUsageView from "./LeaveUsageView";
+import ReportAttendanceSummary from "./ReportAttendanceSummary";
+import ReportOvertimeSummary from "./ReportOvertimeSummary";
+import ReportLeaveUsage from "./ReportLeaveUsage";
 
 const REPORT_TABS = [
   { id: "attendance-summary", label: "Attendance Summary" },
@@ -13,9 +13,9 @@ const REPORT_TABS = [
 
 // One component per REPORT_TABS entry.
 const REPORT_VIEWS = {
-  "attendance-summary": AttendanceSummaryView,
-  "overtime-summary": OvertimeSummaryView,
-  "leave-usage": LeaveUsageView,
+  "attendance-summary": ReportAttendanceSummary,
+  "overtime-summary": ReportOvertimeSummary,
+  "leave-usage": ReportLeaveUsage,
 };
 
 /**
