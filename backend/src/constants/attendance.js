@@ -6,3 +6,6 @@ export const LEAVE_TYPES = ["casual", "sick", "annual", "unpaid"];
 export const LEAVE_STATUSES = ["pending", "approved", "rejected"];
 // What a reviewer may decide on a pending overtime or leave request; maps 1:1 onto the status.
 export const REVIEW_DECISIONS = ["approved", "rejected"];
+// A reviewer may change the dates of a pending leave request only when it was
+// originally longer than this many days (AAS-451).
+export const LEAVE_DATES_EDITABLE_AFTER_DAYS = 2;

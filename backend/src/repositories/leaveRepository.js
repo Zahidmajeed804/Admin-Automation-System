@@ -40,7 +40,8 @@ export const leaveRepository = {
       { returnDocument: "after" }
     )
       .populate("user", "name email department")
-      .populate("reviewedBy", "name email"),
+      .populate("reviewedBy", "name email")
+      .populate("editedBy", "name email"),
 
   // startDate/endDate select requests overlapping that window (not just starting inside it).
   list: async ({ userId, status, leaveType, startDate, endDate, page = 1, pageSize = 20 } = {}) => {
@@ -56,6 +57,7 @@ export const leaveRepository = {
       LeaveRequest.find(query)
         .populate("user", "name email department")
         .populate("reviewedBy", "name email")
+        .populate("editedBy", "name email")
         .sort({ startDate: -1, _id: -1 })
         .skip((page - 1) * pageSize)
         .limit(pageSize),
