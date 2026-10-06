@@ -16,6 +16,7 @@ export const attendanceNav = [
   { label: "Attendance", to: "/attendance", permission: "attendance.read", end: true },
   { label: "Overtime", to: "/attendance/overtime", permission: "overtime.read" },
   { label: "Leave", to: "/attendance/leave", permission: "leave.read" },
+  { label: "Summary", to: "/attendance/summary", permission: "attendance.read" },
   { label: "Staff", to: "/attendance/staff", permission: "users.manage" },
 ];
 

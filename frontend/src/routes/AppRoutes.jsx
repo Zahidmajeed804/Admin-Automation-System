@@ -23,6 +23,7 @@ const AttendancePage = lazy(() => import("../pages/attendance/AttendancePage"));
 const OvertimePage = lazy(() => import("../pages/overtime/OvertimePage"));
 const LeavePage = lazy(() => import("../pages/leave/LeavePage"));
 const StaffPage = lazy(() => import("../pages/attendance/StaffPage"));
+const AttendanceSummaryPage = lazy(() => import("../pages/attendance/AttendanceSummaryPage"));
 const ReportsPage = lazy(() => import("../pages/reports/ReportsPage"));
 const NotificationsPage = lazy(() => import("../pages/notifications/NotificationsPage"));
 const ProfilePage = lazy(() => import("../pages/profile/ProfilePage"));
@@ -62,6 +63,7 @@ export default function AppRoutes() {
             </Route>
             <Route element={<ProtectedRoute permission="attendance.read" />}>
               <Route path="/attendance" element={<AttendancePage />} />
+              <Route path="/attendance/summary" element={<AttendanceSummaryPage />} />
             </Route>
             <Route element={<ProtectedRoute permission="overtime.read" />}>
               <Route path="/attendance/overtime" element={<OvertimePage />} />
