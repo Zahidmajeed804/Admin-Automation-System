@@ -5,7 +5,7 @@ import { LoadingSpinner } from "../../components/common/Loading";
 import ErrorState from "../../components/common/ErrorState";
 import { generatorService } from "../../services/generatorService";
 import { formatDate } from "../../utils/formatDate";
-import { fuelUnit, fuelTypeLabel } from "../../utils/fuelUnit";
+import { fuelUnit, fuelTypeLabel, fuelMeasurementLabel } from "../../utils/fuelUnit";
 import { formatHoursMinutes } from "../../utils/hoursMinutes";
 
 const RECENT_LOGS_COUNT = 5;
@@ -67,7 +67,13 @@ export default function GeneratorDetails({ open, onClose, generator }) {
           <DetailField label="Capacity" value={generator.capacityKVA != null ? `${generator.capacityKVA} kVA` : "—"} />
           <DetailField
             label="Fuel"
-            value={`${fuelTypeLabel(generator.fuelType)}${generator.fuelTankCapacityLiters != null ? ` · ${generator.fuelTankCapacityLiters} ${fuelUnit(generator.fuelType)} tank` : ""}`}
+            value={[
+              fuelTypeLabel(generator.fuelType),
+              generator.fuelTankCapacityLiters != null ? `${generator.fuelTankCapacityLiters} ${fuelUnit(generator.fuelType)} tank` : null,
+              fuelMeasurementLabel(generator.fuelMeasurementType),
+            ]
+              .filter(Boolean)
+              .join(" · ")}
           />
           <DetailField label="Running Hours" value={formatHoursMinutes(generator.runningHoursTotal)} />
           <DetailField label="Last Service" value={formatDate(generator.lastServiceDate)} />

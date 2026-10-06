@@ -55,6 +55,24 @@ describe("<GeneratorDetails />", () => {
     await waitFor(() => expect(screen.queryByText(/loading recent activity/i)).not.toBeInTheDocument());
   });
 
+  it("shows the fuel summary without a measurement type when the generator predates the field", async () => {
+    generatorService.listLogs.mockResolvedValue({ items: [] });
+    generatorService.listMaintenance.mockResolvedValue({ items: [] });
+
+    render(<GeneratorDetails open onClose={vi.fn()} generator={GENERATOR} />);
+
+    expect(await screen.findByText("Diesel · 500 L tank")).toBeInTheDocument();
+  });
+
+  it("appends the measurement type to the fuel summary when set", async () => {
+    generatorService.listLogs.mockResolvedValue({ items: [] });
+    generatorService.listMaintenance.mockResolvedValue({ items: [] });
+
+    render(<GeneratorDetails open onClose={vi.fn()} generator={{ ...GENERATOR, fuelMeasurementType: "gauge" }} />);
+
+    expect(await screen.findByText("Diesel · 500 L tank · Needle Gauge")).toBeInTheDocument();
+  });
+
   it("shows the next scheduled maintenance and recent logs once loaded", async () => {
     generatorService.listLogs.mockResolvedValue({ items: [LOG] });
     generatorService.listMaintenance.mockResolvedValue({ items: [NEXT_JOB] });

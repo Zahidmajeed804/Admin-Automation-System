@@ -14,6 +14,7 @@ import { generatorService } from "../../services/generatorService";
 import { formatDate, formatDateNumeric } from "../../utils/formatDate";
 import { formatNumber } from "../../utils/formatNumber";
 import { fuelUnit } from "../../utils/fuelUnit";
+import { gaugeMarkSymbol } from "../../utils/fuelFigures";
 import { formatHoursMinutes } from "../../utils/hoursMinutes";
 
 const PAGE_SIZE = 10;
@@ -72,11 +73,18 @@ const COLUMNS = [
     header: "Tank Level",
     render: (row) => {
       const unit = fuelUnit(row.generator?.fuelType);
+      // A reading taken off a needle gauge shows the mark it was read at
+      // (e.g. "≈ 100 L (½)") alongside the amount converted from it; a
+      // precise digital/typed reading just shows the amount.
+      const tankValue = (amount, mark) => {
+        const symbol = gaugeMarkSymbol(mark);
+        return symbol ? `≈ ${formatNumber(amount)} ${unit} (${symbol})` : `${formatNumber(amount)} ${unit}`;
+      };
       return (
         <LabelledLines
           lines={[
-            row.openingFuelLiters != null && ["Opening", `${formatNumber(row.openingFuelLiters)} ${unit}`],
-            row.closingFuelLiters != null && ["Closing", `${formatNumber(row.closingFuelLiters)} ${unit}`],
+            row.openingFuelLiters != null && ["Opening", tankValue(row.openingFuelLiters, row.openingFuelGaugeReading)],
+            row.closingFuelLiters != null && ["Closing", tankValue(row.closingFuelLiters, row.fuelGaugeReading)],
           ]}
         />
       );

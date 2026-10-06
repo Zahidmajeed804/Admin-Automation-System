@@ -98,6 +98,17 @@ describe("GeneratorLogsPage", () => {
     expect(dashes.length).toBeGreaterThan(0);
   });
 
+  it("shows the gauge mark alongside the converted amount for a needle-gauge reading", async () => {
+    mockLogs({
+      items: [{ ...LOG_1, openingFuelGaugeReading: "1/2", fuelGaugeReading: "1/4" }],
+      meta: { page: 1, totalPages: 1, totalItems: 1, pageSize: 10 },
+    });
+    render(<GeneratorLogsPage />);
+    await waitFor(() => expect(screen.getByText("GEN-01", { selector: "span.font-medium" })).toBeInTheDocument());
+    expect(screen.getByText("≈ 100 L (½)")).toBeInTheDocument();
+    expect(screen.getByText("≈ 115 L (¼)")).toBeInTheDocument();
+  });
+
   it("hides Add/Edit/Delete without the matching generator_log permissions", async () => {
     mockAuth([]);
     render(<GeneratorLogsPage />);

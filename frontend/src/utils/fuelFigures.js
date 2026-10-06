@@ -46,3 +46,11 @@ export function gaugeToLiters(mark, capacity) {
   if (!entry || !(Number(capacity) > 0)) return null;
   return round2(entry.fraction * Number(capacity));
 }
+
+// Compact single-character symbols for a gauge mark, for places too tight
+// for GAUGE_MARKS' full labels (table cells, summary lines).
+const GAUGE_MARK_SYMBOLS = { E: "E", "1/4": "¼", "1/2": "½", "3/4": "¾", F: "F" };
+
+export function gaugeMarkSymbol(mark) {
+  return GAUGE_MARK_SYMBOLS[mark] ?? null;
+}
