@@ -29,6 +29,29 @@ const toRows = (report) =>
     workedHours: e.workedHours,
   }));
 
+const OVERTIME_SUMMARY_COLUMNS = [
+  { key: "name", header: "Employee" },
+  { key: "employeeId", header: "Employee ID" },
+  { key: "department", header: "Department" },
+  { key: "pending", header: "Pending" },
+  { key: "approved", header: "Approved" },
+  { key: "rejected", header: "Rejected" },
+  { key: "totalRequests", header: "Total Requests" },
+  { key: "approvedHours", header: "Approved Hours" },
+];
+
+const toOvertimeRows = (report) =>
+  report.employees.map((e) => ({
+    name: e.employee.name,
+    employeeId: e.employee.employeeId || "",
+    department: e.employee.department || "",
+    pending: e.pending,
+    approved: e.approved,
+    rejected: e.rejected,
+    totalRequests: e.totalRequests,
+    approvedHours: e.approvedHours,
+  }));
+
 const dateStamp = (date) => date.toISOString().slice(0, 10);
 
 export const reportsController = {
@@ -69,5 +92,32 @@ export const reportsController = {
     const { employeeId, from, to } = req.query;
     const report = await reportsService.getOvertimeSummaryReport({ employeeId, from, to });
     sendSuccess(res, { data: report });
+  }),
+
+  // Same filters as overtimeSummary, re-fetched fresh — same convention as
+  // attendanceSummaryExport.
+  overtimeSummaryExport: asyncHandler(async (req, res) => {
+    const { employeeId, from, to, format = "csv" } = req.query;
+    const report = await reportsService.getOvertimeSummaryReport({ employeeId, from, to });
+    const rows = toOvertimeRows(report);
+    const filename = `overtime-summary-${dateStamp(report.from)}-to-${dateStamp(report.to)}`;
+
+    if (format === "pdf") {
+      const buffer = await rowsToPdf({
+        title: "Overtime Summary Report",
+        meta: [
+          `Period: ${dateStamp(report.from)} to ${dateStamp(report.to)}`,
+          `Total approved hours: ${report.totalApprovedHours}`,
+        ],
+        columns: OVERTIME_SUMMARY_COLUMNS,
+        rows,
+      });
+      res.set({ "Content-Type": "application/pdf", "Content-Disposition": `attachment; filename="${filename}.pdf"` });
+      return res.send(buffer);
+    }
+
+    const csv = await rowsToCsv(rows, OVERTIME_SUMMARY_COLUMNS);
+    res.set({ "Content-Type": "text/csv", "Content-Disposition": `attachment; filename="${filename}.csv"` });
+    return res.send(csv);
   }),
 };
