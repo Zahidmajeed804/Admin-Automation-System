@@ -3,8 +3,30 @@ import { overtimeRepository } from "../repositories/overtimeRepository.js";
 import { leaveRepository } from "../repositories/leaveRepository.js";
 import { userRepository } from "../repositories/userRepository.js";
 import { resolveMonthRange } from "./reportService.js";
+import { startOfDay } from "../utils/dates.js";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const round1 = (n) => Math.round(n * 10) / 10;
+
+// Mon–Fri days in [first, last] (inclusive); 0 if the range is empty.
+const workingDaysBetween = (first, last) => {
+  let count = 0;
+  for (let t = first.getTime(); t <= last.getTime(); t += MS_PER_DAY) {
+    const weekday = new Date(t).getUTCDay();
+    if (weekday !== 0 && weekday !== 6) count += 1;
+  }
+  return count;
+};
+
+// Attendance % = (present + late + ½ half-day) ÷ (working days − approved leave on
+// working days), as a percentage to 1 decimal, capped at 100 (weekend work can push
+// the raw figure over). null when there's nothing to measure against yet.
+export const attendancePercent = ({ present, late, halfDay }, workingDays, leaveWorkingDays) => {
+  const expected = workingDays - leaveWorkingDays;
+  if (expected <= 0) return null;
+  const attended = present + late + 0.5 * halfDay;
+  return round1(Math.min(100, (attended / expected) * 100));
+};
 
 // Stored attendance status -> the key it's counted under in the summary.
 const STATUS_KEYS = { present: "present", late: "late", "half-day": "halfDay", absent: "absent" };
@@ -28,6 +50,7 @@ const emptyRow = (user) => ({
   overtime: { approvedMinutes: 0, pendingMinutes: 0 },
   attendance: { present: 0, late: 0, halfDay: 0, absent: 0 },
   leaveDays: 0,
+  leaveWorkingDays: 0,
 });
 
 export const attendanceSummaryService = {
@@ -39,6 +62,11 @@ export const attendanceSummaryService = {
   async getMonthly({ requesterId, canViewAll = false, month, userId, designationId }) {
     const { from, to, year, month: monthNumber } = resolveMonthRange(month);
     const lastDay = new Date(to.getTime() - MS_PER_DAY);
+    // Attendance % only counts days that have happened: up to today in the current
+    // month, the whole month in the past, nothing in the future.
+    const today = startOfDay(new Date());
+    const countedUntil = lastDay < today ? lastDay : today;
+    const workingDays = countedUntil < from ? 0 : workingDaysBetween(from, countedUntil);
     const scopedUserId = canViewAll ? userId : requesterId;
     const scopedDesignationId = canViewAll ? designationId : undefined;
     const userIds = scopedUserId ? [scopedUserId] : undefined;
@@ -74,20 +102,35 @@ export const attendanceSummaryService = {
     }
     for (const l of leave) {
       const row = rows.get(String(l.user));
-      if (row) row.leaveDays += daysWithin(l.startDate, l.endDate, from, lastDay);
+      if (!row) continue;
+      row.leaveDays += daysWithin(l.startDate, l.endDate, from, lastDay);
+      // Leave on working days that have already happened comes off the expected days.
+      const start = l.startDate > from ? l.startDate : from;
+      const end = l.endDate < countedUntil ? l.endDate : countedUntil;
+      if (end >= start) row.leaveWorkingDays += workingDaysBetween(start, end);
     }
 
-    const staff = [...rows.values()];
+    const staff = [...rows.values()].map((row) => ({
+      ...row,
+      workingDays,
+      attendancePercent: attendancePercent(row.attendance, workingDays, row.leaveWorkingDays),
+    }));
+    const measured = staff.filter((r) => r.attendancePercent !== null);
     const totals = {
       staffCount: staff.length,
       approvedOvertimeMinutes: staff.reduce((sum, r) => sum + r.overtime.approvedMinutes, 0),
       pendingOvertimeMinutes: staff.reduce((sum, r) => sum + r.overtime.pendingMinutes, 0),
+      averageAttendancePercent: measured.length
+        ? round1(measured.reduce((sum, r) => sum + r.attendancePercent, 0) / measured.length)
+        : null,
     };
 
     return {
       month: `${year}-${String(monthNumber).padStart(2, "0")}`,
       from,
       to: lastDay,
+      countedUntil: workingDays ? countedUntil : null,
+      workingDays,
       totals,
       staff,
     };
