@@ -2,7 +2,11 @@ import { Router } from "express";
 import { reportsController } from "../controllers/reportsController.js";
 import { authenticate } from "../middleware/authenticate.js";
 import { requirePermission } from "../authorization/requirePermission.js";
-import { attendanceSummaryReportValidator, attendanceSummaryExportValidator } from "../validators/reportsValidators.js";
+import {
+  attendanceSummaryReportValidator,
+  attendanceSummaryExportValidator,
+  overtimeSummaryReportValidator,
+} from "../validators/reportsValidators.js";
 
 const router = Router();
 
@@ -13,5 +17,6 @@ router.use(authenticate);
 
 router.get("/attendance-summary", requirePermission("reports.read"), attendanceSummaryReportValidator, reportsController.attendanceSummary);
 router.get("/attendance-summary/export", requirePermission("reports.read"), attendanceSummaryExportValidator, reportsController.attendanceSummaryExport);
+router.get("/overtime-summary", requirePermission("reports.read"), overtimeSummaryReportValidator, reportsController.overtimeSummary);
 
 export default router;

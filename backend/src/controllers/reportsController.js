@@ -64,4 +64,10 @@ export const reportsController = {
     res.set({ "Content-Type": "text/csv", "Content-Disposition": `attachment; filename="${filename}.csv"` });
     return res.send(csv);
   }),
+
+  overtimeSummary: asyncHandler(async (req, res) => {
+    const { employeeId, from, to } = req.query;
+    const report = await reportsService.getOvertimeSummaryReport({ employeeId, from, to });
+    sendSuccess(res, { data: report });
+  }),
 };

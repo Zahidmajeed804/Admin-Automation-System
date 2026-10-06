@@ -24,3 +24,5 @@ export const attendanceSummaryExportValidator = [
   query("format").optional().isIn(["csv", "pdf"]).withMessage("format must be one of: csv, pdf"),
   runValidation,
 ];
+
+export const overtimeSummaryReportValidator = [employeeIdFilter, ...dateRangeFilter, runValidation];
