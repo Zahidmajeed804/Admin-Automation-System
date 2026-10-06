@@ -12,20 +12,39 @@ async function employeesFor(employeeId) {
   return employees;
 }
 
-// Builds the { employee, ...zeroed metric fields } rows every by-employee
-// report starts from, so an employee with no attendance records in the
-// period still shows up with zeros instead of being silently missing.
-function seedRows(employees) {
+// The { employee } identity fields every by-employee report row starts
+// from, so an employee with no records in the period still shows up with
+// zeros instead of being silently missing.
+function employeeIdentity(employee) {
+  return { id: employee._id, name: employee.name, email: employee.email, employeeId: employee.employeeId, department: employee.department };
+}
+
+function seedAttendanceRows(employees) {
   const rows = new Map();
   for (const employee of employees) {
     rows.set(String(employee._id), {
-      employee: { id: employee._id, name: employee.name, email: employee.email, employeeId: employee.employeeId, department: employee.department },
+      employee: employeeIdentity(employee),
       present: 0,
       absent: 0,
       halfDay: 0,
       late: 0,
       totalDays: 0,
       workedHours: 0,
+    });
+  }
+  return rows;
+}
+
+function seedOvertimeRows(employees) {
+  const rows = new Map();
+  for (const employee of employees) {
+    rows.set(String(employee._id), {
+      employee: employeeIdentity(employee),
+      pending: 0,
+      approved: 0,
+      rejected: 0,
+      totalRequests: 0,
+      approvedHours: 0,
     });
   }
   return rows;
@@ -43,7 +62,7 @@ export const reportsService = {
     const employees = await employeesFor(employeeId);
     if (!employees.length) return { ...range, totalWorkedHours: 0, totalDays: 0, employees: [] };
 
-    const rows = seedRows(employees);
+    const rows = seedAttendanceRows(employees);
     const aggregated = await reportsRepository.attendanceSummaryByEmployee(
       employees.map((e) => e._id),
       range.from,
@@ -66,6 +85,43 @@ export const reportsService = {
       ...range,
       totalWorkedHours: round2(result.reduce((sum, r) => sum + r.workedHours, 0)),
       totalDays: result.reduce((sum, r) => sum + r.totalDays, 0),
+      employees: result,
+    };
+  },
+
+  /**
+   * Overtime Summary report (Module 7 spec: per-employee, per-status
+   * overtime request counts and approved hours). One row per employee (or
+   * just the one requested) over an arbitrary date range; employees with no
+   * overtime requests in range still appear, at 0.
+   */
+  async getOvertimeSummaryReport({ employeeId, from, to } = {}) {
+    const range = resolveDateRange({ from, to });
+    const employees = await employeesFor(employeeId);
+    if (!employees.length) return { ...range, totalApprovedHours: 0, totalRequests: 0, employees: [] };
+
+    const rows = seedOvertimeRows(employees);
+    const aggregated = await reportsRepository.overtimeSummaryByEmployee(
+      employees.map((e) => e._id),
+      range.from,
+      range.to
+    );
+    for (const row of aggregated) {
+      const entry = rows.get(String(row._id));
+      if (entry) {
+        entry.pending = row.pending;
+        entry.approved = row.approved;
+        entry.rejected = row.rejected;
+        entry.totalRequests = row.totalRequests;
+        entry.approvedHours = round2(row.approvedMinutes / 60);
+      }
+    }
+
+    const result = [...rows.values()];
+    return {
+      ...range,
+      totalApprovedHours: round2(result.reduce((sum, r) => sum + r.approvedHours, 0)),
+      totalRequests: result.reduce((sum, r) => sum + r.totalRequests, 0),
       employees: result,
     };
   },
