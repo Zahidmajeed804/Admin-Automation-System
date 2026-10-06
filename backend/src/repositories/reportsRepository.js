@@ -1,4 +1,6 @@
-import { User, Attendance, OvertimeRequest } from "../models/index.js";
+import { User, Attendance, OvertimeRequest, LeaveRequest } from "../models/index.js";
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 // Every attendance-summary report is scoped to employees who still exist in
 // the system (deactivated staff included — same convention as
@@ -51,6 +53,44 @@ export const reportsRepository = {
           rejected: { $sum: { $cond: [{ $eq: ["$status", "rejected"] }, 1, 0] } },
           approvedMinutes: { $sum: { $cond: [{ $eq: ["$status", "approved"] }, "$overtimeMinutes", 0] } },
           totalRequests: { $sum: 1 },
+        },
+      },
+    ]),
+
+  // Request count and clipped days per employee, leaveType and status,
+  // matched by date-range overlap (not just requests starting inside the
+  // range — same overlap convention as leaveRepository.findActiveByTypeAndYear)
+  // within [from, to] (inclusive both ends). A request straddling the
+  // boundary is clipped to the range before its days are counted, the same
+  // way leaveService's own daysInYear clips a request to a calendar year —
+  // this is what keeps the usage half in parity with
+  // leaveService.getBalanceForYear when the caller passes a calendar year's
+  // own inclusive bounds.
+  leaveUsageByEmployee: (userIds, from, to) =>
+    LeaveRequest.aggregate([
+      { $match: { user: { $in: userIds }, startDate: { $lte: to }, endDate: { $gte: from } } },
+      {
+        $project: {
+          user: 1,
+          leaveType: 1,
+          status: 1,
+          clippedStart: { $cond: [{ $gt: ["$startDate", from] }, "$startDate", from] },
+          clippedEnd: { $cond: [{ $lt: ["$endDate", to] }, "$endDate", to] },
+        },
+      },
+      {
+        $project: {
+          user: 1,
+          leaveType: 1,
+          status: 1,
+          days: { $add: [{ $divide: [{ $subtract: ["$clippedEnd", "$clippedStart"] }, MS_PER_DAY] }, 1] },
+        },
+      },
+      {
+        $group: {
+          _id: { user: "$user", leaveType: "$leaveType", status: "$status" },
+          days: { $sum: "$days" },
+          requestCount: { $sum: 1 },
         },
       },
     ]),
